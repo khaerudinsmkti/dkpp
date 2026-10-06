@@ -25,7 +25,7 @@ class SimpleExcelService
         @unlink($tempFile);
         $zipPath = $tempFile.'.xlsx';
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
         }

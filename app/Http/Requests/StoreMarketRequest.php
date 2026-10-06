@@ -30,3 +30,4 @@ class StoreMarketRequest extends FormRequest
         ];
     }
 }
+

@@ -5,9 +5,11 @@ use App\Models\CommodityHet;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
 use App\Models\User;
+use App\Services\SimpleExcelService;
 use Database\Seeders\CommoditySeeder;
 use Database\Seeders\MarketSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 
 uses(RefreshDatabase::class);
 
@@ -198,13 +200,13 @@ test('authenticated user can import consumer prices via uploaded csv file', func
 
     // Build a CSV with prices for 25 commodities
     $commodities = Commodity::orderBy('order')->get();
-    $lines = ["No;Nama Komoditas;Satuan;HET Acuan (Rp);Harga Konsumen (Rp);Catatan"];
+    $lines = ['No;Nama Komoditas;Satuan;HET Acuan (Rp);Harga Konsumen (Rp);Catatan'];
     foreach ($commodities as $c) {
         $lines[] = "{$c->order};\"{$c->name}\";{$c->unit};;15000;Stok aman";
     }
     $csvData = implode("\r\n", $lines);
 
-    $file = Illuminate\Http\UploadedFile::fake()->createWithContent('harga.csv', $csvData);
+    $file = UploadedFile::fake()->createWithContent('harga.csv', $csvData);
 
     $response = $this->actingAs($user)->post('/consumer-prices/import', [
         'market_id' => $market->id,
@@ -231,7 +233,7 @@ test('authenticated user can import consumer prices via uploaded xlsx file', fun
     $date = now()->format('Y-m-d');
 
     $commodities = Commodity::orderBy('order')->get();
-    $excelService = app(App\Services\SimpleExcelService::class);
+    $excelService = app(SimpleExcelService::class);
 
     // Generate XLSX with prices pre-filled for each commodity
     $prices = [];
@@ -240,7 +242,7 @@ test('authenticated user can import consumer prices via uploaded xlsx file', fun
     }
     $xlsxBinary = $excelService->generateXlsxTemplate($commodities, $date, $prices);
 
-    $file = Illuminate\Http\UploadedFile::fake()->createWithContent('harga.xlsx', $xlsxBinary);
+    $file = UploadedFile::fake()->createWithContent('harga.xlsx', $xlsxBinary);
 
     $response = $this->actingAs($user)->post('/consumer-prices/import', [
         'market_id' => $market->id,
@@ -255,4 +257,3 @@ test('authenticated user can import consumer prices via uploaded xlsx file', fun
     $saved = ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->first();
     expect((float) $saved->price)->toBe(16000.0);
 });
-

@@ -150,3 +150,4 @@ class MarketController extends Controller
         return back()->with('success', "Pasar '{$name}' berhasil dihapus.");
     }
 }
+
