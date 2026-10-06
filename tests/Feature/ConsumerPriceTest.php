@@ -168,3 +168,91 @@ test('authenticated user can create, update and delete dynamic HET records', fun
         'id' => $het->id,
     ]);
 });
+
+test('authenticated user can download consumer prices template in xlsx and csv format with 25 commodities', function () {
+    $this->seed([CommoditySeeder::class]);
+    $user = User::factory()->create();
+
+    // 1. Download XLSX template
+    $xlsxResponse = $this->actingAs($user)->get('/consumer-prices/template?format=xlsx');
+    $xlsxResponse->assertOk();
+    $xlsxResponse->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect($xlsxResponse->getContent())->not->toBeEmpty();
+
+    // 2. Download CSV template
+    $csvResponse = $this->actingAs($user)->get('/consumer-prices/template?format=csv');
+    $csvResponse->assertOk();
+    $csvResponse->assertHeader('content-type', 'text/csv; charset=UTF-8');
+    $csvContent = $csvResponse->getContent();
+
+    // Verify first and last commodities exist in the CSV template
+    expect($csvContent)->toContain('Beras Premium')
+        ->and($csvContent)->toContain('Daging Kerbau Beku (Impor Luar Negeri)');
+});
+
+test('authenticated user can import consumer prices via uploaded csv file', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $user = User::factory()->create();
+    $market = Market::first();
+    $date = now()->format('Y-m-d');
+
+    // Build a CSV with prices for 25 commodities
+    $commodities = Commodity::orderBy('order')->get();
+    $lines = ["No;Nama Komoditas;Satuan;HET Acuan (Rp);Harga Konsumen (Rp);Catatan"];
+    foreach ($commodities as $c) {
+        $lines[] = "{$c->order};\"{$c->name}\";{$c->unit};;15000;Stok aman";
+    }
+    $csvData = implode("\r\n", $lines);
+
+    $file = Illuminate\Http\UploadedFile::fake()->createWithContent('harga.csv', $csvData);
+
+    $response = $this->actingAs($user)->post('/consumer-prices/import', [
+        'market_id' => $market->id,
+        'recorded_date' => $date,
+        'file' => $file,
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    // Verify all 25 commodities were recorded
+    expect(ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->count())->toBe(25);
+    $berasPremium = Commodity::where('name', 'Beras Premium')->first();
+    $record = ConsumerPrice::where('commodity_id', $berasPremium->id)->where('market_id', $market->id)->first();
+    expect($record)->not->toBeNull()
+        ->and((float) $record->price)->toBe(15000.0)
+        ->and($record->notes)->toBe('Stok aman');
+});
+
+test('authenticated user can import consumer prices via uploaded xlsx file', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $user = User::factory()->create();
+    $market = Market::first();
+    $date = now()->format('Y-m-d');
+
+    $commodities = Commodity::orderBy('order')->get();
+    $excelService = app(App\Services\SimpleExcelService::class);
+
+    // Generate XLSX with prices pre-filled for each commodity
+    $prices = [];
+    foreach ($commodities as $c) {
+        $prices[$c->id] = 16000;
+    }
+    $xlsxBinary = $excelService->generateXlsxTemplate($commodities, $date, $prices);
+
+    $file = Illuminate\Http\UploadedFile::fake()->createWithContent('harga.xlsx', $xlsxBinary);
+
+    $response = $this->actingAs($user)->post('/consumer-prices/import', [
+        'market_id' => $market->id,
+        'recorded_date' => $date,
+        'file' => $file,
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    expect(ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->count())->toBe(25);
+    $saved = ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->first();
+    expect((float) $saved->price)->toBe(16000.0);
+});
+

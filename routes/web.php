@@ -7,9 +7,17 @@ Route::inertia('/', 'welcome')->name('home');
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
+use App\Http\Controllers\MarketController;
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul Kelola Pasar
+    Route::get('/markets', [MarketController::class, 'index'])->name('markets.index');
+    Route::post('/markets', [MarketController::class, 'store'])->name('markets.store');
+    Route::put('/markets/{market}', [MarketController::class, 'update'])->name('markets.update');
+    Route::post('/markets/{market}/toggle', [MarketController::class, 'toggleStatus'])->name('markets.toggle');
+    Route::delete('/markets/{market}', [MarketController::class, 'destroy'])->name('markets.destroy');
 
     // Modul Kelola Komoditas
     Route::get('/commodities', [CommodityController::class, 'index'])->name('commodities.index');
@@ -19,6 +27,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Modul Harga Konsumen
     Route::get('/consumer-prices', [ConsumerPriceController::class, 'index'])->name('consumer-prices.index');
+    Route::get('/consumer-prices/template', [ConsumerPriceController::class, 'downloadTemplate'])->name('consumer-prices.template');
+    Route::post('/consumer-prices/import', [ConsumerPriceController::class, 'import'])->name('consumer-prices.import');
     Route::post('/consumer-prices', [ConsumerPriceController::class, 'store'])->name('consumer-prices.store');
     Route::post('/consumer-prices/bulk', [ConsumerPriceController::class, 'bulkStore'])->name('consumer-prices.bulk-store');
     Route::delete('/consumer-prices/{consumerPrice}', [ConsumerPriceController::class, 'destroy'])->name('consumer-prices.destroy');

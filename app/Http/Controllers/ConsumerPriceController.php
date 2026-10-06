@@ -7,11 +7,13 @@ use App\Http\Requests\StoreConsumerPriceRequest;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
+use App\Services\SimpleExcelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class ConsumerPriceController extends Controller
 {
@@ -214,5 +216,103 @@ class ConsumerPriceController extends Controller
         $consumerPrice->delete();
 
         return back()->with('success', 'Data harga konsumen berhasil dihapus.');
+    }
+
+    /**
+     * Download the official 25 commodities consumer prices template in Excel (.xlsx) or CSV format.
+     */
+    public function downloadTemplate(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $selectedDate = $request->query('date', now()->format('Y-m-d'));
+        if (! is_string($selectedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
+            $selectedDate = now()->format('Y-m-d');
+        }
+
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+
+        // Always query the 25 commodities in exact order
+        $commodities = Commodity::where('is_active', true)
+            ->with(['hets' => fn ($query) => $query->where('effective_date', '<=', $selectedDate)->orderByDesc('effective_date')->orderByDesc('id')])
+            ->orderBy('order')
+            ->get();
+
+        if ($format === 'csv') {
+            $csv = $excelService->generateCsvTemplate($commodities, $selectedDate);
+
+            return response($csv, 200, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => 'attachment; filename="format_harga_konsumen_25_komoditas.csv"',
+            ]);
+        }
+
+        $xlsx = $excelService->generateXlsxTemplate($commodities, $selectedDate);
+
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="format_harga_konsumen_25_komoditas.xlsx"',
+        ]);
+    }
+
+    /**
+     * Import consumer prices from an uploaded Excel or CSV file.
+     */
+    public function import(Request $request, SimpleExcelService $excelService): RedirectResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+            'market_id' => ['required', 'integer', 'exists:markets,id'],
+            'recorded_date' => ['required', 'date_format:Y-m-d'],
+        ]);
+
+        $file = $request->file('file');
+        if (! $file) {
+            return back()->withErrors(['file' => 'Berkas tidak ditemukan.']);
+        }
+
+        $extension = $file->getClientOriginalExtension();
+        $allowed = ['xlsx', 'csv', 'txt', 'xls', 'tsv'];
+        if (! in_array(strtolower($extension), $allowed, true)) {
+            return back()->withErrors(['file' => 'Format berkas harus .xlsx atau .csv.']);
+        }
+
+        try {
+            $rawRows = $excelService->parseFile($file->getRealPath(), $extension);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['file' => 'Gagal membaca berkas Excel: '.$e->getMessage()]);
+        }
+
+        $commodities = Commodity::where('is_active', true)->orderBy('order')->get();
+        $result = $excelService->matchCommodityPrices($rawRows, $commodities);
+
+        if (empty($result['matched'])) {
+            return back()->withErrors(['file' => 'Tidak ditemukan data harga yang valid dalam berkas. Pastikan format kolom sesuai template.']);
+        }
+
+        $marketId = (int) $validated['market_id'];
+        $recordedDate = $validated['recorded_date'];
+        $userId = $request->user()?->id;
+
+        DB::transaction(function () use ($result, $marketId, $recordedDate, $userId): void {
+            foreach ($result['matched'] as $item) {
+                ConsumerPrice::updateOrCreate(
+                    [
+                        'commodity_id' => $item['commodity_id'],
+                        'market_id' => $marketId,
+                        'recorded_date' => $recordedDate,
+                    ],
+                    [
+                        'price' => $item['price'],
+                        'notes' => $item['notes'] ?? null,
+                        'created_by' => $userId,
+                    ]
+                );
+            }
+        });
+
+        $count = count($result['matched']);
+        $market = Market::find($marketId);
+        $marketName = $market ? $market->name : 'pasar terpilih';
+
+        return back()->with('success', "Berhasil mengimpor {$count} data harga komoditas untuk {$marketName} pada tanggal {$recordedDate}.");
     }
 }
