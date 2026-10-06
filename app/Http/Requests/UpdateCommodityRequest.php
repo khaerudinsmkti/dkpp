@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Commodity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateCommodityRequest extends FormRequest
 {
@@ -18,11 +20,11 @@ class UpdateCommodityRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        $commodityId = $this->route('commodity') instanceof \App\Models\Commodity
+        $commodityId = $this->route('commodity') instanceof Commodity
             ? $this->route('commodity')->id
             : $this->route('commodity');
 
@@ -31,7 +33,7 @@ class UpdateCommodityRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
-                \Illuminate\Validation\Rule::unique('commodities', 'name')->ignore($commodityId),
+                Rule::unique('commodities', 'name')->ignore($commodityId),
             ],
             'category' => ['required', 'string', 'max:100'],
             'unit' => ['required', 'string', 'max:50'],
