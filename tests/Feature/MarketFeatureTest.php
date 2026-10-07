@@ -129,4 +129,3 @@ test('market with existing consumer prices cannot be deleted directly', function
         'id' => $market->id,
     ]);
 });
-

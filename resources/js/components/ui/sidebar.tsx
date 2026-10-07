@@ -230,7 +230,7 @@ function Sidebar({
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l border-sidebar-border",
           className
         )}
         {...props}
@@ -398,7 +398,7 @@ function SidebarGroupLabel({
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-slate-400 dark:text-slate-500 ring-sidebar-ring flex h-7 shrink-0 items-center px-3 text-[10px] font-extrabold tracking-wider uppercase select-none outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:select-none group-data-[collapsible=icon]:pointer-events-none",
         className
       )}
@@ -467,18 +467,18 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-3 overflow-hidden rounded-2xl px-3.5 py-2.5 text-left text-sm font-medium outline-hidden ring-sidebar-ring transition-all hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-2 active:bg-[#e6f4f2] active:text-[#006565] disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-[#e6f4f2] data-[active=true]:font-bold data-[active=true]:text-[#006565] data-[active=true]:shadow-xs data-[state=open]:hover:bg-slate-50 data-[state=open]:hover:text-slate-900 group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:rounded-xl! group-data-[collapsible=icon]:p-2! group-data-[collapsible=icon]:justify-center! dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200 dark:data-[active=true]:bg-teal-950/50 dark:data-[active=true]:text-teal-300 dark:data-[active=true]:shadow-none [&>span:last-child]:truncate [&>svg]:size-[18px] [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:text-slate-400 group-hover/menu-item:[&>svg]:text-slate-600 data-[active=true]:[&>svg]:text-[#006565] dark:[&>svg]:text-slate-500 dark:group-hover/menu-item:[&>svg]:text-slate-300 dark:data-[active=true]:[&>svg]:text-teal-300",
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        default: "",
         outline:
-          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+          "bg-white border border-slate-200/80 shadow-xs hover:bg-slate-50 hover:text-slate-900 dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800",
       },
       size: {
-        default: "h-8 text-sm",
-        sm: "h-7 text-xs",
-        lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
+        default: "min-h-10 text-sm",
+        sm: "min-h-8 text-xs px-2.5 py-1.5 rounded-xl",
+        lg: "min-h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
     },
     defaultVariants: {
