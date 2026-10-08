@@ -121,8 +121,13 @@ export default function HetsIndex({
 
     // History Modal state
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [activeCommodityForHistory, setActiveCommodityForHistory] =
-        useState<CommodityHetItem | null>(null);
+    const [activeCommodityId, setActiveCommodityId] = useState<number | null>(null);
+
+    // Derived active commodity to always stay in sync with props reactively
+    const activeCommodityForHistory = useMemo(() => {
+        if (!activeCommodityId) return null;
+        return commodities.find((c) => c.id === activeCommodityId) || null;
+    }, [commodities, activeCommodityId]);
 
     // Filter commodities client-side
     const filteredCommodities = useMemo(() => {
@@ -166,7 +171,7 @@ export default function HetsIndex({
 
     // Open History View
     const handleOpenHistory = (commodity: CommodityHetItem) => {
-        setActiveCommodityForHistory(commodity);
+        setActiveCommodityId(commodity.id);
         setHistoryModalOpen(true);
     };
 
@@ -201,11 +206,6 @@ export default function HetsIndex({
                         toast.success('Data HET berhasil diperbarui.');
                         setHetModalOpen(false);
                         setIsSubmitting(false);
-                        // Refresh active commodity for history if open
-                        if (activeCommodityForHistory) {
-                            const updated = commodities.find((c) => c.id === activeCommodityForHistory.id);
-                            if (updated) setActiveCommodityForHistory(updated);
-                        }
                     },
                     onError: (err) => {
                         toast.error('Gagal memperbarui HET: ' + Object.values(err)[0]);
@@ -249,10 +249,6 @@ export default function HetsIndex({
             preserveScroll: true,
             onSuccess: () => {
                 toast.success('Riwayat HET berhasil dihapus.');
-                if (activeCommodityForHistory) {
-                    const updated = commodities.find((c) => c.id === activeCommodityForHistory.id);
-                    if (updated) setActiveCommodityForHistory(updated);
-                }
             },
         });
     };
