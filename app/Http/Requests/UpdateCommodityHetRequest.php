@@ -23,7 +23,7 @@ class UpdateCommodityHetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'price' => ['required', 'numeric', 'min:1'],
+            'price' => ['required', 'numeric'],
             'effective_date' => ['required', 'date'],
             'source_regulation' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],

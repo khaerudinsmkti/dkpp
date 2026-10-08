@@ -3,19 +3,64 @@
 namespace App\Services;
 
 use App\Models\Commodity;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use ZipArchive;
 
 class SimpleExcelService
 {
     /**
+     * Convert 1-based column index to Excel column letter (e.g. 1 -> A, 27 -> AA).
+     */
+    public function getColumnLetter(int $colNumber): string
+    {
+        $letter = '';
+        while ($colNumber > 0) {
+            $remainder = ($colNumber - 1) % 26;
+            $letter = chr(65 + $remainder).$letter;
+            $colNumber = intdiv($colNumber - 1, 26);
+        }
+
+        return $letter;
+    }
+
+    /**
+     * Resolve an array of dates from start date and days count (up to 31 days).
+     *
+     * @param  int|array<int, string>  $days
+     * @return array<int, string>
+     */
+    public function resolveDateRange(?string $selectedDate = null, int|array $days = 1): array
+    {
+        if (is_array($days)) {
+            $dates = array_values(array_unique(array_filter($days)));
+
+            return array_slice($dates, 0, 31);
+        }
+
+        $base = $selectedDate ? Carbon::parse($selectedDate) : now();
+        $daysCount = max(1, min(31, $days));
+        $dates = [];
+        for ($i = 0; $i < $daysCount; $i++) {
+            $dates[] = $base->copy()->addDays($i)->format('Y-m-d');
+        }
+
+        return $dates;
+    }
+
+    /**
      * Generate an Excel .xlsx binary string for consumer prices template.
+     * Supports 1 day, 1 week (7 days), or up to 31 days (1 month).
      *
      * @param  Collection<int, Commodity>  $commodities
-     * @param  array<int, float|int|string>  $prices
+     * @param  array<int|string, mixed>  $prices
+     * @param  int|array<int, string>  $days
      */
-    public function generateXlsxTemplate(Collection $commodities, ?string $selectedDate = null, array $prices = []): string
+    public function generateXlsxTemplate(Collection $commodities, ?string $selectedDate = null, array $prices = [], int|array $days = 1): string
     {
+        $dates = $this->resolveDateRange($selectedDate, $days);
+        $isMultiDay = count($dates) > 1;
+
         $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_tmpl_');
         if ($tempFile === false) {
             throw new \RuntimeException('Gagal membuat temporary file untuk template Excel.');
@@ -102,9 +147,13 @@ class SimpleExcelService
             .'<col min="1" max="1" width="6" customWidth="1"/>'
             .'<col min="2" max="2" width="38" customWidth="1"/>'
             .'<col min="3" max="3" width="10" customWidth="1"/>'
-            .'<col min="4" max="4" width="18" customWidth="1"/>'
-            .'<col min="5" max="5" width="22" customWidth="1"/>'
-            .'<col min="6" max="6" width="30" customWidth="1"/>'
+            .'<col min="4" max="4" width="18" customWidth="1"/>';
+
+        for ($c = 5; $c < 5 + count($dates); $c++) {
+            $sheetXml .= '<col min="'.$c.'" max="'.$c.'" width="16" customWidth="1"/>';
+        }
+        $notesColIdx = 5 + count($dates);
+        $sheetXml .= '<col min="'.$notesColIdx.'" max="'.$notesColIdx.'" width="25" customWidth="1"/>'
             .'</cols>'
             .'<sheetData>';
 
@@ -113,10 +162,18 @@ class SimpleExcelService
             .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
             .'<c r="B1" s="1" t="inlineStr"><is><t>Nama Komoditas</t></is></c>'
             .'<c r="C1" s="1" t="inlineStr"><is><t>Satuan</t></is></c>'
-            .'<c r="D1" s="1" t="inlineStr"><is><t>HET Acuan (Rp)</t></is></c>'
-            .'<c r="E1" s="1" t="inlineStr"><is><t>Harga Konsumen (Rp)</t></is></c>'
-            .'<c r="F1" s="1" t="inlineStr"><is><t>Catatan</t></is></c>'
-            .'</row>';
+            .'<c r="D1" s="1" t="inlineStr"><is><t>HET Acuan (Rp)</t></is></c>';
+
+        if (! $isMultiDay) {
+            $sheetXml .= '<c r="E1" s="1" t="inlineStr"><is><t>Harga Konsumen (Rp)</t></is></c>';
+        } else {
+            foreach ($dates as $idx => $dateStr) {
+                $colLetter = $this->getColumnLetter(5 + $idx);
+                $sheetXml .= '<c r="'.$colLetter.'1" s="1" t="inlineStr"><is><t>Tgl '.$dateStr.'</t></is></c>';
+            }
+        }
+        $notesLetter = $this->getColumnLetter($notesColIdx);
+        $sheetXml .= '<c r="'.$notesLetter.'1" s="1" t="inlineStr"><is><t>Catatan</t></is></c></row>';
 
         $rowIdx = 2;
         foreach ($commodities as $idx => $commodity) {
@@ -125,8 +182,9 @@ class SimpleExcelService
             $unitEsc = htmlspecialchars($commodity->unit, ENT_XML1, 'UTF-8');
 
             $hetPrice = null;
-            if ($selectedDate) {
-                $het = $commodity->hetAt($selectedDate);
+            $refDate = $dates[0] ?? $selectedDate;
+            if ($refDate) {
+                $het = $commodity->hetAt($refDate);
                 $hetPrice = $het ? (float) $het->price : null;
             }
 
@@ -134,18 +192,36 @@ class SimpleExcelService
                 ? '<c r="D'.$rowIdx.'" s="2"><v>'.$hetPrice.'</v></c>'
                 : '<c r="D'.$rowIdx.'" s="2" t="inlineStr"><is><t>-</t></is></c>';
 
-            $customPrice = $prices[$commodity->id] ?? null;
-            $priceCellXml = ($customPrice !== null && $customPrice !== '')
-                ? '<c r="E'.$rowIdx.'" s="2"><v>'.((float) $customPrice).'</v></c>'
-                : '<c r="E'.$rowIdx.'" s="2"/>';
-
             $sheetXml .= '<row r="'.$rowIdx.'">'
                 .'<c r="A'.$rowIdx.'" s="2"><v>'.$orderNo.'</v></c>'
                 .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$nameEsc.'</t></is></c>'
                 .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$unitEsc.'</t></is></c>'
-                .$hetCellXml
-                .$priceCellXml
-                .'<c r="F'.$rowIdx.'" s="2"/>'
+                .$hetCellXml;
+
+            if (! $isMultiDay) {
+                $customPrice = $prices[$commodity->id] ?? null;
+                $priceCellXml = ($customPrice !== null && $customPrice !== '')
+                    ? '<c r="E'.$rowIdx.'" s="2"><v>'.((float) $customPrice).'</v></c>'
+                    : '<c r="E'.$rowIdx.'" s="2"/>';
+                $sheetXml .= $priceCellXml;
+            } else {
+                foreach ($dates as $dIdx => $dateStr) {
+                    $colLetter = $this->getColumnLetter(5 + $dIdx);
+                    $customPrice = null;
+                    if (isset($prices[$dateStr][$commodity->id])) {
+                        $customPrice = $prices[$dateStr][$commodity->id];
+                    } elseif (isset($prices[$commodity->id]) && ! is_array($prices[$commodity->id])) {
+                        $customPrice = $prices[$commodity->id];
+                    }
+                    $priceCellXml = ($customPrice !== null && $customPrice !== '')
+                        ? '<c r="'.$colLetter.$rowIdx.'" s="2"><v>'.((float) $customPrice).'</v></c>'
+                        : '<c r="'.$colLetter.$rowIdx.'" s="2"/>';
+                    $sheetXml .= $priceCellXml;
+                }
+            }
+
+            $notesLetter = $this->getColumnLetter($notesColIdx);
+            $sheetXml .= '<c r="'.$notesLetter.$rowIdx.'" s="2"/>'
                 .'</row>';
 
             $rowIdx++;
@@ -168,39 +244,62 @@ class SimpleExcelService
 
     /**
      * Generate a CSV string with UTF-8 BOM for consumer prices template.
+     * Supports 1 day, 1 week (7 days), or up to 31 days (1 month).
      *
      * @param  Collection<int, Commodity>  $commodities
-     * @param  array<int, float|int|string>  $prices
+     * @param  array<int|string, mixed>  $prices
+     * @param  int|array<int, string>  $days
      */
-    public function generateCsvTemplate(Collection $commodities, ?string $selectedDate = null, array $prices = []): string
+    public function generateCsvTemplate(Collection $commodities, ?string $selectedDate = null, array $prices = [], int|array $days = 1): string
     {
+        $dates = $this->resolveDateRange($selectedDate, $days);
+        $isMultiDay = count($dates) > 1;
+
         // UTF-8 BOM so Excel opens it with proper encoding
         $output = "\xEF\xBB\xBF";
 
         // Header
-        $output .= "No;Nama Komoditas;Satuan;HET Acuan (Rp);Harga Konsumen (Rp);Catatan\r\n";
+        if (! $isMultiDay) {
+            $output .= "No;Nama Komoditas;Satuan;HET Acuan (Rp);Harga Konsumen (Rp);Catatan\r\n";
+        } else {
+            $dateHeaders = array_map(fn ($d) => "Tgl {$d}", $dates);
+            $output .= 'No;Nama Komoditas;Satuan;HET Acuan (Rp);'.implode(';', $dateHeaders).";Catatan\r\n";
+        }
 
         foreach ($commodities as $idx => $commodity) {
             $orderNo = $commodity->order ?? ($idx + 1);
+            $refDate = $dates[0] ?? $selectedDate;
             $hetPrice = '';
-            if ($selectedDate) {
-                $het = $commodity->hetAt($selectedDate);
+            if ($refDate) {
+                $het = $commodity->hetAt($refDate);
                 if ($het) {
                     $hetPrice = (string) (float) $het->price;
                 }
             }
-
-            $userPrice = $prices[$commodity->id] ?? '';
 
             $line = [
                 $orderNo,
                 '"'.str_replace('"', '""', $commodity->name).'"',
                 $commodity->unit,
                 $hetPrice,
-                $userPrice,
-                '', // Catatan
             ];
 
+            if (! $isMultiDay) {
+                $userPrice = $prices[$commodity->id] ?? '';
+                $line[] = $userPrice;
+            } else {
+                foreach ($dates as $dateStr) {
+                    $customPrice = '';
+                    if (isset($prices[$dateStr][$commodity->id])) {
+                        $customPrice = (string) $prices[$dateStr][$commodity->id];
+                    } elseif (isset($prices[$commodity->id]) && ! is_array($prices[$commodity->id])) {
+                        $customPrice = (string) $prices[$commodity->id];
+                    }
+                    $line[] = $customPrice;
+                }
+            }
+
+            $line[] = ''; // Catatan
             $output .= implode(';', $line)."\r\n";
         }
 
@@ -372,26 +471,141 @@ class SimpleExcelService
 
     /**
      * Match parsed tabular rows against the 25 master commodities.
+     * Supports single-day and multi-day (1 week / 7 days up to 31 days / 1 month).
      *
      * @param  array<int, array<int, string>>  $rawRows
      * @param  Collection<int, Commodity>  $commodities
      * @return array{
-     *     matched: array<int, array{commodity_id: int, commodity_name: string, price: float, notes: ?string}>,
+     *     matched: array<int, array{commodity_id: int, commodity_name: string, recorded_date: string, price: float, notes: ?string}>,
+     *     dates: array<int, string>,
      *     skipped_count: int,
      *     total_detected: int
      * }
      */
-    public function matchCommodityPrices(array $rawRows, Collection $commodities): array
-    {
+    public function matchCommodityPrices(
+        array $rawRows,
+        Collection $commodities,
+        ?string $defaultDate = null,
+        int $maxDays = 31
+    ): array {
+        $defaultDate = $defaultDate ?: now()->format('Y-m-d');
+
         if (empty($rawRows)) {
             return [
                 'matched' => [],
+                'dates' => [],
                 'skipped_count' => 0,
                 'total_detected' => 0,
             ];
         }
 
-        // Index commodities by slug, normalized name, and order
+        // Check if first row is a header
+        $firstRowText = strtolower(implode(' ', $rawRows[0] ?? []));
+        $hasHeader = str_contains($firstRowText, 'komoditas')
+            || str_contains($firstRowText, 'harga')
+            || str_contains($firstRowText, 'nama')
+            || str_contains($firstRowText, 'satuan')
+            || str_contains($firstRowText, 'tgl')
+            || str_contains($firstRowText, 'tanggal')
+            || str_contains($firstRowText, 'price');
+
+        // Extract any date headers from row 0
+        $headerDates = [];
+        if ($hasHeader && isset($rawRows[0])) {
+            foreach ($rawRows[0] as $colIdx => $colVal) {
+                $parsedDate = $this->extractDateFromText($colVal, $defaultDate);
+                if ($parsedDate !== null) {
+                    $headerDates[$colIdx] = $parsedDate;
+                }
+            }
+        }
+
+        $dataRows = $hasHeader ? array_slice($rawRows, 1) : $rawRows;
+        // Filter empty rows
+        $dataRows = array_values(array_filter($dataRows, function ($r) {
+            foreach ($r as $val) {
+                if (trim((string) $val) !== '') {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
+
+        if (empty($dataRows)) {
+            return [
+                'matched' => [],
+                'dates' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        // Check if the data rows are a pure number grid (e.g. copied directly without commodity text)
+        $hasAlphaText = false;
+        foreach ($dataRows as $r) {
+            foreach ($r as $cVal) {
+                $stripped = preg_replace('/^(rp|idr)\.?\s*/i', '', trim((string) $cVal));
+                if (preg_match('/[a-zA-Z]/', (string) $stripped)) {
+                    $hasAlphaText = true;
+                    break 2;
+                }
+            }
+        }
+
+        $matched = [];
+        $skippedCount = 0;
+
+        if (! $hasAlphaText) {
+            // Pure numbers matrix: row 0..24 mapped to commodity 1..25
+            $maxCols = 0;
+            foreach ($dataRows as $r) {
+                $maxCols = max($maxCols, count($r));
+            }
+            $colsToRead = max(1, min($maxCols, $maxDays));
+
+            $colDates = [];
+            for ($c = 0; $c < $colsToRead; $c++) {
+                $colDates[$c] = $headerDates[$c] ?? Carbon::parse($defaultDate)->addDays($c)->format('Y-m-d');
+            }
+
+            foreach ($dataRows as $idx => $row) {
+                $commodity = $commodities->values()->get($idx);
+                if (! $commodity) {
+                    $skippedCount++;
+
+                    continue;
+                }
+
+                for ($c = 0; $c < $colsToRead; $c++) {
+                    $rawPrice = $row[$c] ?? '';
+                    $parsedPrice = $this->parsePriceValue($rawPrice);
+                    if ($parsedPrice !== null && $parsedPrice > 0) {
+                        $matched[] = [
+                            'commodity_id' => $commodity->id,
+                            'commodity_name' => $commodity->name,
+                            'recorded_date' => $colDates[$c],
+                            'price' => $parsedPrice,
+                            'notes' => null,
+                        ];
+                    } else {
+                        $skippedCount++;
+                    }
+                }
+            }
+
+            $uniqueDates = array_values(array_unique(array_column($matched, 'recorded_date')));
+            sort($uniqueDates);
+
+            return [
+                'matched' => $matched,
+                'dates' => $uniqueDates,
+                'skipped_count' => $skippedCount,
+                'total_detected' => count($matched),
+            ];
+        }
+
+        // Multi-column matching with commodity names & text
         $byOrder = $commodities->keyBy('order');
         $byNormalizedName = [];
         foreach ($commodities as $commodity) {
@@ -399,64 +613,11 @@ class SimpleExcelService
             $byNormalizedName[$cleanName] = $commodity;
         }
 
-        $matched = [];
-        $skippedCount = 0;
-
-        // Check if first row is a header
-        $firstRowText = strtolower(implode(' ', $rawRows[0]));
-        $hasHeader = str_contains($firstRowText, 'komoditas')
-            || str_contains($firstRowText, 'harga')
-            || str_contains($firstRowText, 'nama')
-            || str_contains($firstRowText, 'satuan');
-
-        $dataRows = $hasHeader ? array_slice($rawRows, 1) : $rawRows;
-
-        // If user pastes or provides a single column of pure numbers (exactly matching the 25 commodities in order)
-        $isSingleColumn = true;
-        foreach ($dataRows as $r) {
-            if (count($r) > 1 && $r[1] !== '') {
-                $isSingleColumn = false;
-                break;
-            }
-        }
-
-        if ($isSingleColumn) {
-            // Sequential mapping row 0..24 -> commodity 1..25
-            foreach ($dataRows as $idx => $row) {
-                $commodity = $commodities->values()->get($idx);
-                if (! $commodity) {
-                    continue;
-                }
-
-                $rawPrice = $row[0] ?? '';
-                $parsedPrice = $this->parsePriceValue($rawPrice);
-                if ($parsedPrice !== null && $parsedPrice > 0) {
-                    $matched[] = [
-                        'commodity_id' => $commodity->id,
-                        'commodity_name' => $commodity->name,
-                        'price' => $parsedPrice,
-                        'notes' => null,
-                    ];
-                } else {
-                    $skippedCount++;
-                }
-            }
-
-            return [
-                'matched' => $matched,
-                'skipped_count' => $skippedCount,
-                'total_detected' => count($matched),
-            ];
-        }
-
-        // Multi-column matching
         foreach ($dataRows as $idx => $row) {
             $rowCommodity = null;
-            $rawPrice = '';
-            $notes = null;
 
             // Try matching commodity name across columns (usually col 1 or col 0)
-            foreach ($row as $colIdx => $colVal) {
+            foreach ($row as $colVal) {
                 $normVal = $this->normalizeName($colVal);
                 if (isset($byNormalizedName[$normVal])) {
                     $rowCommodity = $byNormalizedName[$normVal];
@@ -472,7 +633,7 @@ class SimpleExcelService
                 }
             }
 
-            // If still not matched, fallback to row position index
+            // Fallback to row position index
             if (! $rowCommodity) {
                 $rowCommodity = $commodities->values()->get($idx);
             }
@@ -483,24 +644,81 @@ class SimpleExcelService
                 continue;
             }
 
-            // Extract price:
-            // Standard template columns:
-            // Col 0: No | Col 1: Nama | Col 2: Satuan | Col 3: HET | Col 4: Harga Konsumen | Col 5: Catatan
+            // If header had dates for specific columns, extract prices for those dates
+            if (! empty($headerDates)) {
+                $recordedInThisRow = 0;
+                foreach ($headerDates as $colIdx => $dateStr) {
+                    $rawPrice = $row[$colIdx] ?? '';
+                    $parsedPrice = $this->parsePriceValue($rawPrice);
+                    if ($parsedPrice !== null && $parsedPrice > 0) {
+                        $matched[] = [
+                            'commodity_id' => $rowCommodity->id,
+                            'commodity_name' => $rowCommodity->name,
+                            'recorded_date' => $dateStr,
+                            'price' => $parsedPrice,
+                            'notes' => null,
+                        ];
+                        $recordedInThisRow++;
+                    }
+                }
+                if ($recordedInThisRow === 0) {
+                    $skippedCount++;
+                }
+
+                continue;
+            }
+
+            // If no explicit header dates, check if there are multiple price columns
+            // Standard template: Col 0: No | Col 1: Nama | Col 2: Satuan | Col 3: HET | Col 4..: Prices
+            // Check if columns starting at index 4 are numeric prices
+            $multiDayPriceCols = [];
+            for ($c = 4; $c < count($row); $c++) {
+                if ($this->parsePriceValue($row[$c]) !== null) {
+                    $multiDayPriceCols[] = $c;
+                }
+            }
+
+            if (count($multiDayPriceCols) > 1) {
+                // Multi-day without header dates: map col 4 -> defaultDate, col 5 -> defaultDate + 1, etc.
+                $pIdx = 0;
+                foreach ($multiDayPriceCols as $colIndex) {
+                    if ($pIdx >= $maxDays) {
+                        break;
+                    }
+                    $dateStr = Carbon::parse($defaultDate)->addDays($pIdx)->format('Y-m-d');
+                    $parsedPrice = $this->parsePriceValue($row[$colIndex]);
+                    if ($parsedPrice !== null && $parsedPrice > 0) {
+                        $matched[] = [
+                            'commodity_id' => $rowCommodity->id,
+                            'commodity_name' => $rowCommodity->name,
+                            'recorded_date' => $dateStr,
+                            'price' => $parsedPrice,
+                            'notes' => null,
+                        ];
+                    }
+                    $pIdx++;
+                }
+
+                continue;
+            }
+
+            // Single price column extraction
+            $rawPrice = '';
+            $notes = null;
+
             if (isset($row[4]) && $this->parsePriceValue($row[4]) !== null) {
                 $rawPrice = $row[4];
                 $notes = $row[5] ?? null;
             } elseif (isset($row[3]) && $this->parsePriceValue($row[3]) !== null && ! isset($row[4])) {
-                // Formats with 4 columns: No, Name, Unit, Price
                 $rawPrice = $row[3];
+                $notes = $row[4] ?? null;
             } elseif (isset($row[2]) && $this->parsePriceValue($row[2]) !== null && ! isset($row[3])) {
-                // Formats with 3 columns: No, Name, Price
                 $rawPrice = $row[2];
-            } elseif (isset($row[1]) && $this->parsePriceValue($row[1]) !== null) {
-                // Formats with 2 columns: Name, Price
+                $notes = $row[3] ?? null;
+            } elseif (isset($row[1]) && $this->parsePriceValue($row[1]) !== null && ! isset($row[2])) {
                 $rawPrice = $row[1];
                 $notes = $row[2] ?? null;
             } else {
-                // Scan columns from right to left for a valid price number
                 for ($c = count($row) - 1; $c >= 0; $c--) {
                     if ($this->parsePriceValue($row[$c]) !== null) {
                         $rawPrice = $row[$c];
@@ -514,6 +732,7 @@ class SimpleExcelService
                 $matched[] = [
                     'commodity_id' => $rowCommodity->id,
                     'commodity_name' => $rowCommodity->name,
+                    'recorded_date' => $defaultDate,
                     'price' => $parsedPrice,
                     'notes' => $notes !== '' ? $notes : null,
                 ];
@@ -522,11 +741,60 @@ class SimpleExcelService
             }
         }
 
+        $uniqueDates = array_values(array_unique(array_column($matched, 'recorded_date')));
+        sort($uniqueDates);
+
         return [
             'matched' => $matched,
+            'dates' => $uniqueDates,
             'skipped_count' => $skippedCount,
             'total_detected' => count($matched),
         ];
+    }
+
+    /**
+     * Attempt to extract a Y-m-d date string from text/header.
+     */
+    public function extractDateFromText(string $text, ?string $baseDate = null): ?string
+    {
+        $clean = trim($text);
+
+        // Matches 2026-10-01, 2026/10/01, 2026_10_01
+        if (preg_match('/\b(20\d{2})[-_\/](\d{1,2})[-_\/](\d{1,2})\b/', $clean, $m)) {
+            $year = (int) $m[1];
+            $month = (int) $m[2];
+            $day = (int) $m[3];
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // Matches 01/10/2026, 1-10-2026, 01_10_2026
+        if (preg_match('/\b(\d{1,2})[-_\/](\d{1,2})[-_\/](20\d{2})\b/', $clean, $m)) {
+            $day = (int) $m[1];
+            $month = (int) $m[2];
+            $year = (int) $m[3];
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%04d-%02d-%02d', $year, $month, $day);
+            }
+        }
+
+        // Matches "Tgl 1", "Tgl 01", "Hari 1", "Tanggal 1" or standalone day number "1".."31"
+        if (preg_match('/^(?:tgl|hari|tanggal)?\s*(\d{1,2})$/i', $clean, $m)) {
+            $dayNum = (int) $m[1];
+            if ($dayNum >= 1 && $dayNum <= 31 && $baseDate) {
+                try {
+                    $base = Carbon::parse($baseDate);
+                    if (checkdate($base->month, $dayNum, $base->year)) {
+                        return sprintf('%04d-%02d-%02d', $base->year, $base->month, $dayNum);
+                    }
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

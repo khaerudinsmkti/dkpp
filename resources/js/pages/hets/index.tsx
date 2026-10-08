@@ -178,13 +178,19 @@ export default function HetsIndex({
             return;
         }
 
+        const parsedPrice = parseFloat(hetPrice);
+        if (isNaN(parsedPrice)) {
+            toast.error('Nilai HET harus berupa angka yang valid.');
+            return;
+        }
+
         setIsSubmitting(true);
 
         if (editingHetId) {
             router.put(
                 updateHetAction.url(editingHetId),
                 {
-                    price: parseFloat(hetPrice),
+                    price: parsedPrice,
                     effective_date: effectiveDate,
                     source_regulation: sourceRegulation || null,
                     notes: notes || null,
@@ -212,7 +218,7 @@ export default function HetsIndex({
                 storeHetAction.url(),
                 {
                     commodity_id: Number(targetCommodityId),
-                    price: parseFloat(hetPrice),
+                    price: parsedPrice,
                     effective_date: effectiveDate,
                     source_regulation: sourceRegulation || null,
                     notes: notes || null,
@@ -554,10 +560,9 @@ export default function HetsIndex({
                                     <Input
                                         id="het-price"
                                         type="number"
-                                        min="1"
-                                        step="100"
+                                        step="any"
                                         required
-                                        placeholder="Contoh: 14900"
+                                        placeholder="Contoh: 13500 atau 14900"
                                         value={hetPrice}
                                         onChange={(e) => setHetPrice(e.target.value)}
                                         className="pl-9 font-mono font-medium"

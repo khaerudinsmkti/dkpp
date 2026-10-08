@@ -116,36 +116,129 @@ interface PageProps {
     };
 }
 
-function parseExcelClipboard(
-    rawText: string,
-    commodities: ConsumerPriceItem[]
-): {
+function addDaysToDateString(dateStr: string, days: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function formatShortDate(dateStr: string): string {
+    const parts = dateStr.split('-');
+    if (parts.length < 3) return dateStr;
+    const [, m, d] = parts;
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const monthName = months[parseInt(m, 10) - 1] || m;
+    return `${parseInt(d, 10)} ${monthName}`;
+}
+
+function getDayName(dateStr: string): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    return days[date.getDay()];
+}
+
+function extractDateFromText(text: string, baseDate?: string): string | null {
+    const clean = text.trim();
+    // YYYY-MM-DD
+    const isoMatch = clean.match(/\b(20\d{2})[-_\/](\d{1,2})[-_\/](\d{1,2})\b/);
+    if (isoMatch) {
+        const y = parseInt(isoMatch[1], 10);
+        const m = parseInt(isoMatch[2], 10);
+        const d = parseInt(isoMatch[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY
+    const dmyMatch = clean.match(/\b(\d{1,2})[-_\/](\d{1,2})[-_\/](20\d{2})\b/);
+    if (dmyMatch) {
+        const d = parseInt(dmyMatch[1], 10);
+        const m = parseInt(dmyMatch[2], 10);
+        const y = parseInt(dmyMatch[3], 10);
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    // "Tgl 1", "Tgl 01", "Hari 1", or standalone day number "1".."31"
+    const dayMatch = clean.match(/^(?:tgl|hari|tanggal)?\s*(\d{1,2})$/i);
+    if (dayMatch && baseDate) {
+        const dayNum = parseInt(dayMatch[1], 10);
+        if (dayNum >= 1 && dayNum <= 31) {
+            const [by, bm] = baseDate.split('-').map(Number);
+            return `${by}-${String(bm).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        }
+    }
+
+    return null;
+}
+
+interface MultiDayParsedResult {
+    pricesByDate: Record<string, Record<number, string>>;
+    detectedDates: string[];
     prices: Record<number, string>;
     notes: Record<number, string>;
-    detectedCount: number;
-} {
+    totalPricesCount: number;
+}
+
+function parseExcelClipboard(
+    rawText: string,
+    commodities: ConsumerPriceItem[],
+    defaultStartDate: string
+): MultiDayParsedResult {
     const lines = rawText
         .split(/\r\n|\r|\n/)
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
-    const prices: Record<number, string> = {};
+    const pricesByDate: Record<string, Record<number, string>> = {};
     const notes: Record<number, string> = {};
 
     if (lines.length === 0) {
-        return { prices, notes, detectedCount: 0 };
+        return {
+            pricesByDate,
+            detectedDates: [defaultStartDate],
+            prices: {},
+            notes,
+            totalPricesCount: 0,
+        };
     }
 
-    const firstLineLower = lines[0].toLowerCase();
+    const firstLine = lines[0];
+    const firstLineLower = firstLine.toLowerCase();
     const hasHeader =
         firstLineLower.includes('nama') ||
         firstLineLower.includes('komoditas') ||
         firstLineLower.includes('harga') ||
         firstLineLower.includes('satuan') ||
         firstLineLower.includes('price') ||
-        firstLineLower.includes('no');
+        firstLineLower.includes('no') ||
+        firstLineLower.includes('tgl') ||
+        firstLineLower.includes('tanggal');
+
+    const headerDates: Record<number, string> = {};
+    if (hasHeader) {
+        const headerCols = firstLine.split(/\t|;/).map((c) => c.trim().replace(/^"|"$/g, ''));
+        headerCols.forEach((col, idx) => {
+            const extracted = extractDateFromText(col, defaultStartDate);
+            if (extracted) {
+                headerDates[idx] = extracted;
+            }
+        });
+    }
 
     const dataLines = hasHeader ? lines.slice(1) : lines;
+    if (dataLines.length === 0) {
+        return {
+            pricesByDate,
+            detectedDates: [defaultStartDate],
+            prices: {},
+            notes,
+            totalPricesCount: 0,
+        };
+    }
 
     const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
     const commodityByName = new Map<string, ConsumerPriceItem>();
@@ -171,25 +264,50 @@ function parseExcelClipboard(
         return !isNaN(num) && num > 0 ? num : null;
     };
 
-    const isSingleColumn = dataLines.every(
-        (l) => !l.includes('\t') && !l.includes(';') && !l.includes(',')
-    );
+    // Check if data rows are a pure number grid
+    const hasAlphabet = dataLines.some((l) => {
+        const cells = l.split(/\t|;/);
+        return cells.some((c) => {
+            const stripped = c.replace(/^(rp|idr)\.?\s*/i, '').trim();
+            return /[a-zA-Z]/.test(stripped);
+        });
+    });
 
-    if (isSingleColumn) {
-        dataLines.forEach((line, idx) => {
-            const targetCommodity = commodities[idx];
+    const isPureNumberMatrix = !hasAlphabet;
+
+    if (isPureNumberMatrix) {
+        let maxCols = 1;
+        dataLines.forEach((l) => {
+            const cCount = l.split(/\t|;/).length;
+            if (cCount > maxCols) maxCols = cCount;
+        });
+        const colsToRead = Math.max(1, Math.min(31, maxCols));
+
+        const colDates: string[] = [];
+        for (let c = 0; c < colsToRead; c++) {
+            colDates[c] = headerDates[c] || addDaysToDateString(defaultStartDate, c);
+        }
+
+        dataLines.forEach((line, rIdx) => {
+            const targetCommodity = commodities[rIdx];
             if (!targetCommodity) return;
-            const p = parsePrice(line);
-            if (p !== null) {
-                prices[targetCommodity.commodity_id] = String(p);
+
+            const cols = line.split(/\t|;/).map((c) => c.trim().replace(/^"|"$/g, ''));
+            for (let c = 0; c < colsToRead; c++) {
+                const dateKey = colDates[c];
+                const p = parsePrice(cols[c] || '');
+                if (p !== null) {
+                    if (!pricesByDate[dateKey]) {
+                        pricesByDate[dateKey] = {};
+                    }
+                    pricesByDate[dateKey][targetCommodity.commodity_id] = String(p);
+                }
             }
         });
     } else {
         dataLines.forEach((line, idx) => {
             const cols = line.split(/\t|;/).map((c) => c.trim().replace(/^"|"$/g, ''));
             let matchedCommodity: ConsumerPriceItem | undefined;
-            let foundPrice: number | null = null;
-            let rowNote: string | undefined;
 
             for (const col of cols) {
                 const norm = normalize(col);
@@ -211,6 +329,47 @@ function parseExcelClipboard(
             }
 
             if (!matchedCommodity) return;
+
+            if (Object.keys(headerDates).length > 0) {
+                Object.entries(headerDates).forEach(([colIdxStr, dateStr]) => {
+                    const colIdx = parseInt(colIdxStr, 10);
+                    const p = parsePrice(cols[colIdx] || '');
+                    if (p !== null) {
+                        if (!pricesByDate[dateStr]) {
+                            pricesByDate[dateStr] = {};
+                        }
+                        pricesByDate[dateStr][matchedCommodity!.commodity_id] = String(p);
+                    }
+                });
+                return;
+            }
+
+            // Check if multiple price columns exist starting at index 4
+            const candidatePriceCols: number[] = [];
+            for (let c = 4; c < cols.length; c++) {
+                if (parsePrice(cols[c]) !== null) {
+                    candidatePriceCols.push(c);
+                }
+            }
+
+            if (candidatePriceCols.length > 1) {
+                candidatePriceCols.forEach((colIdx, pIdx) => {
+                    if (pIdx >= 31) return;
+                    const dateStr = addDaysToDateString(defaultStartDate, pIdx);
+                    const p = parsePrice(cols[colIdx]);
+                    if (p !== null) {
+                        if (!pricesByDate[dateStr]) {
+                            pricesByDate[dateStr] = {};
+                        }
+                        pricesByDate[dateStr][matchedCommodity!.commodity_id] = String(p);
+                    }
+                });
+                return;
+            }
+
+            // Single price column fallback
+            let foundPrice: number | null = null;
+            let rowNote: string | undefined;
 
             if (cols.length >= 5 && parsePrice(cols[4]) !== null) {
                 foundPrice = parsePrice(cols[4]);
@@ -235,7 +394,10 @@ function parseExcelClipboard(
             }
 
             if (foundPrice !== null) {
-                prices[matchedCommodity.commodity_id] = String(foundPrice);
+                if (!pricesByDate[defaultStartDate]) {
+                    pricesByDate[defaultStartDate] = {};
+                }
+                pricesByDate[defaultStartDate][matchedCommodity.commodity_id] = String(foundPrice);
                 if (rowNote) {
                     notes[matchedCommodity.commodity_id] = rowNote;
                 }
@@ -243,8 +405,26 @@ function parseExcelClipboard(
         });
     }
 
-    const detectedCount = Object.keys(prices).length;
-    return { prices, notes, detectedCount };
+    const detectedDates = Object.keys(pricesByDate).sort();
+    if (detectedDates.length === 0) {
+        detectedDates.push(defaultStartDate);
+    }
+
+    let totalPricesCount = 0;
+    detectedDates.forEach((d) => {
+        totalPricesCount += Object.keys(pricesByDate[d] || {}).length;
+    });
+
+    const prices = pricesByDate[detectedDates[0]] || {};
+
+    return {
+        pricesByDate,
+        detectedDates,
+        prices,
+        notes,
+        totalPricesCount,
+        detectedCount: totalPricesCount,
+    };
 }
 
 export default function ConsumerPricesIndex({
@@ -285,13 +465,23 @@ export default function ConsumerPricesIndex({
         selectedMarket ? String(selectedMarket.id) : markets[0] ? String(markets[0].id) : ''
     );
     const [importDate, setImportDate] = useState<string>(selectedDate);
+    const [importPeriod, setImportPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
     const [isSubmittingImport, setIsSubmittingImport] = useState(false);
 
-    // Copy-Paste from Excel Modal state
+    // Copy-Paste from Excel Modal state (supports 1 day, 1 week, up to 1 month / 31 days)
     const [pasteModalOpen, setPasteModalOpen] = useState(false);
+    const [pasteMarketId, setPasteMarketId] = useState<string>(
+        selectedMarket ? String(selectedMarket.id) : markets[0] ? String(markets[0].id) : ''
+    );
+    const [pasteStartDate, setPasteStartDate] = useState<string>(selectedDate);
+    const [pastePeriod, setPastePeriod] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('weekly');
     const [pasteRawText, setPasteRawText] = useState<string>('');
+    const [pasteMultiDayPrices, setPasteMultiDayPrices] = useState<Record<string, Record<number, string>>>({});
+    const [pasteDetectedDates, setPasteDetectedDates] = useState<string[]>([selectedDate]);
     const [pastePrices, setPastePrices] = useState<Record<number, string>>({});
     const [pasteNotes, setPasteNotes] = useState<Record<number, string>>({});
+    const [pasteViewMode, setPasteViewMode] = useState<'matrix' | 'daily'>('matrix');
+    const [pasteSelectedDay, setPasteSelectedDay] = useState<string>(selectedDate);
     const [isSubmittingPaste, setIsSubmittingPaste] = useState(false);
 
     // Handle date / market filter navigation
@@ -379,6 +569,24 @@ export default function ConsumerPricesIndex({
         setBulkModalOpen(true);
     };
 
+    // Open copy-paste modal and initialize dates
+    const handleOpenPasteModal = () => {
+        setPasteRawText('');
+        setPasteMultiDayPrices({});
+        const days = pastePeriod === 'daily' ? 1 : pastePeriod === 'weekly' ? 7 : 31;
+        const initDates: string[] = [];
+        for (let i = 0; i < days; i++) {
+            initDates.push(addDaysToDateString(currentDate, i));
+        }
+        setPasteDetectedDates(initDates);
+        setPastePrices({});
+        setPasteNotes({});
+        setPasteStartDate(currentDate);
+        setPasteMarketId(currentMarketId);
+        setPasteSelectedDay(currentDate);
+        setPasteModalOpen(true);
+    };
+
     // Save bulk prices
     const handleSaveBulk = (e: React.FormEvent) => {
         e.preventDefault();
@@ -429,18 +637,37 @@ export default function ConsumerPricesIndex({
     };
 
     // Handle changes in raw pasted text
-    const handlePasteRawChange = (text: string) => {
+    const handlePasteRawChange = (text: string, startDate?: string) => {
         setPasteRawText(text);
-        const parsed = parseExcelClipboard(text, allItemsForBulk);
+        const anchor = startDate || pasteStartDate;
+        const parsed = parseExcelClipboard(text, allItemsForBulk, anchor);
+        setPasteMultiDayPrices(parsed.pricesByDate);
+        setPasteDetectedDates(parsed.detectedDates);
         setPastePrices(parsed.prices);
         setPasteNotes(parsed.notes);
+        if (parsed.detectedDates.length > 0 && !parsed.detectedDates.includes(pasteSelectedDay)) {
+            setPasteSelectedDay(parsed.detectedDates[0]);
+        }
+    };
+
+    // Update single cell in matrix table
+    const handleMatrixPriceChange = (dateStr: string, commodityId: number, val: string) => {
+        setPasteMultiDayPrices((prev) => ({
+            ...prev,
+            [dateStr]: {
+                ...(prev[dateStr] || {}),
+                [commodityId]: val,
+            },
+        }));
     };
 
     // Apply pasted prices into bulk modal
     const handleApplyPasteToBulk = () => {
+        const targetDay = pasteSelectedDay || pasteStartDate;
+        const dayPrices = pasteMultiDayPrices[targetDay] || pastePrices;
         setBulkPrices((prev) => ({
             ...prev,
-            ...pastePrices,
+            ...dayPrices,
         }));
         setBulkNotes((prev) => ({
             ...prev,
@@ -448,41 +675,67 @@ export default function ConsumerPricesIndex({
         }));
         setPasteModalOpen(false);
         setBulkModalOpen(true);
-        const count = Object.keys(pastePrices).length;
-        toast.info(`${count} harga berhasil dipindahkan ke form input cepat.`);
+        const count = Object.keys(dayPrices).length;
+        toast.info(`${count} harga untuk tanggal ${targetDay} berhasil dipindahkan ke form input cepat.`);
     };
 
-    // Save pasted prices directly
+    // Save pasted prices directly (multi-day up to 31 days)
     const handleSavePasteDirectly = () => {
-        if (!currentMarketId) return;
-        const validPriceCount = Object.keys(pastePrices).length;
-        if (validPriceCount === 0) {
+        const targetMarket = pasteMarketId || currentMarketId;
+        if (!targetMarket) return;
+
+        const payloadItems: Array<{
+            commodity_id: number;
+            recorded_date: string;
+            price: number;
+            notes: string | null;
+        }> = [];
+
+        pasteDetectedDates.forEach((dateStr) => {
+            const dayPrices = pasteMultiDayPrices[dateStr] || {};
+            allItemsForBulk.forEach((item) => {
+                const rawVal = dayPrices[item.commodity_id];
+                if (rawVal !== undefined && rawVal !== '' && !isNaN(parseFloat(rawVal))) {
+                    payloadItems.push({
+                        commodity_id: item.commodity_id,
+                        recorded_date: dateStr,
+                        price: parseFloat(rawVal),
+                        notes: pasteNotes[item.commodity_id] || null,
+                    });
+                }
+            });
+        });
+
+        if (payloadItems.length === 0) {
             toast.error('Tidak ada data harga yang valid untuk disimpan.');
             return;
         }
 
         setIsSubmittingPaste(true);
-        const payloadItems = allItemsForBulk.map((item) => ({
-            commodity_id: item.commodity_id,
-            price: pastePrices[item.commodity_id] ? parseFloat(pastePrices[item.commodity_id]) : null,
-            notes: pasteNotes[item.commodity_id] || null,
-        }));
 
         router.post(
             bulkStorePriceAction.url(),
             {
-                market_id: Number(currentMarketId),
-                recorded_date: currentDate,
+                market_id: Number(targetMarket),
                 items: payloadItems,
             },
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success(`Berhasil menyimpan ${validPriceCount} harga komoditas dari Excel.`);
+                    const daysCount = pasteDetectedDates.length;
+                    toast.success(
+                        daysCount > 1
+                            ? `Berhasil menyimpan ${payloadItems.length} harga komoditas untuk ${daysCount} hari.`
+                            : `Berhasil menyimpan ${payloadItems.length} harga komoditas dari Excel.`
+                    );
                     setPasteModalOpen(false);
                     setPasteRawText('');
+                    setPasteMultiDayPrices({});
                     setPastePrices({});
                     setIsSubmittingPaste(false);
+                    if (pasteDetectedDates.includes(currentDate) && targetMarket === currentMarketId) {
+                        router.reload({ only: ['items', 'statistics'] });
+                    }
                 },
                 onError: (err) => {
                     toast.error('Gagal menyimpan harga: ' + Object.values(err)[0]);
@@ -492,7 +745,7 @@ export default function ConsumerPricesIndex({
         );
     };
 
-    // Handle excel import form submit
+    // Handle excel import form submit (up to 31 days)
     const handleImportSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!importFile) {
@@ -504,6 +757,7 @@ export default function ConsumerPricesIndex({
         const formData = new FormData();
         formData.append('file', importFile);
         formData.append('market_id', importMarketId);
+        formData.append('start_date', importDate);
         formData.append('recorded_date', importDate);
 
         router.post(importPriceAction.url(), formData, {
@@ -537,7 +791,7 @@ export default function ConsumerPricesIndex({
         }
 
         e.preventDefault();
-        const parsed = parseExcelClipboard(text, allItemsForBulk.slice(startIdx));
+        const parsed = parseExcelClipboard(text, allItemsForBulk.slice(startIdx), currentDate);
         if (parsed.detectedCount > 0) {
             setBulkPrices((prev) => ({
                 ...prev,
@@ -557,6 +811,13 @@ export default function ConsumerPricesIndex({
         if (amount === null || amount === undefined) return '-';
         return 'Rp ' + Number(amount).toLocaleString('id-ID');
     };
+
+    const totalPastedPrices = useMemo(() => {
+        return Object.values(pasteMultiDayPrices).reduce(
+            (acc, curr) => acc + Object.keys(curr).length,
+            0
+        );
+    }, [pasteMultiDayPrices]);
 
     return (
         <>
@@ -606,12 +867,7 @@ export default function ConsumerPricesIndex({
 
                         <Button
                             variant="outline"
-                            onClick={() => {
-                                setPasteRawText('');
-                                setPastePrices({});
-                                setPasteNotes({});
-                                setPasteModalOpen(true);
-                            }}
+                            onClick={handleOpenPasteModal}
                             className="gap-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
                         >
                             <ClipboardPaste className="size-4 text-blue-600" />
@@ -1126,10 +1382,7 @@ export default function ConsumerPricesIndex({
                                     size="sm"
                                     onClick={() => {
                                         setBulkModalOpen(false);
-                                        setPasteRawText('');
-                                        setPastePrices({});
-                                        setPasteNotes({});
-                                        setPasteModalOpen(true);
+                                        handleOpenPasteModal();
                                     }}
                                     className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40 text-xs shrink-0 self-start sm:self-center"
                                 >
@@ -1244,126 +1497,245 @@ export default function ConsumerPricesIndex({
                 </Dialog>
 
                 {/* Import Excel Modal */}
+                {/* Import Excel Modal (Landscape Layout) */}
                 <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
-                    <DialogContent className="max-w-xl">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Upload className="size-5 text-emerald-600" />
-                                Import Data Harga dari File Excel
-                            </DialogTitle>
-                            <DialogDescription>
-                                Unggah berkas spreadsheet (.xlsx atau .csv) untuk mengimpor harga 25 komoditas pangan secara massal.
-                            </DialogDescription>
+                    <DialogContent className="w-[94vw] max-w-[94vw] sm:max-w-none md:max-w-4xl lg:max-w-5xl xl:max-w-[1180px] 2xl:max-w-[1280px] max-h-[92vh] p-4 sm:p-6 flex flex-col overflow-hidden">
+                        <DialogHeader className="pb-3 border-b shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
+                                <div>
+                                    <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <Upload className="size-5 text-emerald-600" />
+                                        Import Data Harga dari File Excel (1 Hari, 1 Minggu s/d 1 Bulan)
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs mt-0.5">
+                                        Unggah berkas spreadsheet (.xlsx atau .csv) untuk mencatat harga 25 komoditas pangan secara otomatis ke sistem database.
+                                    </DialogDescription>
+                                </div>
+                                <Badge variant="outline" className="text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 py-1 px-3 shrink-0 self-start sm:self-auto">
+                                    Maks. 31 Hari / Transaksi
+                                </Badge>
+                            </div>
                         </DialogHeader>
 
-                        {/* Download Format Section */}
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-                            <div className="flex items-start gap-3">
-                                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
-                                    <FileSpreadsheet className="size-5" />
-                                </div>
-                                <div className="flex-1">
-                                    <h4 className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
-                                        Unduh Format Template Resmi
-                                    </h4>
-                                    <p className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
-                                        Gunakan format template resmi yang telah disusun sesuai urutan baku 25 komoditas (Beras Premium s/d Daging Kerbau Beku) beserta data HET acuan aktif.
-                                    </p>
-                                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                                        <a
-                                            href={templatePriceAction.url({ query: { format: 'xlsx', date: importDate } })}
-                                            download="format_harga_konsumen_25_komoditas.xlsx"
-                                            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-2xs hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200"
-                                        >
-                                            <Download className="size-3.5" />
-                                            Download Format Excel (.xlsx)
-                                        </a>
-                                        <a
-                                            href={templatePriceAction.url({ query: { format: 'csv', date: importDate } })}
-                                            download="format_harga_konsumen_25_komoditas.csv"
-                                            className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 shadow-2xs hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
-                                        >
-                                            <Download className="size-3.5" />
-                                            Download Format CSV (.csv)
-                                        </a>
+                        {/* Import Form in Landscape 2-Column Grid */}
+                        <form onSubmit={handleImportSubmit} className="flex flex-1 min-h-0 flex-col overflow-hidden">
+                            <div className="flex-1 min-h-0 overflow-y-auto py-3 pr-1">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+                                    {/* Left Column: Langkah 1 - Format & Unduh Template Resmi */}
+                                    <div className="lg:col-span-5 flex flex-col gap-3.5">
+                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20 flex flex-col justify-between flex-1">
+                                            <div>
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                                                        <FileSpreadsheet className="size-5" />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                                                            1. Format Template Resmi
+                                                        </h4>
+                                                        <p className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
+                                                            Unduh berkas acuan sesuai urutan baku 25 komoditas pangan beserta nilai HET aktif.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Period Selector Tabs */}
+                                                <div className="mt-3.5 space-y-1.5">
+                                                    <div className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+                                                        Pilih Periode Template:
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-emerald-200 bg-white/80 p-1 dark:border-emerald-800 dark:bg-emerald-900/40">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setImportPeriod('daily')}
+                                                            className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
+                                                                importPeriod === 'daily'
+                                                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                            }`}
+                                                        >
+                                                            1 Hari
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setImportPeriod('weekly')}
+                                                            className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
+                                                                importPeriod === 'weekly'
+                                                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                            }`}
+                                                        >
+                                                            7 Hari (1 Mgg)
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setImportPeriod('monthly')}
+                                                            className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
+                                                                importPeriod === 'monthly'
+                                                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                            }`}
+                                                        >
+                                                            31 Hari (1 Bln)
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 flex flex-col gap-2">
+                                                    <a
+                                                        href={templatePriceAction.url({
+                                                            query: {
+                                                                format: 'xlsx',
+                                                                date: importDate,
+                                                                period: importPeriod,
+                                                                days: importPeriod === 'weekly' ? 7 : importPeriod === 'monthly' ? 31 : 1,
+                                                            },
+                                                        })}
+                                                        download={
+                                                            importPeriod === 'weekly'
+                                                                ? 'format_harga_konsumen_mingguan_7_hari.xlsx'
+                                                                : importPeriod === 'monthly'
+                                                                ? 'format_harga_konsumen_bulanan_31_hari.xlsx'
+                                                                : 'format_harga_konsumen_25_komoditas.xlsx'
+                                                        }
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition-colors dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                                                    >
+                                                        <Download className="size-4 text-emerald-600" />
+                                                        Download Template Excel (.xlsx)
+                                                    </a>
+                                                    <a
+                                                        href={templatePriceAction.url({
+                                                            query: {
+                                                                format: 'csv',
+                                                                date: importDate,
+                                                                period: importPeriod,
+                                                                days: importPeriod === 'weekly' ? 7 : importPeriod === 'monthly' ? 31 : 1,
+                                                            },
+                                                        })}
+                                                        download={
+                                                            importPeriod === 'weekly'
+                                                                ? 'format_harga_konsumen_mingguan_7_hari.csv'
+                                                                : importPeriod === 'monthly'
+                                                                ? 'format_harga_konsumen_bulanan_31_hari.csv'
+                                                                : 'format_harga_konsumen_25_komoditas.csv'
+                                                        }
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs hover:bg-neutral-100 transition-colors dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                                                    >
+                                                        <Download className="size-4 text-neutral-500" />
+                                                        Download Template CSV (.csv)
+                                                    </a>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 rounded-lg border border-emerald-300/60 bg-white/70 p-2.5 text-[11px] text-emerald-900/80 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300/80">
+                                                <strong>Tip:</strong> Tanggal kolom pada template otomatis disesuaikan mulai dari <strong>{formatShortDate(importDate)}</strong>.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Column: Langkah 2 - Konfigurasi Target & Unggah Berkas */}
+                                    <div className="lg:col-span-7 flex flex-col gap-3.5">
+                                        {/* Market & Date Configuration */}
+                                        <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3.5 dark:border-neutral-800 dark:bg-neutral-900/40">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="import-market" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                                    2. Lokasi Pasar Target
+                                                </Label>
+                                                <Select value={importMarketId} onValueChange={setImportMarketId}>
+                                                    <SelectTrigger id="import-market" className="w-full h-8 text-xs bg-white dark:bg-neutral-900">
+                                                        <SelectValue placeholder="Pilih Pasar..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {markets.map((m) => (
+                                                            <SelectItem key={m.id} value={String(m.id)}>
+                                                                {m.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="import-date" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                                    Tanggal Mulai / Acuan
+                                                </Label>
+                                                <Input
+                                                    id="import-date"
+                                                    type="date"
+                                                    value={importDate}
+                                                    onChange={(e) => setImportDate(e.target.value)}
+                                                    required
+                                                    className="h-8 text-xs bg-white dark:bg-neutral-900"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Upload Dropzone */}
+                                        <div className="space-y-1.5 flex flex-col flex-1">
+                                            <Label htmlFor="import-file" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                                3. Pilih atau Seret Berkas Spreadsheet
+                                            </Label>
+                                            <div className="relative flex flex-1 min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-neutral-300 p-4 text-center hover:border-emerald-500 transition-colors bg-white dark:border-neutral-700 dark:bg-neutral-900/50 dark:hover:border-emerald-500">
+                                                <input
+                                                    id="import-file"
+                                                    type="file"
+                                                    accept=".xlsx,.csv,.txt,.xls"
+                                                    onChange={(e) => {
+                                                        const f = e.target.files?.[0] || null;
+                                                        setImportFile(f);
+                                                    }}
+                                                    className="absolute inset-0 cursor-pointer opacity-0 z-10"
+                                                />
+                                                {importFile ? (
+                                                    <div className="flex flex-col items-center gap-2 p-2 text-center">
+                                                        <div className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                                                            <CheckCircle2 className="size-6" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 truncate max-w-xs sm:max-w-md">
+                                                                {importFile.name}
+                                                            </p>
+                                                            <p className="text-xs text-neutral-500 mt-0.5">
+                                                                Ukuran: {(importFile.size / 1024).toFixed(1)} KB • Siap diimpor
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setImportFile(null);
+                                                            }}
+                                                            className="relative z-20 text-xs text-red-600 hover:text-red-700 font-medium underline mt-1"
+                                                        >
+                                                            Ganti atau Hapus Berkas
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center gap-1.5 text-neutral-500">
+                                                        <div className="flex size-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                                                            <Upload className="size-5" />
+                                                        </div>
+                                                        <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">
+                                                            Klik untuk memilih atau seret berkas ke sini
+                                                        </p>
+                                                        <p className="text-[11px] text-neutral-400">
+                                                            Mendukung format .xlsx, .csv, atau .xls (Maksimal 10MB)
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Notice Callout */}
+                                        <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">💡 Deteksi Tanggal Otomatis:</span> Berkas dapat berisi 1 hari, 1 minggu (7 hari), atau hingga 31 hari (1 bulan). Sistem otomatis membaca kolom tanggal dan mencatat seluruh data dalam satu transaksi database yang aman.
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Import Form */}
-                        <form onSubmit={handleImportSubmit} className="space-y-4">
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="import-market" className="text-xs font-medium">
-                                        Lokasi Pasar Target
-                                    </Label>
-                                    <Select value={importMarketId} onValueChange={setImportMarketId}>
-                                        <SelectTrigger id="import-market" className="w-full">
-                                            <SelectValue placeholder="Pilih Pasar..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {markets.map((m) => (
-                                                <SelectItem key={m.id} value={String(m.id)}>
-                                                    {m.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="import-date" className="text-xs font-medium">
-                                        Tanggal Pantauan
-                                    </Label>
-                                    <Input
-                                        id="import-date"
-                                        type="date"
-                                        value={importDate}
-                                        onChange={(e) => setImportDate(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label htmlFor="import-file" className="text-xs font-medium">
-                                    Berkas Excel / CSV
-                                </Label>
-                                <div className="relative rounded-lg border-2 border-dashed border-neutral-300 p-4 text-center hover:border-emerald-500 dark:border-neutral-700 dark:hover:border-emerald-500">
-                                    <input
-                                        id="import-file"
-                                        type="file"
-                                        accept=".xlsx,.csv,.txt,.xls"
-                                        onChange={(e) => {
-                                            const f = e.target.files?.[0] || null;
-                                            setImportFile(f);
-                                        }}
-                                        className="absolute inset-0 cursor-pointer opacity-0"
-                                    />
-                                    {importFile ? (
-                                        <div className="flex items-center justify-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
-                                            <CheckCircle2 className="size-5" />
-                                            <span className="font-medium truncate max-w-xs">{importFile.name}</span>
-                                            <span className="text-xs text-neutral-400">
-                                                ({(importFile.size / 1024).toFixed(1)} KB)
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center gap-1 text-neutral-500">
-                                            <Upload className="size-6 text-neutral-400" />
-                                            <span className="text-xs font-medium">
-                                                Klik untuk memilih atau seret berkas ke sini
-                                            </span>
-                                            <span className="text-[11px] text-neutral-400">
-                                                Mendukung format berkas .xlsx atau .csv (Maksimal 10MB)
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                            {/* Footer Section */}
+                            <DialogFooter className="mt-2 border-t pt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -1377,9 +1749,19 @@ export default function ConsumerPricesIndex({
                                 <Button
                                     type="submit"
                                     disabled={!importFile || isSubmittingImport}
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
                                 >
-                                    {isSubmittingImport ? 'Mengimpor Data...' : 'Mulai Impor Data'}
+                                    {isSubmittingImport ? (
+                                        <>
+                                            <RefreshCw className="size-4 animate-spin" />
+                                            Mengimpor Data...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Upload className="size-4" />
+                                            Mulai Impor Data (Hingga 31 Hari)
+                                        </>
+                                    )}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -1388,189 +1770,439 @@ export default function ConsumerPricesIndex({
 
                 {/* Copy-Paste dari Excel Modal */}
                 <Dialog open={pasteModalOpen} onOpenChange={setPasteModalOpen}>
-                    <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden flex flex-col">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <ClipboardPaste className="size-5 text-blue-600" />
-                                Salin & Tempel (Copy-Paste) Data dari Excel
-                            </DialogTitle>
-                            <DialogDescription>
-                                Salin sel harga dari Microsoft Excel (Ctrl+C), lalu tempel (Ctrl+V) ke dalam kotak teks di bawah. Sistem otomatis mendeteksi dan memetakan harga 25 komoditas pangan secara berurutan.
-                            </DialogDescription>
+                    <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-none xl:max-w-[1550px] 2xl:max-w-[1720px] h-[94vh] max-h-[94vh] p-4 sm:p-5 flex flex-col overflow-hidden">
+                        <DialogHeader className="pb-2.5 border-b shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
+                                <div>
+                                    <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                        <ClipboardPaste className="size-5 text-blue-600" />
+                                        Salin & Tempel (Copy-Paste) Data Excel (1 Hari, 1 Minggu s/d 1 Bulan)
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs mt-0.5">
+                                        Salin kolom harga dari spreadsheet Excel (<kbd className="rounded border bg-muted px-1 font-mono text-[10px]">Ctrl+C</kbd>), lalu tempelkan (<kbd className="rounded border bg-muted px-1 font-mono text-[10px]">Ctrl+V</kbd>) di area tempel. Sistem otomatis memetakan ke 25 komoditas pangan.
+                                    </DialogDescription>
+                                </div>
+                                {pasteDetectedDates.length > 0 && totalPastedPrices > 0 && (
+                                    <Badge variant="outline" className="text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 py-1 px-3 shrink-0 self-start sm:self-auto">
+                                        <CheckCheck className="size-3.5 mr-1 text-emerald-600" />
+                                        {pasteDetectedDates.length} Hari Terdeteksi ({totalPastedPrices} Nilai Harga)
+                                    </Badge>
+                                )}
+                            </div>
                         </DialogHeader>
 
-                        <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-                            {/* Guidance notice */}
-                            <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
-                                <div className="font-semibold mb-1">Panduan Format Salin dari Excel:</div>
-                                <ul className="list-disc list-inside space-y-0.5 text-[11px] text-blue-800 dark:text-blue-300">
-                                    <li>
-                                        <strong>Opsi 1 (Paling Cepat):</strong> Cukup blok & salin 1 kolom angka harga (25 baris) dari lembar Excel Anda. Sistem otomatis memetakan baris 1 s/d 25 ke urutan resmi komoditas (Beras Premium s/d Daging Kerbau Beku).
-                                    </li>
-                                    <li>
-                                        <strong>Opsi 2:</strong> Salin tabel dengan kolom Nama Komoditas dan Harga secara bersamaan. Sistem otomatis mencocokkan nama komoditas.
-                                    </li>
-                                </ul>
-                            </div>
+                        {/* Landscape Body Split Pane: Left (Input & Settings) / Right (Matrix & Detail Preview) */}
+                        <div className="flex flex-1 min-h-0 flex-col lg:flex-row gap-3.5 overflow-hidden py-1">
+                            {/* Left Panel: Sidebar Kontrol & Tempel Data */}
+                            <div className="w-full lg:w-[330px] xl:w-[370px] shrink-0 flex flex-col gap-2.5 overflow-y-auto pr-1">
+                                {/* Box 1: Pengaturan Data */}
+                                <div className="space-y-2.5 rounded-lg border border-neutral-200 bg-neutral-50/80 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                            Lokasi Pasar Target
+                                        </Label>
+                                        <Select value={pasteMarketId} onValueChange={setPasteMarketId}>
+                                            <SelectTrigger className="h-8 text-xs bg-white dark:bg-neutral-900">
+                                                <SelectValue placeholder="Pilih Pasar..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {markets.map((m) => (
+                                                    <SelectItem key={m.id} value={String(m.id)}>
+                                                        {m.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                            {/* Raw Paste Textarea */}
-                            <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <Label htmlFor="paste-textarea" className="text-xs font-semibold">
-                                        Area Tempel Data (Ctrl + V)
-                                    </Label>
-                                    {Object.keys(pastePrices).length > 0 && (
-                                        <Badge variant="outline" className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40">
-                                            <CheckCheck className="size-3.5 mr-1" />
-                                            {Object.keys(pastePrices).length} dari 25 Komoditas Terdeteksi
-                                        </Badge>
-                                    )}
-                                </div>
-                                <textarea
-                                    id="paste-textarea"
-                                    rows={3}
-                                    value={pasteRawText}
-                                    onChange={(e) => handlePasteRawChange(e.target.value)}
-                                    placeholder={'Tempelkan data harga dari Excel di sini...\nContoh (25 baris harga):\n14500\n13000\n12500\n...'}
-                                    className="w-full rounded-md border border-neutral-300 bg-white p-2.5 font-mono text-xs focus:border-blue-500 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-900"
-                                />
-                            </div>
-
-                            {/* Live Preview Table */}
-                            <div className="flex-1 overflow-hidden flex flex-col rounded-md border border-sidebar-border">
-                                <div className="bg-neutral-50 px-3 py-2 text-xs font-semibold border-b dark:bg-neutral-900/50 flex items-center justify-between">
-                                    <span>Pratinjau Hasil Pembacaan 25 Komoditas:</span>
-                                    <span className="text-[11px] text-neutral-500 font-normal">
-                                        Pasar: <strong className="text-neutral-900 dark:text-neutral-100">{selectedMarket?.name}</strong> | Tanggal: <strong className="font-mono text-neutral-900 dark:text-neutral-100">{currentDate}</strong>
-                                    </span>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300">
-                                            <tr>
-                                                <th className="py-2 pl-3 pr-2 w-10">No</th>
-                                                <th className="py-2 px-2">Nama Komoditas</th>
-                                                <th className="py-2 px-2">Satuan</th>
-                                                <th className="py-2 px-2 text-right">HET Aktif</th>
-                                                <th className="py-2 px-2 w-40">Harga Terdeteksi (Rp)</th>
-                                                <th className="py-2 px-2">Status / Selisih</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-sidebar-border/40">
-                                            {allItemsForBulk.map((item, idx) => {
-                                                const enteredVal = pastePrices[item.commodity_id];
-                                                const numVal = enteredVal ? parseFloat(enteredVal) : null;
-                                                const hetVal = item.applicable_het?.price ?? null;
-
-                                                let diffBadge = null;
-                                                if (numVal !== null && hetVal !== null) {
-                                                    const diff = numVal - hetVal;
-                                                    if (diff > 0) {
-                                                        diffBadge = (
-                                                            <span className="font-semibold text-red-600 dark:text-red-400">
-                                                                +Rp {diff.toLocaleString('id-ID')} (Di Atas HET)
-                                                            </span>
-                                                        );
-                                                    } else if (diff < 0) {
-                                                        diffBadge = (
-                                                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                                                                -Rp {Math.abs(diff).toLocaleString('id-ID')} (Di Bawah HET)
-                                                            </span>
-                                                        );
-                                                    } else {
-                                                        diffBadge = (
-                                                            <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                                                Sesuai HET
-                                                            </span>
-                                                        );
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                            Pilihan Periode
+                                        </Label>
+                                        <div className="grid grid-cols-3 gap-1 rounded-md border border-neutral-200 bg-neutral-100/70 p-1 dark:border-neutral-800 dark:bg-neutral-900">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setPastePeriod('daily');
+                                                    const newDates = [pasteStartDate];
+                                                    setPasteDetectedDates(newDates);
+                                                    setPasteSelectedDay(pasteStartDate);
+                                                    if (pasteRawText) handlePasteRawChange(pasteRawText, pasteStartDate);
+                                                }}
+                                                className={`rounded py-1 text-xs font-semibold transition-all ${
+                                                    pastePeriod === 'daily'
+                                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                }`}
+                                            >
+                                                1 Hari
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setPastePeriod('weekly');
+                                                    const newDates = [];
+                                                    for (let i = 0; i < 7; i++) {
+                                                        newDates.push(addDaysToDateString(pasteStartDate, i));
                                                     }
-                                                }
+                                                    setPasteDetectedDates(newDates);
+                                                    setPasteSelectedDay(pasteStartDate);
+                                                    if (pasteRawText) handlePasteRawChange(pasteRawText, pasteStartDate);
+                                                }}
+                                                className={`rounded py-1 text-xs font-semibold transition-all ${
+                                                    pastePeriod === 'weekly'
+                                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                }`}
+                                            >
+                                                7 Hari (1 Mgg)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setPastePeriod('monthly');
+                                                    const newDates = [];
+                                                    for (let i = 0; i < 31; i++) {
+                                                        newDates.push(addDaysToDateString(pasteStartDate, i));
+                                                    }
+                                                    setPasteDetectedDates(newDates);
+                                                    setPasteSelectedDay(pasteStartDate);
+                                                    if (pasteRawText) handlePasteRawChange(pasteRawText, pasteStartDate);
+                                                }}
+                                                className={`rounded py-1 text-xs font-semibold transition-all ${
+                                                    pastePeriod === 'monthly'
+                                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                }`}
+                                            >
+                                                31 Hari (1 Bln)
+                                            </button>
+                                        </div>
+                                    </div>
 
-                                                return (
+                                    <div className="space-y-1">
+                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                            Tanggal Mulai
+                                        </Label>
+                                        <Input
+                                            type="date"
+                                            value={pasteStartDate}
+                                            onChange={(e) => {
+                                                const newD = e.target.value;
+                                                setPasteStartDate(newD);
+                                                const days = pastePeriod === 'daily' ? 1 : pastePeriod === 'weekly' ? 7 : 31;
+                                                const newDates: string[] = [];
+                                                for (let i = 0; i < days; i++) {
+                                                    newDates.push(addDaysToDateString(newD, i));
+                                                }
+                                                setPasteDetectedDates(newDates);
+                                                setPasteSelectedDay(newD);
+                                                if (pasteRawText) {
+                                                    handlePasteRawChange(pasteRawText, newD);
+                                                }
+                                            }}
+                                            className="h-8 text-xs bg-white dark:bg-neutral-900"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Box 2: Area Tempel (Ctrl + V) */}
+                                <div className="space-y-1.5 flex flex-col flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="paste-textarea" className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                                            Area Tempel Clipboard (Ctrl+V)
+                                        </Label>
+                                        {pasteRawText && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setPasteRawText('');
+                                                    setPasteMultiDayPrices({});
+                                                    setPastePrices({});
+                                                    setPasteNotes({});
+                                                    const days = pastePeriod === 'daily' ? 1 : pastePeriod === 'weekly' ? 7 : 31;
+                                                    const newDates: string[] = [];
+                                                    for (let i = 0; i < days; i++) {
+                                                        newDates.push(addDaysToDateString(pasteStartDate, i));
+                                                    }
+                                                    setPasteDetectedDates(newDates);
+                                                }}
+                                                className="text-[11px] font-medium text-red-600 hover:text-red-700 dark:text-red-400"
+                                            >
+                                                Bersihkan
+                                            </button>
+                                        )}
+                                    </div>
+                                    <textarea
+                                        id="paste-textarea"
+                                        value={pasteRawText}
+                                        onChange={(e) => handlePasteRawChange(e.target.value)}
+                                        placeholder={'Klik di sini lalu tekan Ctrl+V...\nContoh:\n14500\t14500\t14600\t...\n13000\t13000\t13000\t...'}
+                                        className="h-32 sm:h-36 w-full rounded-md border border-neutral-300 bg-white p-2.5 font-mono text-xs focus:border-blue-500 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-900 leading-relaxed"
+                                    />
+                                </div>
+
+                                {/* Box 3: Panduan Format Ringkas */}
+                                <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                                    <div className="font-semibold mb-1 text-[11px] uppercase tracking-wider text-blue-800 dark:text-blue-300">Format yang Didukung:</div>
+                                    <ul className="space-y-1 text-[11px] text-blue-800 dark:text-blue-300 list-disc pl-3.5">
+                                        <li><strong>1 Hari:</strong> 25 baris &times; 1 kolom harga di Excel.</li>
+                                        <li><strong>1 Minggu:</strong> 25 baris &times; 7 kolom harga (atau tabel dengan kolom tanggal).</li>
+                                        <li><strong>1 Bulan:</strong> 25 baris &times; s/d 31 kolom harga (atau tabel bulanan).</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {/* Right Panel: Workspace Editor Tabel Matriks & Detail HET */}
+                            <div className="flex-1 min-w-0 flex flex-col rounded-lg border border-sidebar-border overflow-hidden bg-card">
+                                {/* Toolbar Bar */}
+                                <div className="bg-neutral-50 px-3.5 py-2 text-xs font-semibold border-b dark:bg-neutral-900/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-neutral-500 text-[11px]">Mode Tampilan:</span>
+                                        <div className="inline-flex rounded-md border border-neutral-300 bg-white p-0.5 dark:border-neutral-700 dark:bg-neutral-900">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPasteViewMode('matrix')}
+                                                className={`rounded px-3 py-1 text-xs font-semibold transition-all ${
+                                                    pasteViewMode === 'matrix'
+                                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                }`}
+                                            >
+                                                Tabel Matriks ({pasteDetectedDates.length} Hari)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPasteViewMode('daily')}
+                                                className={`rounded px-3 py-1 text-xs font-semibold transition-all ${
+                                                    pasteViewMode === 'daily'
+                                                        ? 'bg-blue-600 text-white shadow-2xs'
+                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                }`}
+                                            >
+                                                Detail Per Hari & HET
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-[11px] text-neutral-500">
+                                        {pasteViewMode === 'daily' && (
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-medium text-neutral-700 dark:text-neutral-300">Pilih Tanggal:</span>
+                                                <Select value={pasteSelectedDay} onValueChange={setPasteSelectedDay}>
+                                                    <SelectTrigger className="h-7 w-40 text-xs bg-white dark:bg-neutral-900">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {pasteDetectedDates.map((d) => (
+                                                            <SelectItem key={d} value={d}>
+                                                                {formatShortDate(d)} ({getDayName(d)})
+                                                             </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                        <span className="hidden sm:inline">
+                                            Pasar: <strong className="text-neutral-900 dark:text-neutral-100">{markets.find((m) => String(m.id) === String(pasteMarketId))?.name || selectedMarket?.name}</strong>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Table Area */}
+                                <div className="flex-1 min-h-0 overflow-auto">
+                                    {pasteViewMode === 'matrix' ? (
+                                        /* Horizontal Scrolling Matrix View */
+                                        <table className="w-full text-left text-xs border-collapse">
+                                            <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300 z-10 shadow-xs">
+                                                <tr>
+                                                    <th className="py-2.5 pl-3 pr-2 w-10 sticky left-0 bg-card z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">No</th>
+                                                    <th className="py-2.5 px-3 min-w-[200px] sticky left-10 bg-card z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">Nama Komoditas</th>
+                                                    <th className="py-2.5 px-2.5 w-16 sticky left-[240px] bg-card z-20 shadow-[2px_0_0_0_rgba(0,0,0,0.08)]">Satuan</th>
+                                                    {pasteDetectedDates.map((d) => {
+                                                        const filledForDay = allItemsForBulk.filter((it) => pasteMultiDayPrices[d]?.[it.commodity_id]).length;
+                                                        return (
+                                                            <th key={d} className="py-2.5 px-2 min-w-[130px] text-center border-l border-sidebar-border/60">
+                                                                <div className="font-semibold text-neutral-800 dark:text-neutral-200">
+                                                                    {formatShortDate(d)}
+                                                                </div>
+                                                                <div className="text-[10px] text-neutral-400 font-normal">
+                                                                    {getDayName(d)} • {filledForDay}/25
+                                                                </div>
+                                                            </th>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-sidebar-border/40">
+                                                {allItemsForBulk.map((item, idx) => (
                                                     <tr key={item.commodity_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                                                        <td className="py-2 pl-3 pr-2 text-neutral-400 font-mono">
+                                                        <td className="py-1.5 pl-3 pr-2 text-neutral-400 font-mono sticky left-0 bg-card z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
                                                             {item.order || idx + 1}
                                                         </td>
-                                                        <td className="py-2 px-2">
-                                                            <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                                                        <td className="py-1.5 px-3 sticky left-10 bg-card z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
+                                                            <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[190px]">
                                                                 {item.commodity_name}
                                                             </div>
-                                                            <div className="text-[11px] text-neutral-400">{item.category}</div>
+                                                            <div className="text-[10px] text-neutral-400 truncate max-w-[190px]">{item.category}</div>
                                                         </td>
-                                                        <td className="py-2 px-2">
-                                                            <Badge variant="outline" className="text-[10px] font-normal">
+                                                        <td className="py-1.5 px-2.5 sticky left-[240px] bg-card z-10 shadow-[2px_0_0_0_rgba(0,0,0,0.08)]">
+                                                            <Badge variant="outline" className="text-[10px] font-normal px-1 py-0">
                                                                 {item.unit}
                                                             </Badge>
                                                         </td>
-                                                        <td className="py-2 px-2 text-right font-mono font-medium text-neutral-700 dark:text-neutral-300">
-                                                            {hetVal !== null ? formatCurrency(hetVal) : '-'}
-                                                        </td>
-                                                        <td className="py-2 px-2">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                step="100"
-                                                                placeholder="Belum ada data"
-                                                                value={pastePrices[item.commodity_id] ?? ''}
-                                                                onChange={(e) =>
-                                                                    setPastePrices((prev) => ({
-                                                                        ...prev,
-                                                                        [item.commodity_id]: e.target.value,
-                                                                    }))
-                                                                }
-                                                                className={`h-8 font-mono text-xs ${
-                                                                    pastePrices[item.commodity_id]
-                                                                        ? 'border-emerald-400 bg-emerald-50/30 font-semibold dark:bg-emerald-950/20'
-                                                                        : ''
-                                                                }`}
-                                                            />
-                                                        </td>
-                                                        <td className="py-2 px-2 text-[11px]">
-                                                            {diffBadge || (
-                                                                <span className="italic text-neutral-400">
-                                                                    {item.price ? `Tercatat: Rp ${item.price.toLocaleString('id-ID')}` : 'Kosong'}
-                                                                </span>
-                                                            )}
-                                                        </td>
+                                                        {pasteDetectedDates.map((d) => {
+                                                            const val = pasteMultiDayPrices[d]?.[item.commodity_id] ?? '';
+                                                            return (
+                                                                <td key={d} className="p-1 min-w-[130px] border-l border-sidebar-border/60">
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="100"
+                                                                        placeholder="-"
+                                                                        value={val}
+                                                                        onChange={(e) => handleMatrixPriceChange(d, item.commodity_id, e.target.value)}
+                                                                        className={`h-7 font-mono text-xs text-right ${
+                                                                            val
+                                                                                ? 'border-emerald-400 bg-emerald-50/50 font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
+                                                                                : 'text-neutral-400'
+                                                                        }`}
+                                                                    />
+                                                                </td>
+                                                            );
+                                                        })}
                                                     </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        /* Single Day Detailed HET View */
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300 shadow-xs">
+                                                <tr>
+                                                    <th className="py-2.5 pl-3 pr-2 w-10">No</th>
+                                                    <th className="py-2.5 px-3">Nama Komoditas</th>
+                                                    <th className="py-2.5 px-2">Satuan</th>
+                                                    <th className="py-2.5 px-2 text-right">HET Aktif</th>
+                                                    <th className="py-2.5 px-2 w-44">Harga Terdeteksi ({formatShortDate(pasteSelectedDay)})</th>
+                                                    <th className="py-2.5 px-2">Status / Selisih</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-sidebar-border/40">
+                                                {allItemsForBulk.map((item, idx) => {
+                                                    const enteredVal = pasteMultiDayPrices[pasteSelectedDay]?.[item.commodity_id] ?? '';
+                                                    const numVal = enteredVal ? parseFloat(enteredVal) : null;
+                                                    const hetVal = item.applicable_het?.price ?? null;
+
+                                                    let diffBadge = null;
+                                                    if (numVal !== null && hetVal !== null) {
+                                                        const diff = numVal - hetVal;
+                                                        if (diff > 0) {
+                                                            diffBadge = (
+                                                                <span className="font-semibold text-red-600 dark:text-red-400">
+                                                                    +Rp {diff.toLocaleString('id-ID')} (Di Atas HET)
+                                                                </span>
+                                                            );
+                                                        } else if (diff < 0) {
+                                                            diffBadge = (
+                                                                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                    -Rp {Math.abs(diff).toLocaleString('id-ID')} (Di Bawah HET)
+                                                                </span>
+                                                            );
+                                                        } else {
+                                                            diffBadge = (
+                                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                                    Sesuai HET
+                                                                </span>
+                                                            );
+                                                        }
+                                                    }
+
+                                                    return (
+                                                        <tr key={item.commodity_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
+                                                            <td className="py-2 pl-3 pr-2 text-neutral-400 font-mono">
+                                                                {item.order || idx + 1}
+                                                            </td>
+                                                            <td className="py-2 px-3">
+                                                                <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                                                                    {item.commodity_name}
+                                                                </div>
+                                                                <div className="text-[11px] text-neutral-400">{item.category}</div>
+                                                            </td>
+                                                            <td className="py-2 px-2">
+                                                                <Badge variant="outline" className="text-[10px] font-normal">
+                                                                    {item.unit}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-2 px-2 text-right font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                                                                {hetVal !== null ? formatCurrency(hetVal) : '-'}
+                                                            </td>
+                                                            <td className="py-2 px-2">
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="100"
+                                                                    placeholder="Belum ada data"
+                                                                    value={enteredVal}
+                                                                    onChange={(e) =>
+                                                                        handleMatrixPriceChange(pasteSelectedDay, item.commodity_id, e.target.value)
+                                                                    }
+                                                                    className={`h-8 font-mono text-xs ${
+                                                                        enteredVal
+                                                                            ? 'border-emerald-400 bg-emerald-50/30 font-semibold dark:bg-emerald-950/20'
+                                                                            : ''
+                                                                    }`}
+                                                                />
+                                                            </td>
+                                                            <td className="py-2 px-2 text-[11px]">
+                                                                {diffBadge || (
+                                                                    <span className="italic text-neutral-400">
+                                                                        {item.price ? `Tercatat: Rp ${item.price.toLocaleString('id-ID')}` : 'Kosong'}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    )}
                                 </div>
                             </div>
+                        </div>
 
-                            <DialogFooter className="mt-2 border-t pt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center">
+                        {/* Footer Section */}
+                        <DialogFooter className="mt-2 border-t pt-2.5 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setPasteModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <div className="flex items-center gap-2">
                                 <Button
                                     type="button"
-                                    variant="outline"
-                                    onClick={() => setPasteModalOpen(false)}
+                                    variant="secondary"
+                                    onClick={handleApplyPasteToBulk}
+                                    disabled={totalPastedPrices === 0}
+                                    className="gap-1.5 text-xs"
                                 >
-                                    Batal
+                                    <Edit3 className="size-3.5" />
+                                    Terapkan ke Form Input Cepat ({formatShortDate(pasteSelectedDay)})
                                 </Button>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        onClick={handleApplyPasteToBulk}
-                                        disabled={Object.keys(pastePrices).length === 0}
-                                        className="gap-1.5 text-xs"
-                                    >
-                                        <Edit3 className="size-3.5" />
-                                        Terapkan ke Form Input Cepat
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={handleSavePasteDirectly}
-                                        disabled={Object.keys(pastePrices).length === 0 || isSubmittingPaste}
-                                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                                    >
-                                        {isSubmittingPaste ? 'Menyimpan...' : 'Simpan Langsung ke Sistem'}
-                                    </Button>
-                                </div>
-                            </DialogFooter>
-                        </div>
+                                <Button
+                                    type="button"
+                                    onClick={handleSavePasteDirectly}
+                                    disabled={totalPastedPrices === 0 || isSubmittingPaste}
+                                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                >
+                                    {isSubmittingPaste
+                                        ? 'Menyimpan...'
+                                        : `Simpan Langsung ke Sistem (${totalPastedPrices} Nilai / ${pasteDetectedDates.length} Hari)`}
+                                </Button>
+                            </div>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

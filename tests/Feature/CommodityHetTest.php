@@ -4,6 +4,7 @@ use App\Models\Commodity;
 use App\Models\CommodityHet;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -73,4 +74,53 @@ test('it resolves dynamic HET correctly according to the recorded date', functio
     // Crucial requirement: Older prices STILL resolve to their corresponding older HETs!
     expect($priceOld->fresh()->getApplicableHet()?->id)->toBe($hetOld->id)
         ->and($priceMid->fresh()->getApplicableHet()?->id)->toBe($hetMid->id);
+});
+
+test('authenticated user can update HET price to 13500 without min/max validation errors', function () {
+    $user = User::factory()->create();
+    $commodity = Commodity::factory()->create([
+        'name' => 'Beras Medium',
+    ]);
+
+    $het = CommodityHet::factory()->create([
+        'commodity_id' => $commodity->id,
+        'price' => 14900,
+        'effective_date' => '2024-01-01',
+    ]);
+
+    $response = $this->actingAs($user)->put(route('hets.update', $het), [
+        'price' => 13500,
+        'effective_date' => '2024-01-01',
+        'source_regulation' => 'Perbadan No. 05/2024',
+        'notes' => 'Zona 1 Jawa Barat',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    $response->assertRedirect();
+
+    expect((float) $het->fresh()->price)->toBe(13500.0);
+});
+
+test('authenticated user can store HET price of 13500 without min/max validation errors', function () {
+    $user = User::factory()->create();
+    $commodity = Commodity::factory()->create([
+        'name' => 'Beras Medium',
+    ]);
+
+    $response = $this->actingAs($user)->post(route('hets.store'), [
+        'commodity_id' => $commodity->id,
+        'price' => 13500,
+        'effective_date' => '2024-06-01',
+        'source_regulation' => 'Perbadan No. 05/2024',
+        'notes' => 'Zona 1 Jawa Barat',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    $response->assertRedirect();
+
+    $this->assertDatabaseHas('commodity_hets', [
+        'commodity_id' => $commodity->id,
+        'price' => 13500,
+        'effective_date' => '2024-06-01',
+    ]);
 });

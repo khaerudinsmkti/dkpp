@@ -24,11 +24,37 @@ class BulkConsumerPriceRequest extends FormRequest
     {
         return [
             'market_id' => ['required', 'exists:markets,id'],
-            'recorded_date' => ['required', 'date'],
+            'recorded_date' => ['nullable', 'date'],
             'items' => ['required', 'array'],
             'items.*.commodity_id' => ['required', 'exists:commodities,id'],
+            'items.*.recorded_date' => ['nullable', 'date'],
             'items.*.price' => ['nullable', 'numeric', 'min:0'],
             'items.*.notes' => ['nullable', 'string', 'max:500'],
         ];
+    }
+
+    /**
+     * Configure the validator instance.
+     */
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $items = $this->input('items', []);
+            $topDate = $this->input('recorded_date');
+            $dates = [];
+
+            foreach ($items as $idx => $item) {
+                $d = $item['recorded_date'] ?? $topDate;
+                if (! $d) {
+                    $validator->errors()->add("items.{$idx}.recorded_date", 'Tanggal pencatatan harus diisi.');
+                } else {
+                    $dates[$d] = true;
+                }
+            }
+
+            if (count($dates) > 31) {
+                $validator->errors()->add('items', 'Pencatatan data harga maksimal 31 hari (1 bulan).');
+            }
+        });
     }
 }

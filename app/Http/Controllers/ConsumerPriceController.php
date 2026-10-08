@@ -10,6 +10,7 @@ use App\Models\Market;
 use App\Services\SimpleExcelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -177,23 +178,31 @@ class ConsumerPriceController extends Controller
     }
 
     /**
-     * Bulk store or update consumer prices for a given date and market.
+     * Bulk store or update consumer prices for a given date (or multi-day up to 31 days) and market.
      */
     public function bulkStore(BulkConsumerPriceRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $marketId = $validated['market_id'];
-        $recordedDate = $validated['recorded_date'];
+        $marketId = (int) $validated['market_id'];
+        $defaultRecordedDate = $validated['recorded_date'] ?? null;
         $userId = $request->user()?->id;
 
-        DB::transaction(function () use ($validated, $marketId, $recordedDate, $userId): void {
+        $recordedDates = [];
+        $savedCount = 0;
+
+        DB::transaction(function () use ($validated, $marketId, $defaultRecordedDate, $userId, &$recordedDates, &$savedCount): void {
             foreach ($validated['items'] as $item) {
                 if (isset($item['price']) && $item['price'] !== null && $item['price'] !== '') {
+                    $itemDate = $item['recorded_date'] ?? $defaultRecordedDate;
+                    if (! $itemDate) {
+                        continue;
+                    }
+
                     ConsumerPrice::updateOrCreate(
                         [
                             'commodity_id' => $item['commodity_id'],
                             'market_id' => $marketId,
-                            'recorded_date' => $recordedDate,
+                            'recorded_date' => $itemDate,
                         ],
                         [
                             'price' => $item['price'],
@@ -201,11 +210,19 @@ class ConsumerPriceController extends Controller
                             'created_by' => $userId,
                         ]
                     );
+
+                    $recordedDates[$itemDate] = true;
+                    $savedCount++;
                 }
             }
         });
 
-        return back()->with('success', 'Semua data harga konsumen berhasil diperbarui.');
+        $dateCount = count($recordedDates);
+        $message = $dateCount > 1
+            ? "Berhasil menyimpan {$savedCount} data harga komoditas untuk {$dateCount} hari."
+            : 'Semua data harga konsumen berhasil diperbarui.';
+
+        return back()->with('success', $message);
     }
 
     /**
@@ -220,6 +237,7 @@ class ConsumerPriceController extends Controller
 
     /**
      * Download the official 25 commodities consumer prices template in Excel (.xlsx) or CSV format.
+     * Supports daily (1 day), weekly (7 days), or monthly (up to 31 days).
      */
     public function downloadTemplate(Request $request, SimpleExcelService $excelService): SymfonyResponse
     {
@@ -229,6 +247,15 @@ class ConsumerPriceController extends Controller
         }
 
         $format = strtolower((string) $request->query('format', 'xlsx'));
+        $days = (int) $request->query('days', 1);
+        $period = (string) $request->query('period', '');
+
+        if ($period === 'weekly') {
+            $days = 7;
+        } elseif ($period === 'monthly') {
+            $days = (int) Carbon::parse($selectedDate)->daysInMonth;
+        }
+        $days = max(1, min(31, $days));
 
         // Always query the 25 commodities in exact order
         $commodities = Commodity::where('is_active', true)
@@ -236,32 +263,39 @@ class ConsumerPriceController extends Controller
             ->orderBy('order')
             ->get();
 
+        $filenameBase = $days === 1
+            ? 'format_harga_konsumen_25_komoditas'
+            : ($days === 7
+                ? 'format_harga_konsumen_mingguan_7_hari'
+                : "format_harga_konsumen_bulanan_{$days}_hari");
+
         if ($format === 'csv') {
-            $csv = $excelService->generateCsvTemplate($commodities, $selectedDate);
+            $csv = $excelService->generateCsvTemplate($commodities, $selectedDate, [], $days);
 
             return response($csv, 200, [
                 'Content-Type' => 'text/csv; charset=UTF-8',
-                'Content-Disposition' => 'attachment; filename="format_harga_konsumen_25_komoditas.csv"',
+                'Content-Disposition' => "attachment; filename=\"{$filenameBase}.csv\"",
             ]);
         }
 
-        $xlsx = $excelService->generateXlsxTemplate($commodities, $selectedDate);
+        $xlsx = $excelService->generateXlsxTemplate($commodities, $selectedDate, [], $days);
 
         return response($xlsx, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => 'attachment; filename="format_harga_konsumen_25_komoditas.xlsx"',
+            'Content-Disposition' => "attachment; filename=\"{$filenameBase}.xlsx\"",
         ]);
     }
 
     /**
-     * Import consumer prices from an uploaded Excel or CSV file.
+     * Import consumer prices from an uploaded Excel or CSV file (1 day, 7 days, up to 31 days).
      */
     public function import(Request $request, SimpleExcelService $excelService): RedirectResponse
     {
         $validated = $request->validate([
             'file' => ['required', 'file', 'max:10240'],
             'market_id' => ['required', 'integer', 'exists:markets,id'],
-            'recorded_date' => ['required', 'date_format:Y-m-d'],
+            'recorded_date' => ['nullable', 'date_format:Y-m-d'],
+            'start_date' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
         $file = $request->file('file');
@@ -282,23 +316,24 @@ class ConsumerPriceController extends Controller
         }
 
         $commodities = Commodity::where('is_active', true)->orderBy('order')->get();
-        $result = $excelService->matchCommodityPrices($rawRows, $commodities);
+        $anchorDate = $validated['recorded_date'] ?? $validated['start_date'] ?? now()->format('Y-m-d');
+        $result = $excelService->matchCommodityPrices($rawRows, $commodities, $anchorDate, 31);
 
         if (empty($result['matched'])) {
             return back()->withErrors(['file' => 'Tidak ditemukan data harga yang valid dalam berkas. Pastikan format kolom sesuai template.']);
         }
 
         $marketId = (int) $validated['market_id'];
-        $recordedDate = $validated['recorded_date'];
         $userId = $request->user()?->id;
 
-        DB::transaction(function () use ($result, $marketId, $recordedDate, $userId): void {
+        DB::transaction(function () use ($result, $marketId, $anchorDate, $userId): void {
             foreach ($result['matched'] as $item) {
+                $targetDate = $item['recorded_date'] ?? $anchorDate;
                 ConsumerPrice::updateOrCreate(
                     [
                         'commodity_id' => $item['commodity_id'],
                         'market_id' => $marketId,
-                        'recorded_date' => $recordedDate,
+                        'recorded_date' => $targetDate,
                     ],
                     [
                         'price' => $item['price'],
@@ -312,7 +347,18 @@ class ConsumerPriceController extends Controller
         $count = count($result['matched']);
         $market = Market::find($marketId);
         $marketName = $market ? $market->name : 'pasar terpilih';
+        $dates = $result['dates'] ?? array_values(array_unique(array_column($result['matched'], 'recorded_date')));
+        $dateCount = count($dates);
 
-        return back()->with('success', "Berhasil mengimpor {$count} data harga komoditas untuk {$marketName} pada tanggal {$recordedDate}.");
+        if ($dateCount > 1) {
+            $startDate = min($dates);
+            $endDate = max($dates);
+            $successMsg = "Berhasil mengimpor {$count} data harga komoditas ({$dateCount} hari, {$startDate} s/d {$endDate}) untuk {$marketName}.";
+        } else {
+            $singleDate = $dates[0] ?? $anchorDate;
+            $successMsg = "Berhasil mengimpor {$count} data harga komoditas untuk {$marketName} pada tanggal {$singleDate}.";
+        }
+
+        return back()->with('success', $successMsg);
     }
 }

@@ -10,6 +10,7 @@ use Database\Seeders\CommoditySeeder;
 use Database\Seeders\MarketSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
@@ -256,4 +257,111 @@ test('authenticated user can import consumer prices via uploaded xlsx file', fun
     expect(ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->count())->toBe(25);
     $saved = ConsumerPrice::where('market_id', $market->id)->where('recorded_date', $date)->first();
     expect((float) $saved->price)->toBe(16000.0);
+});
+
+test('authenticated user can download weekly and monthly consumer price templates', function () {
+    $this->seed([CommoditySeeder::class]);
+    $user = User::factory()->create();
+
+    // 1. Weekly template (7 days)
+    $weeklyResponse = $this->actingAs($user)->get('/consumer-prices/template?period=weekly&format=csv');
+    $weeklyResponse->assertOk();
+    $csvContent = $weeklyResponse->getContent();
+    expect($csvContent)->toContain('Tgl ')
+        ->and(substr_count($csvContent, ';'))->toBeGreaterThan(25 * 7);
+
+    // 2. Monthly template (31 days)
+    $monthlyResponse = $this->actingAs($user)->get('/consumer-prices/template?days=31&format=xlsx');
+    $monthlyResponse->assertOk();
+    expect($monthlyResponse->headers->get('content-disposition'))->toContain('bulanan_31_hari.xlsx');
+});
+
+test('authenticated user can bulk store prices across multiple days up to 31 days', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $user = User::factory()->create();
+    $market = Market::first();
+    $commodities = Commodity::take(3)->get();
+    $startDate = Carbon::parse('2026-10-01');
+
+    $items = [];
+    // 7 days x 3 commodities = 21 records
+    for ($day = 0; $day < 7; $day++) {
+        $curDate = $startDate->copy()->addDays($day)->format('Y-m-d');
+        foreach ($commodities as $c) {
+            $items[] = [
+                'commodity_id' => $c->id,
+                'recorded_date' => $curDate,
+                'price' => 12000 + ($day * 100),
+                'notes' => "Day {$day}",
+            ];
+        }
+    }
+
+    $response = $this->actingAs($user)->post('/consumer-prices/bulk', [
+        'market_id' => $market->id,
+        'items' => $items,
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    expect(ConsumerPrice::where('market_id', $market->id)->count())->toBe(21);
+});
+
+test('bulk store rejects requests spanning more than 31 days', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $user = User::factory()->create();
+    $market = Market::first();
+    $commodity = Commodity::first();
+    $startDate = Carbon::parse('2026-01-01');
+
+    $items = [];
+    for ($day = 0; $day < 35; $day++) {
+        $items[] = [
+            'commodity_id' => $commodity->id,
+            'recorded_date' => $startDate->copy()->addDays($day)->format('Y-m-d'),
+            'price' => 10000,
+        ];
+    }
+
+    $response = $this->actingAs($user)->post('/consumer-prices/bulk', [
+        'market_id' => $market->id,
+        'items' => $items,
+    ]);
+
+    $response->assertSessionHasErrors('items');
+});
+
+test('authenticated user can import multi-day consumer prices up to 31 days via excel', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $user = User::factory()->create();
+    $market = Market::first();
+    $startDate = '2026-10-01';
+
+    $commodities = Commodity::orderBy('order')->get();
+    $excelService = app(SimpleExcelService::class);
+
+    // Generate monthly template for 31 days
+    $prices = [];
+    for ($d = 0; $d < 31; $d++) {
+        $dateStr = Carbon::parse($startDate)->addDays($d)->format('Y-m-d');
+        foreach ($commodities as $c) {
+            $prices[$dateStr][$c->id] = 15000 + ($d * 50);
+        }
+    }
+
+    $xlsxBinary = $excelService->generateXlsxTemplate($commodities, $startDate, $prices, 31);
+    $file = UploadedFile::fake()->createWithContent('harga_bulanan.xlsx', $xlsxBinary);
+
+    $response = $this->actingAs($user)->post('/consumer-prices/import', [
+        'market_id' => $market->id,
+        'start_date' => $startDate,
+        'file' => $file,
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHas('success');
+
+    // 25 commodities x 31 days = 775 price records
+    expect(ConsumerPrice::where('market_id', $market->id)->count())->toBe(775);
 });
