@@ -1,9 +1,13 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
+    AlertCircle,
+    AlertTriangle,
     ArrowDown,
     ArrowRight,
     ArrowUp,
+    BarChart3,
     Calendar,
+    CheckCircle2,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -11,18 +15,35 @@ import {
     Filter,
     Info,
     Layers,
+    LineChart,
     Menu,
     Minus,
     Pause,
     Play,
     RefreshCw,
+    SlidersHorizontal,
     Store,
+    TrendingDown,
     TrendingUp,
     Wheat,
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { dashboard, login, register } from '@/routes';
+import {
+    Area,
+    AreaChart,
+    Bar,
+    CartesianGrid,
+    ComposedChart,
+    LabelList,
+    Legend,
+    Line,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 export interface ConsumerCommodityItem {
     id: number;
@@ -395,21 +416,156 @@ export default function HargaKonsumen({
         return () => clearInterval(timer);
     }, [isSliderPlaying, isSliderHovered, totalConsumerSlides]);
 
-    // Close desktop dropdown on outside click
+    // Chart states & tabulasi
+    const [chartTab, setChartTab] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+    const [chartCommodityId, setChartCommodityId] = useState<number>(1);
+    const [chartLoading, setChartLoading] = useState(false);
+    const [chartPoints, setChartPoints] = useState<any[]>([]);
+
+    // Daily chart filter (max 31 days)
+    const [dailyEndDate, setDailyEndDate] = useState<string>(selectedDate || (latestDate ?? ''));
+    const [dailyStartDate, setDailyStartDate] = useState<string>(() => {
+        const anchor = selectedDate || (latestDate ?? '');
+        if (anchor) {
+            const d = new Date(anchor + 'T00:00:00');
+            d.setDate(d.getDate() - 30);
+            return d.toISOString().split('T')[0];
+        }
+        return '';
+    });
+
+    // Weekly chart filter (month & year)
+    const [weeklyYear, setWeeklyYear] = useState<number>(() => {
+        const anchor = selectedDate || (latestDate ?? '');
+        return anchor ? new Date(anchor + 'T00:00:00').getFullYear() : new Date().getFullYear();
+    });
+    const [weeklyMonth, setWeeklyMonth] = useState<number>(() => {
+        const anchor = selectedDate || (latestDate ?? '');
+        return anchor ? new Date(anchor + 'T00:00:00').getMonth() + 1 : new Date().getMonth() + 1;
+    });
+
+    // Monthly chart filter (year only)
+    const [monthlyYear, setMonthlyYear] = useState<number>(() => {
+        const anchor = selectedDate || (latestDate ?? '');
+        return anchor ? new Date(anchor + 'T00:00:00').getFullYear() : new Date().getFullYear();
+    });
+
+    // Sync chart commodity id if commodity list loads
     useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (
-                hargaMenuRef.current &&
-                !hargaMenuRef.current.contains(event.target as Node)
-            ) {
-                setHargaMenuOpen(false);
+        if (consumerCommodities && consumerCommodities.length > 0) {
+            if (!consumerCommodities.some((c) => c.id === chartCommodityId)) {
+                setChartCommodityId(consumerCommodities[0].id);
             }
         }
-        document.addEventListener('mousedown', handleClickOutside);
+    }, [consumerCommodities]);
+
+    // Fetch chart data from API
+    useEffect(() => {
+        let isMounted = true;
+        setChartLoading(true);
+
+        const params = new URLSearchParams();
+        params.append('type', chartTab);
+        params.append('commodity_id', String(chartCommodityId));
+        params.append('market_id', String(currentMarketId));
+
+        if (chartTab === 'daily') {
+            if (dailyStartDate) params.append('start_date', dailyStartDate);
+            if (dailyEndDate) params.append('end_date', dailyEndDate);
+        } else if (chartTab === 'weekly') {
+            params.append('year', String(weeklyYear));
+            params.append('month', String(weeklyMonth));
+        } else if (chartTab === 'monthly') {
+            params.append('year', String(monthlyYear));
+        }
+
+        fetch(`/api/public-chart-data?${params.toString()}`)
+            .then((res) => res.json())
+            .then((json) => {
+                if (isMounted) {
+                    if (json.data) {
+                        setChartPoints(json.data);
+                        if (json.start_date && !dailyStartDate) setDailyStartDate(json.start_date);
+                        if (json.end_date && !dailyEndDate) setDailyEndDate(json.end_date);
+                    }
+                    setChartLoading(false);
+                }
+            })
+            .catch((err) => {
+                console.error('Failed to load chart data:', err);
+                if (isMounted) setChartLoading(false);
+            });
+
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            isMounted = false;
         };
-    }, []);
+    }, [
+        chartTab,
+        chartCommodityId,
+        currentMarketId,
+        dailyStartDate,
+        dailyEndDate,
+        weeklyYear,
+        weeklyMonth,
+        monthlyYear,
+    ]);
+
+    // Handle Daily End Date change and enforce max 31 days
+    const handleDailyEndDateChange = (val: string) => {
+        setDailyEndDate(val);
+        if (val && dailyStartDate) {
+            const startD = new Date(dailyStartDate + 'T00:00:00');
+            const endD = new Date(val + 'T00:00:00');
+            const diffDays = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0 || diffDays > 31) {
+                const newStart = new Date(endD);
+                newStart.setDate(newStart.getDate() - 30);
+                setDailyStartDate(newStart.toISOString().split('T')[0]);
+            }
+        }
+    };
+
+    const handleDailyStartDateChange = (val: string) => {
+        setDailyStartDate(val);
+        if (val && dailyEndDate) {
+            const startD = new Date(val + 'T00:00:00');
+            const endD = new Date(dailyEndDate + 'T00:00:00');
+            const diffDays = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0 || diffDays > 31) {
+                const newEnd = new Date(startD);
+                newEnd.setDate(newEnd.getDate() + 30);
+                setDailyEndDate(newEnd.toISOString().split('T')[0]);
+            }
+        }
+    };
+
+    // Filter daftar komoditas hari ini yang statusnya di atas HET
+    const aboveHetCommodities = useMemo(() => {
+        return commoditiesList
+            .filter((item) => {
+                if (
+                    item.today_price === null ||
+                    item.het_price === null ||
+                    item.het_price <= 0
+                ) {
+                    return false;
+                }
+                return item.today_price > item.het_price;
+            })
+            .map((item) => {
+                const diff = (item.today_price ?? 0) - (item.het_price ?? 0);
+                const pct = ((item.het_price ?? 0) > 0 ? (diff / (item.het_price ?? 1)) * 100 : 0);
+                // Status warna: kuning (1-10%), merah (> 10% / 11%+)
+                const isRed = pct > 10;
+                return {
+                    ...item,
+                    diff,
+                    pct,
+                    isRed,
+                };
+            })
+            .sort((a, b) => b.pct - a.pct); // Urutkan kenaikan tertinggi lebih dulu
+    }, [commoditiesList]);
 
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('id-ID', {
@@ -1139,6 +1295,474 @@ export default function HargaKonsumen({
                                 aria-label={`Pindah ke slide ${idx + 1}`}
                             />
                         ))}
+                    </div>
+
+                    {/* ============================================================== */}
+                    {/* 3. DUA KOLOM: 80% GRAFIK HARGA & 20% DAFTAR DI ATAS HET        */}
+                    {/* ============================================================== */}
+                    <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+                        {/* ---------------------------------------------------------- */}
+                        {/* KOLOM KIRI (80% / 9.6 cols -> lg:col-span-9 or lg:col-span-12 xl:col-span-10 / 2) */}
+                        {/* Layout: lg:col-span-9 xl:col-span-9 / lg:col-span-3 (atau fleksibel 80%:20% di desktop besar) */}
+                        {/* ---------------------------------------------------------- */}
+                        <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                                {/* Header Grafik & Tabulasi */}
+                                <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
+                                            {chartTab === 'daily' ? (
+                                                <LineChart className="h-3.5 w-3.5" />
+                                            ) : (
+                                                <BarChart3 className="h-3.5 w-3.5" />
+                                            )}
+                                            <span>Tren Perkembangan Harga</span>
+                                        </div>
+                                        <h3 className="mt-2 text-xl font-black tracking-tight text-slate-900">
+                                            Grafik Perkembangan Harga Pangan
+                                        </h3>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            Pantau fluktuasi harga komoditas dan perbandingannya terhadap batas HET di{' '}
+                                            <span className="font-semibold text-slate-700">
+                                                {markets.find((m) => m.id === currentMarketId)?.name || selectedMarketName || marketName}
+                                            </span>
+                                        </p>
+                                    </div>
+
+                                    {/* 3 Tabulasi: Harian, Mingguan, Bulanan */}
+                                    <div className="inline-flex rounded-xl bg-slate-100 p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setChartTab('daily')}
+                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                                chartTab === 'daily'
+                                                    ? 'bg-white text-[#006565] shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            Grafik Harian
+                                            <span className="ml-1 text-[10px] font-normal opacity-75">(31 Hari)</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setChartTab('weekly')}
+                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                                chartTab === 'weekly'
+                                                    ? 'bg-white text-[#006565] shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            Grafik Mingguan
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setChartTab('monthly')}
+                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                                chartTab === 'monthly'
+                                                    ? 'bg-white text-[#006565] shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            Grafik Bulanan
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Controls & Filter Bar Sesuai Tabulasi */}
+                                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50/80 p-3 text-xs border border-slate-100">
+                                    {/* Filter Komoditas (Tersedia di semua tabulasi) */}
+                                    <div className="flex items-center gap-2">
+                                        <label htmlFor="chart-commodity" className="font-bold text-slate-600 shrink-0">
+                                            Komoditas:
+                                        </label>
+                                        <select
+                                            id="chart-commodity"
+                                            value={chartCommodityId}
+                                            onChange={(e) => setChartCommodityId(Number(e.target.value))}
+                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs focus:border-[#006565] focus:outline-none"
+                                        >
+                                            {commoditiesList.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name} ({c.unit})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Filter Khusus Tab 1: Harian (Rentang tanggal, maks 31 hari) */}
+                                    {chartTab === 'daily' && (
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="font-bold text-slate-600">Rentang (Maks 31 Hari):</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <input
+                                                    type="date"
+                                                    value={dailyStartDate}
+                                                    onChange={(e) => handleDailyStartDateChange(e.target.value)}
+                                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                />
+                                                <span className="text-slate-400">s/d</span>
+                                                <input
+                                                    type="date"
+                                                    value={dailyEndDate}
+                                                    onChange={(e) => handleDailyEndDateChange(e.target.value)}
+                                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Filter Khusus Tab 2: Mingguan (Filter Bulan & Tahun) */}
+                                    {chartTab === 'weekly' && (
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-slate-600">Bulan:</span>
+                                                <select
+                                                    value={weeklyMonth}
+                                                    onChange={(e) => setWeeklyMonth(Number(e.target.value))}
+                                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                >
+                                                    {[
+                                                        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                                                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+                                                    ].map((mName, i) => (
+                                                        <option key={i + 1} value={i + 1}>
+                                                            {mName}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-bold text-slate-600">Tahun:</span>
+                                                <select
+                                                    value={weeklyYear}
+                                                    onChange={(e) => setWeeklyYear(Number(e.target.value))}
+                                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                >
+                                                    {[2024, 2025, 2026, 2027].map((y) => (
+                                                        <option key={y} value={y}>
+                                                            {y}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Filter Khusus Tab 3: Bulanan (Filter Tahun saja) */}
+                                    {chartTab === 'monthly' && (
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-slate-600">Tahun:</span>
+                                            <select
+                                                value={monthlyYear}
+                                                onChange={(e) => setMonthlyYear(Number(e.target.value))}
+                                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                            >
+                                                {[2024, 2025, 2026, 2027].map((y) => (
+                                                    <option key={y} value={y}>
+                                                        {y}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Area Canvas Grafik */}
+                                <div className="mt-6 h-[340px] w-full overflow-x-auto">
+                                    <div
+                                        className="h-full w-full"
+                                        style={{
+                                            minWidth: chartTab === 'monthly' ? '540px' : chartTab === 'daily' ? '540px' : '100%',
+                                        }}
+                                    >
+                                        {chartLoading ? (
+                                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
+                                                <RefreshCw className="h-6 w-6 animate-spin text-[#006565]" />
+                                                <span className="text-xs">Memuat data grafik tren harga...</span>
+                                            </div>
+                                        ) : chartPoints.length === 0 ? (
+                                            <div className="flex h-full w-full flex-col items-center justify-center text-slate-400">
+                                                <BarChart3 className="h-8 w-8 stroke-1 text-slate-300" />
+                                                <span className="mt-2 text-xs">Belum ada rekaman harga untuk parameter yang dipilih.</span>
+                                            </div>
+                                        ) : chartTab === 'daily' ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart
+                                                    data={chartPoints}
+                                                    margin={{ top: 10, right: 15, left: 10, bottom: 0 }}
+                                                >
+                                                    <defs>
+                                                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#006565" stopOpacity={0.25} />
+                                                            <stop offset="95%" stopColor="#006565" stopOpacity={0.0} />
+                                                        </linearGradient>
+                                                        <linearGradient id="colorHet" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
+                                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis
+                                                        dataKey="label"
+                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        axisLine={{ stroke: '#cbd5e1' }}
+                                                        tickLine={false}
+                                                    />
+                                                    <YAxis
+                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
+                                                        domain={['auto', 'auto']}
+                                                    />
+                                                    <Tooltip
+                                                        formatter={(value: any, name: any) => [
+                                                            value !== null && value !== undefined ? formatCurrency(Number(value)) : '-',
+                                                            name === 'price' ? 'Harga Rata-rata' : 'Harga Eceran Tertinggi (HET)',
+                                                        ]}
+                                                        labelFormatter={(label, payload) => {
+                                                            const p = payload && payload[0]?.payload;
+                                                            return p?.full_date || p?.date_range || p?.full_month || label;
+                                                        }}
+                                                        contentStyle={{
+                                                            borderRadius: '12px',
+                                                            border: '1px solid #e2e8f0',
+                                                            backgroundColor: '#ffffff',
+                                                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                                            fontSize: '12px',
+                                                        }}
+                                                    />
+                                                    <Legend
+                                                        verticalAlign="top"
+                                                        align="right"
+                                                        wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }}
+                                                        formatter={(value) =>
+                                                            value === 'price' ? 'Harga Pasar' : 'Batas HET'
+                                                        }
+                                                    />
+                                                    <Area
+                                                        type="monotone"
+                                                        dataKey="price"
+                                                        stroke="#006565"
+                                                        strokeWidth={2.5}
+                                                        fillOpacity={1}
+                                                        fill="url(#colorPrice)"
+                                                        name="price"
+                                                        connectNulls
+                                                        dot={{ r: 3, fill: '#006565' }}
+                                                        activeDot={{ r: 5 }}
+                                                    />
+                                                    <Area
+                                                        type="monotone"
+                                                        dataKey="het"
+                                                        stroke="#ef4444"
+                                                        strokeWidth={2}
+                                                        strokeDasharray="4 4"
+                                                        fillOpacity={1}
+                                                        fill="url(#colorHet)"
+                                                        name="het"
+                                                        connectNulls
+                                                        dot={false}
+                                                    />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <ComposedChart
+                                                    data={chartPoints}
+                                                    margin={{ top: 25, right: 15, left: 10, bottom: 0 }}
+                                                >
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis
+                                                        dataKey="label"
+                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        axisLine={{ stroke: '#cbd5e1' }}
+                                                        tickLine={false}
+                                                    />
+                                                    <YAxis
+                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
+                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
+                                                    />
+                                                    <Tooltip
+                                                        formatter={(value: any, name: any) => [
+                                                            value !== null && value !== undefined ? formatCurrency(Number(value)) : '-',
+                                                            name === 'price' ? 'Harga Rata-rata' : 'Harga Eceran Tertinggi (HET)',
+                                                        ]}
+                                                        labelFormatter={(label, payload) => {
+                                                            const p = payload && payload[0]?.payload;
+                                                            return p?.full_date || p?.date_range || p?.full_month || label;
+                                                        }}
+                                                        contentStyle={{
+                                                            borderRadius: '12px',
+                                                            border: '1px solid #e2e8f0',
+                                                            backgroundColor: '#ffffff',
+                                                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                                            fontSize: '12px',
+                                                        }}
+                                                    />
+                                                    <Legend
+                                                        verticalAlign="top"
+                                                        align="right"
+                                                        wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }}
+                                                        formatter={(value) =>
+                                                            value === 'price' ? 'Harga Pasar' : 'Batas HET'
+                                                        }
+                                                    />
+                                                    <Bar
+                                                        dataKey="price"
+                                                        name="price"
+                                                        fill="#006565"
+                                                        radius={[6, 6, 0, 0]}
+                                                        maxBarSize={chartTab === 'weekly' ? 60 : 36}
+                                                    >
+                                                        <LabelList
+                                                            dataKey="price"
+                                                            position="top"
+                                                            offset={8}
+                                                            formatter={(val: any) => {
+                                                                if (val === null || val === undefined || isNaN(val) || Number(val) <= 0) return '';
+                                                                return formatCurrency(Number(val));
+                                                            }}
+                                                            fill="#0f172a"
+                                                            fontSize={chartTab === 'weekly' ? 11 : 10}
+                                                            fontWeight={700}
+                                                        />
+                                                    </Bar>
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="het"
+                                                        stroke="#ef4444"
+                                                        strokeWidth={2}
+                                                        strokeDasharray="4 4"
+                                                        dot={false}
+                                                        name="het"
+                                                        connectNulls
+                                                    />
+                                                </ComposedChart>
+                                            </ResponsiveContainer>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ---------------------------------------------------------- */}
+                        {/* KOLOM KANAN (20% / ~3 cols di grid 12)                      */}
+                        {/* FITUR DAFTAR KOMODITAS HARI INI DI ATAS HET               */}
+                        {/* ---------------------------------------------------------- */}
+                        <div className="lg:col-span-4 xl:col-span-3">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+                                {/* Header Widget */}
+                                <div className="border-b border-slate-100 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                                            <AlertTriangle className="h-3.5 w-3.5" />
+                                            <span>Peringatan HET</span>
+                                        </div>
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                            {aboveHetCommodities.length} Komoditas
+                                        </span>
+                                    </div>
+                                    <h4 className="mt-2 text-sm font-black text-slate-900 leading-tight">
+                                        Daftar Komoditas di Atas HET Hari Ini
+                                    </h4>
+                                    <p className="mt-1 text-[11px] text-slate-500">
+                                        Komoditas yang melampaui Harga Eceran Tertinggi pada pasar dan tanggal terpilih.
+                                    </p>
+                                </div>
+
+                                {/* Legend Warna Kenaikan */}
+                                <div className="mt-3 flex items-center justify-between gap-1 rounded-xl bg-slate-50 px-2.5 py-2 text-[10px]">
+                                    <div className="flex items-center gap-1">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400 border border-amber-500" />
+                                        <span className="font-bold text-amber-900">Kuning:</span>
+                                        <span className="text-slate-600">1 - 10%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-rose-600" />
+                                        <span className="font-bold text-rose-900">Merah:</span>
+                                        <span className="text-slate-600">&gt; 10% / 11%+</span>
+                                    </div>
+                                </div>
+
+                                {/* List Komoditas di Atas HET */}
+                                <div className="mt-3 divide-y divide-slate-100 max-h-[380px] overflow-y-auto pr-1">
+                                    {aboveHetCommodities.length === 0 ? (
+                                        <div className="py-8 text-center">
+                                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                                <CheckCircle2 className="h-5 w-5" />
+                                            </div>
+                                            <p className="mt-2 text-xs font-bold text-slate-800">
+                                                Semua Harga Aman!
+                                            </p>
+                                            <p className="mt-0.5 text-[11px] text-slate-500">
+                                                Tidak ada komoditas dengan harga di atas HET pada tanggal ini.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        aboveHetCommodities.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className={`py-3 px-2 rounded-xl transition-colors mb-1.5 border ${
+                                                    item.isRed
+                                                        ? 'bg-rose-50/60 border-rose-200 hover:bg-rose-50'
+                                                        : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-1.5">
+                                                    <span className="text-xs font-extrabold text-slate-900 line-clamp-1" title={item.name}>
+                                                        {item.name}
+                                                    </span>
+                                                    <span
+                                                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black border ${
+                                                            item.isRed
+                                                                ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                        }`}
+                                                    >
+                                                        +{item.pct.toFixed(1)}%
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-1.5 flex items-baseline justify-between text-xs">
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Harga Pasar:
+                                                    </span>
+                                                    <span className="font-extrabold text-slate-900">
+                                                        {formatCurrency(item.today_price!)}
+                                                        <span className="text-[10px] font-normal text-slate-500">/{item.unit}</span>
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-0.5 flex items-baseline justify-between text-xs">
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Batas HET:
+                                                    </span>
+                                                    <span className="font-semibold text-slate-600">
+                                                        {formatCurrency(item.het_price!)}
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-1 flex items-center justify-between border-t border-slate-200/50 pt-1 text-[11px]">
+                                                    <span className="text-slate-500 font-medium">Selisih Kenaikan:</span>
+                                                    <span
+                                                        className={`font-bold inline-flex items-center gap-0.5 ${
+                                                            item.isRed ? 'text-rose-700' : 'text-amber-800'
+                                                        }`}
+                                                    >
+                                                        <ArrowUp className="h-3 w-3 stroke-[2.5]" />
+                                                        +{formatCurrency(item.diff)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Switch to Harga Produsen Promo Card */}

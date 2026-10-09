@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\CommodityController;
+use App\Http\Controllers\CommodityHetController;
+use App\Http\Controllers\ConsumerPriceController;
+use App\Http\Controllers\MarketController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
@@ -97,11 +101,8 @@ Route::get('/harga-produsen', function () {
     ]);
 })->name('harga-produsen');
 
+Route::get('/api/public-chart-data', [ConsumerPriceController::class, 'chartData'])->name('public.chart-data');
 
-use App\Http\Controllers\CommodityController;
-use App\Http\Controllers\CommodityHetController;
-use App\Http\Controllers\ConsumerPriceController;
-use App\Http\Controllers\MarketController;
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

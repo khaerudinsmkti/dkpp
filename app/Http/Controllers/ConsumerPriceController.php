@@ -361,4 +361,190 @@ class ConsumerPriceController extends Controller
 
         return back()->with('success', $successMsg);
     }
+
+    /**
+     * Provide price trend data for public charts (daily, weekly, monthly).
+     */
+    public function chartData(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $type = (string) $request->query('type', 'daily'); // 'daily', 'weekly', 'monthly'
+        $commodityId = (int) $request->query('commodity_id');
+        $marketId = (int) $request->query('market_id');
+
+        if (! $commodityId) {
+            $firstCommodity = Commodity::where('is_active', true)->orderBy('order')->first();
+            $commodityId = $firstCommodity?->id ?? 1;
+        }
+
+        if (! $marketId) {
+            $firstMarket = Market::where('is_active', true)->orderBy('order')->first();
+            $marketId = $firstMarket?->id ?? 1;
+        }
+
+        $commodity = Commodity::with(['hets'])->find($commodityId);
+
+        if ($type === 'daily') {
+            // Daily chart: date range with max 31 days
+            $endDate = (string) $request->query('end_date', '');
+            $startDate = (string) $request->query('start_date', '');
+
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+                $endDate = ConsumerPrice::where('market_id', $marketId)
+                    ->where('commodity_id', $commodityId)
+                    ->max('recorded_date') ?? now()->format('Y-m-d');
+            }
+
+            if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
+                $startDate = Carbon::parse($endDate)->subDays(30)->format('Y-m-d');
+            } else {
+                // Enforce max 31 days
+                $startCarbon = Carbon::parse($startDate);
+                $endCarbon = Carbon::parse($endDate);
+                if ($startCarbon->gt($endCarbon)) {
+                    $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
+                } elseif ($startCarbon->diffInDays($endCarbon) > 31) {
+                    $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
+                }
+            }
+
+            $prices = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $commodityId)
+                ->whereBetween('recorded_date', [$startDate, $endDate])
+                ->orderBy('recorded_date')
+                ->get()
+                ->keyBy(fn ($item) => Carbon::parse($item->recorded_date)->format('Y-m-d'));
+
+            $chartPoints = [];
+            $current = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+
+            while ($current->lte($end)) {
+                $dStr = $current->format('Y-m-d');
+                $priceRec = $prices->get($dStr);
+                $het = $commodity?->hetAt($dStr);
+
+                $chartPoints[] = [
+                    'date' => $dStr,
+                    'label' => $current->translatedFormat('d M'),
+                    'full_date' => $current->translatedFormat('l, d F Y'),
+                    'price' => $priceRec ? (float) $priceRec->price : null,
+                    'het' => $het ? (float) $het->price : null,
+                ];
+
+                $current->addDay();
+            }
+
+            return response()->json([
+                'type' => 'daily',
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'commodity' => $commodity ? ['id' => $commodity->id, 'name' => $commodity->name, 'unit' => $commodity->unit] : null,
+                'data' => $chartPoints,
+            ]);
+        }
+
+        if ($type === 'weekly') {
+            // Weekly chart: filter month (1-12) and year (e.g. 2026)
+            $year = (int) $request->query('year', (int) now()->format('Y'));
+            $month = (int) $request->query('month', (int) now()->format('n'));
+            if ($month < 1 || $month > 12) {
+                $month = (int) now()->format('n');
+            }
+
+            $startOfMonth = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endOfMonth = $startOfMonth->copy()->endOfMonth();
+
+            $prices = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $commodityId)
+                ->whereBetween('recorded_date', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                ->orderBy('recorded_date')
+                ->get();
+
+            // Divide month into 4 or 5 weeks
+            $weeksData = [];
+            $wStart = $startOfMonth->copy();
+            $weekNum = 1;
+
+            while ($wStart->lte($endOfMonth)) {
+                $wEnd = $wStart->copy()->addDays(6);
+                if ($wEnd->gt($endOfMonth)) {
+                    $wEnd = $endOfMonth->copy();
+                }
+
+                $wPrices = $prices->filter(function ($item) use ($wStart, $wEnd) {
+                    $d = Carbon::parse($item->recorded_date);
+                    return $d->betweenIncluded($wStart, $wEnd);
+                });
+
+                $avgPrice = $wPrices->count() > 0 ? round($wPrices->avg('price'), 0) : null;
+                $midDate = $wStart->copy()->addDays((int) ($wStart->diffInDays($wEnd) / 2))->format('Y-m-d');
+                $het = $commodity?->hetAt($midDate);
+
+                $weeksData[] = [
+                    'week' => $weekNum,
+                    'label' => "M{$weekNum} ({$wStart->format('d')}-{$wEnd->format('d')} {$wStart->translatedFormat('M')})",
+                    'date_range' => "{$wStart->translatedFormat('d M')} - {$wEnd->translatedFormat('d M Y')}",
+                    'price' => $avgPrice,
+                    'het' => $het ? (float) $het->price : null,
+                ];
+
+                $wStart = $wEnd->copy()->addDay();
+                $weekNum++;
+            }
+
+            return response()->json([
+                'type' => 'weekly',
+                'year' => $year,
+                'month' => $month,
+                'commodity' => $commodity ? ['id' => $commodity->id, 'name' => $commodity->name, 'unit' => $commodity->unit] : null,
+                'data' => $weeksData,
+            ]);
+        }
+
+        if ($type === 'monthly') {
+            // Monthly chart: filter year only (12 months)
+            $year = (int) $request->query('year', (int) now()->format('Y'));
+
+            $startOfYear = Carbon::createFromDate($year, 1, 1)->startOfYear();
+            $endOfYear = Carbon::createFromDate($year, 12, 31)->endOfYear();
+
+            $prices = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $commodityId)
+                ->whereBetween('recorded_date', [$startOfYear->format('Y-m-d'), $endOfYear->format('Y-m-d')])
+                ->get();
+
+            $monthlyData = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $mCarbon = Carbon::createFromDate($year, $m, 1);
+                $mStart = $mCarbon->copy()->startOfMonth();
+                $mEnd = $mCarbon->copy()->endOfMonth();
+
+                $mPrices = $prices->filter(function ($item) use ($mStart, $mEnd) {
+                    $d = Carbon::parse($item->recorded_date);
+                    return $d->betweenIncluded($mStart, $mEnd);
+                });
+
+                $avgPrice = $mPrices->count() > 0 ? round($mPrices->avg('price'), 0) : null;
+                $midDate = $mCarbon->copy()->day(15)->format('Y-m-d');
+                $het = $commodity?->hetAt($midDate);
+
+                $monthlyData[] = [
+                    'month' => $m,
+                    'label' => $mCarbon->translatedFormat('M'),
+                    'full_month' => $mCarbon->translatedFormat('F Y'),
+                    'price' => $avgPrice,
+                    'het' => $het ? (float) $het->price : null,
+                ];
+            }
+
+            return response()->json([
+                'type' => 'monthly',
+                'year' => $year,
+                'commodity' => $commodity ? ['id' => $commodity->id, 'name' => $commodity->name, 'unit' => $commodity->unit] : null,
+                'data' => $monthlyData,
+            ]);
+        }
+
+        return response()->json(['error' => 'Invalid chart type'], 400);
+    }
 }
