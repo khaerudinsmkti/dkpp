@@ -2,7 +2,101 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+use App\Models\Commodity;
+use App\Models\ConsumerPrice;
+use App\Models\Market;
+use Inertia\Inertia;
+
+Route::get('/', function () {
+    return redirect()->route('harga-konsumen');
+})->name('home');
+
+Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
+    // Hanya tampilkan pasar yang statusnya aktif (is_active = true)
+    $markets = Market::where('is_active', true)->orderBy('order')->get();
+
+    $defaultMarketId = $markets->first()?->id ?? 1;
+    $selectedMarketId = (int) $request->query('market_id', $defaultMarketId);
+    $selectedMarket = $markets->firstWhere('id', $selectedMarketId) ?? $markets->first();
+    $marketId = $selectedMarket?->id ?? $defaultMarketId;
+
+    // Available recorded dates in DB
+    $maxRecordedDate = ConsumerPrice::max('recorded_date') ?? now()->format('Y-m-d');
+    $minRecordedDate = ConsumerPrice::min('recorded_date') ?? '2026-01-01';
+
+    $selectedDate = $request->query('date', $maxRecordedDate);
+    if (! is_string($selectedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
+        $selectedDate = $maxRecordedDate;
+    }
+
+    // Previous date before selectedDate for this market to calculate yesterday change
+    $prevDate = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', '<', $selectedDate)
+        ->max('recorded_date');
+
+    if (! $prevDate) {
+        $prevDate = \Illuminate\Support\Carbon::parse($selectedDate)->subDay()->format('Y-m-d');
+    }
+
+    $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
+
+    // Query prices for selected date and market
+    $currentPrices = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', $selectedDate)
+        ->get()
+        ->keyBy('commodity_id');
+
+    // Query prices for previous date and market
+    $prevPrices = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', $prevDate)
+        ->get()
+        ->keyBy('commodity_id');
+
+    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $selectedDate) {
+        $priceRecord = $currentPrices->get($c->id);
+        $prevPriceRecord = $prevPrices->get($c->id);
+        $applicableHet = $c->hetAt($selectedDate);
+
+        $todayPrice = $priceRecord ? (float) $priceRecord->price : null;
+        $yesterdayPrice = $prevPriceRecord ? (float) $prevPriceRecord->price : null;
+        $hetPrice = $applicableHet ? (float) $applicableHet->price : null;
+
+        return [
+            'id' => $c->id,
+            'name' => $c->name,
+            'category' => $c->category,
+            'unit' => $c->unit,
+            'today_price' => $todayPrice,
+            'yesterday_price' => $yesterdayPrice,
+            'het_price' => $hetPrice,
+            'date' => $selectedDate,
+        ];
+    });
+
+    return Inertia::render('harga-konsumen', [
+        'consumerCommodities' => $consumerCommodities,
+        'markets' => $markets->map(fn ($m) => [
+            'id' => $m->id,
+            'name' => $m->name,
+            'location' => $m->location,
+        ]),
+        'selectedMarketId' => $marketId,
+        'selectedMarketName' => $selectedMarket?->name ?? 'Pasar Daerah Indramayu',
+        'selectedDate' => $selectedDate,
+        'prevDate' => $prevDate,
+        'minDate' => $minRecordedDate,
+        'maxDate' => now()->format('Y-m-d'),
+    ]);
+})->name('harga-konsumen');
+
+Route::get('/harga-produsen', function () {
+    $latestOverallDate = ConsumerPrice::max('recorded_date') ?? now()->format('Y-m-d');
+    return Inertia::render('harga-produsen', [
+        'marketName' => 'Kabupaten Indramayu',
+        'latestDate' => $latestOverallDate,
+    ]);
+})->name('harga-produsen');
+
 
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
