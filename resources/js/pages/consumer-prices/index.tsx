@@ -181,6 +181,7 @@ interface MultiDayParsedResult {
     prices: Record<number, string>;
     notes: Record<number, string>;
     totalPricesCount: number;
+    detectedCount: number;
 }
 
 function parseExcelClipboard(
@@ -203,6 +204,7 @@ function parseExcelClipboard(
             prices: {},
             notes,
             totalPricesCount: 0,
+            detectedCount: 0,
         };
     }
 
@@ -237,6 +239,7 @@ function parseExcelClipboard(
             prices: {},
             notes,
             totalPricesCount: 0,
+            detectedCount: 0,
         };
     }
 
@@ -827,24 +830,24 @@ export default function ConsumerPricesIndex({
                 {/* Header Section */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <div className="flex items-center gap-2">
-                            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-xs">
                                 <ShoppingBag className="size-5" />
                             </div>
-                            <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                            <h1 className="font-headline text-2xl sm:text-[32px] sm:leading-[40px] font-bold tracking-tight text-foreground">
                                 Modul Harga Konsumen
                             </h1>
                         </div>
-                        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                        <p className="mt-1.5 text-sm text-muted-foreground leading-[22px]">
                             Pencatatan harian 25 komoditas pangan strategis per pasar dengan perbandingan otomatis terhadap HET dinamis yang berlaku.
                         </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2.5">
                         <Button
-                            variant="outline"
+                            variant="secondary"
                             asChild
-                            className="gap-2 border-emerald-300 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                            className="gap-2"
                         >
                             <Link href={hetsIndex.url()}>
                                 <Scale className="size-4" />
@@ -859,24 +862,24 @@ export default function ConsumerPricesIndex({
                                 setImportMarketId(currentMarketId);
                                 setImportModalOpen(true);
                             }}
-                            className="gap-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
+                            className="gap-2"
                         >
-                            <Upload className="size-4 text-emerald-600" />
+                            <Upload className="size-4 text-[#7C3AED]" />
                             Import Excel
                         </Button>
 
                         <Button
                             variant="outline"
                             onClick={handleOpenPasteModal}
-                            className="gap-2 border-neutral-300 text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-900"
+                            className="gap-2"
                         >
-                            <ClipboardPaste className="size-4 text-blue-600" />
+                            <ClipboardPaste className="size-4 text-[#0D9488]" />
                             Copy-Paste Excel
                         </Button>
 
                         <Button
                             onClick={handleOpenBulk}
-                            className="gap-2 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                            className="gap-2 shadow-xs"
                         >
                             <FileSpreadsheet className="size-4" />
                             Input Cepat (25 Komoditas)
@@ -885,21 +888,21 @@ export default function ConsumerPricesIndex({
                 </div>
 
                 {/* HET Dynamic Information Alert */}
-                <div className="flex items-start gap-3 rounded-xl border border-blue-200/80 bg-blue-50/70 p-4 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
-                    <ShieldAlert className="mt-0.5 size-5 shrink-0 text-blue-600 dark:text-blue-400" />
-                    <div className="text-sm">
-                        <span className="font-semibold">Mekanisme HET Dinamis:</span> Perbandingan harga pangan di halaman ini secara otomatis disesuaikan dengan regulasi HET yang aktif pada tanggal pantauan (
-                        <span className="font-mono font-bold text-blue-700 dark:text-blue-300">{currentDate}</span>
+                <div className="flex items-start gap-3.5 rounded-xl border border-blue-200 bg-[#EFF6FF] p-4 text-blue-900 shadow-xs dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                    <ShieldAlert className="mt-0.5 size-5 shrink-0 text-[#2563EB] dark:text-blue-400" />
+                    <div className="text-sm leading-[22px]">
+                        <span className="font-semibold text-blue-950 dark:text-blue-100">Mekanisme HET Dinamis:</span> Perbandingan harga pangan di halaman ini secara otomatis disesuaikan dengan regulasi HET yang aktif pada tanggal pantauan (
+                        <span className="font-mono font-bold text-[#2563EB] dark:text-blue-300">{currentDate}</span>
                         ). Apabila terjadi pembaruan HET di kemudian hari, data historis tetap merujuk pada HET di periodenya masing-masing.
                     </div>
                 </div>
 
                 {/* Date & Market Selection Bar */}
-                <Card className="border-sidebar-border/70 shadow-xs dark:border-sidebar-border">
-                    <CardContent className="p-4 sm:p-5">
+                <Card className="border-border bg-card shadow-xs">
+                    <CardContent className="p-6">
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
                             <div>
-                                <Label htmlFor="market-select" className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                                <Label htmlFor="market-select" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">
                                     Lokasi Pasar
                                 </Label>
                                 <Select
@@ -909,7 +912,7 @@ export default function ConsumerPricesIndex({
                                         applyDateAndMarket(currentDate, val);
                                     }}
                                 >
-                                    <SelectTrigger id="market-select" className="mt-1.5 w-full">
+                                    <SelectTrigger id="market-select" className="w-full">
                                         <SelectValue placeholder="Pilih Pasar..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -923,10 +926,10 @@ export default function ConsumerPricesIndex({
                             </div>
 
                             <div>
-                                <Label htmlFor="date-input" className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                                <Label htmlFor="date-input" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-1.5">
                                     Tanggal Pantauan
                                 </Label>
-                                <div className="relative mt-1.5">
+                                <div className="relative">
                                     <Input
                                         id="date-input"
                                         type="date"
@@ -935,22 +938,22 @@ export default function ConsumerPricesIndex({
                                             setCurrentDate(e.target.value);
                                             applyDateAndMarket(e.target.value, currentMarketId);
                                         }}
-                                        className="w-full"
+                                        className="w-full font-mono"
                                     />
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-2">
                                 <Button
-                                    variant="secondary"
-                                    className="mt-auto w-full gap-2"
+                                    variant="outline"
+                                    className="w-full gap-2 text-foreground"
                                     onClick={() => {
                                         const today = new Date().toISOString().split('T')[0];
                                         setCurrentDate(today);
                                         applyDateAndMarket(today, currentMarketId);
                                     }}
                                 >
-                                    <Calendar className="size-4" />
+                                    <Calendar className="size-4 text-[#7C3AED]" />
                                     Hari Ini
                                 </Button>
                             </div>
@@ -958,10 +961,10 @@ export default function ConsumerPricesIndex({
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"
-                                    className="mt-auto w-full gap-2"
+                                    className="w-full gap-2 text-foreground"
                                     onClick={() => applyDateAndMarket(currentDate, currentMarketId)}
                                 >
-                                    <RefreshCw className="size-4" />
+                                    <RefreshCw className="size-4 text-muted-foreground" />
                                     Muat Ulang
                                 </Button>
                             </div>
@@ -971,59 +974,77 @@ export default function ConsumerPricesIndex({
 
                 {/* KPI Statistics Overview */}
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Card className="border-sidebar-border/70 dark:border-sidebar-border">
+                    <Card className="border-border bg-card shadow-xs">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-neutral-500">Total Komoditas</CardTitle>
-                            <Layers className="size-4 text-neutral-400" />
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                Total Komoditas
+                            </CardTitle>
+                            <div className="flex size-7 items-center justify-center rounded-md bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950/60 dark:text-purple-300">
+                                <Layers className="size-4" />
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{statistics.total_commodities}</div>
-                            <p className="mt-1 text-xs text-neutral-500">
-                                Terdata: <span className="font-semibold text-emerald-600">{statistics.recorded_count}</span> dari 25 komoditas
+                            <div className="font-mono text-2xl font-bold text-foreground">
+                                {statistics.total_commodities}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Terdata: <span className="font-mono font-semibold text-[#0D9488]">{statistics.recorded_count}</span> dari 25 komoditas
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-red-200 bg-red-50/40 dark:border-red-950/60 dark:bg-red-950/10">
+                    <Card className="border-[#FECACA] bg-[#FEF2F2]/60 dark:border-rose-950/60 dark:bg-rose-950/15 shadow-xs">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-red-600 dark:text-red-400">Melebihi HET</CardTitle>
-                            <ArrowUpRight className="size-4 text-red-600 dark:text-red-400" />
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-[#EF4444] dark:text-rose-400">
+                                Melebihi HET
+                            </CardTitle>
+                            <div className="flex size-7 items-center justify-center rounded-md bg-[#FEE2E2] text-[#EF4444] dark:bg-rose-900/40 dark:text-rose-300">
+                                <ArrowUpRight className="size-4" />
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                            <div className="font-mono text-2xl font-bold text-[#DC2626] dark:text-rose-300">
                                 {statistics.above_het_count}
                             </div>
-                            <p className="mt-1 text-xs text-red-600/80 dark:text-red-400/80">
+                            <p className="mt-1 text-xs text-[#DC2626]/80 dark:text-rose-400/80">
                                 Perlu intervensi / operasi pasar
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-emerald-200 bg-emerald-50/40 dark:border-emerald-950/60 dark:bg-emerald-950/10">
+                    <Card className="border-[#A7F3D0] bg-[#ECFDF5]/60 dark:border-emerald-950/60 dark:bg-emerald-950/15 shadow-xs">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Di Bawah HET</CardTitle>
-                            <ArrowDownRight className="size-4 text-emerald-600 dark:text-emerald-400" />
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-[#059669] dark:text-emerald-400">
+                                Di Bawah HET
+                            </CardTitle>
+                            <div className="flex size-7 items-center justify-center rounded-md bg-[#D1FAE5] text-[#059669] dark:bg-emerald-900/40 dark:text-emerald-300">
+                                <ArrowDownRight className="size-4" />
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                            <div className="font-mono text-2xl font-bold text-[#059669] dark:text-emerald-300">
                                 {statistics.below_het_count}
                             </div>
-                            <p className="mt-1 text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                            <p className="mt-1 text-xs text-[#059669]/80 dark:text-emerald-400/80">
                                 Harga stabil & terjangkau
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-950/60 dark:bg-blue-950/10">
+                    <Card className="border-[#99F6E4] bg-[#F0FDFA]/70 dark:border-teal-950/60 dark:bg-teal-950/15 shadow-xs">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-blue-600 dark:text-blue-400">Sesuai HET</CardTitle>
-                            <CheckCircle2 className="size-4 text-blue-600 dark:text-blue-400" />
+                            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-[#0D9488] dark:text-teal-400">
+                                Sesuai HET
+                            </CardTitle>
+                            <div className="flex size-7 items-center justify-center rounded-md bg-[#CCFBF1] text-[#0D9488] dark:bg-teal-900/40 dark:text-teal-300">
+                                <CheckCircle2 className="size-4" />
+                            </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                            <div className="font-mono text-2xl font-bold text-[#0D9488] dark:text-teal-300">
                                 {statistics.equal_het_count}
                             </div>
-                            <p className="mt-1 text-xs text-blue-600/80 dark:text-blue-400/80">
+                            <p className="mt-1 text-xs text-[#0D9488]/80 dark:text-teal-400/80">
                                 Sesuai batas acuan regulasi
                             </p>
                         </CardContent>
@@ -1034,7 +1055,7 @@ export default function ConsumerPricesIndex({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-1 flex-wrap items-center gap-2">
                         <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-                            <Search className="absolute left-2.5 top-2.5 size-4 text-neutral-400" />
+                            <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
                             <Input
                                 placeholder="Cari komoditas..."
                                 value={searchTerm}
@@ -1079,23 +1100,23 @@ export default function ConsumerPricesIndex({
                                     setSelectedCategory('all');
                                     setSelectedStatus('all');
                                 }}
-                                className="text-neutral-500"
+                                className="text-muted-foreground hover:text-foreground"
                             >
                                 Reset Filter
                             </Button>
                         )}
                     </div>
 
-                    <div className="text-xs text-neutral-500">
-                        Menampilkan <span className="font-semibold text-neutral-800 dark:text-neutral-200">{displayedItems.length}</span> dari {items.length} komoditas
+                    <div className="text-xs text-muted-foreground">
+                        Menampilkan <span className="font-mono font-semibold text-foreground">{displayedItems.length}</span> dari {items.length} komoditas
                     </div>
                 </div>
 
                 {/* Consumer Price Table */}
-                <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-xs dark:border-sidebar-border">
+                <div className="overflow-hidden rounded-xl border border-border bg-card shadow-xs">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm">
-                            <thead className="border-b border-sidebar-border/70 bg-neutral-50/80 text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:border-sidebar-border dark:bg-neutral-900/60">
+                            <thead className="border-b border-border bg-[#FAFAFA] text-xs font-semibold uppercase tracking-wider text-muted-foreground dark:bg-slate-900/60">
                                 <tr>
                                     <th className="px-4 py-3 text-center">No</th>
                                     <th className="px-4 py-3">Komoditas & Kategori</th>
@@ -1108,10 +1129,10 @@ export default function ConsumerPricesIndex({
                                     <th className="px-4 py-3 text-center">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-sidebar-border/50 dark:divide-sidebar-border/60">
+                            <tbody className="divide-y divide-border">
                                 {displayedItems.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="py-12 text-center text-neutral-400">
+                                        <td colSpan={9} className="py-12 text-center text-muted-foreground">
                                             Tidak ada komoditas yang cocok dengan filter yang dipilih.
                                         </td>
                                     </tr>
@@ -1125,55 +1146,55 @@ export default function ConsumerPricesIndex({
                                         return (
                                             <tr
                                                 key={item.commodity_id}
-                                                className={`transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30 ${
+                                                className={`transition-colors hover:bg-[#F5F3FF]/60 dark:hover:bg-purple-950/20 ${
                                                     isAbove
-                                                        ? 'bg-red-50/20 dark:bg-red-950/5'
+                                                        ? 'bg-[#FEF2F2]/30 dark:bg-rose-950/10'
                                                         : isBelow
-                                                          ? 'bg-emerald-50/15 dark:bg-emerald-950/5'
+                                                          ? 'bg-[#ECFDF5]/30 dark:bg-emerald-950/10'
                                                           : ''
                                                 }`}
                                             >
-                                                <td className="px-4 py-3.5 text-center font-mono text-xs text-neutral-400">
+                                                <td className="px-4 py-3.5 text-center font-mono text-xs text-muted-foreground">
                                                     {item.order || idx + 1}
                                                 </td>
 
                                                 <td className="px-4 py-3.5">
-                                                    <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                                    <div className="font-semibold text-foreground">
                                                         {item.commodity_name}
                                                     </div>
-                                                    <div className="text-xs text-neutral-500">
+                                                    <div className="text-xs text-muted-foreground">
                                                         {item.category}
                                                     </div>
                                                 </td>
 
                                                 <td className="px-4 py-3.5">
-                                                    <Badge variant="outline" className="text-xs font-normal">
+                                                    <Badge variant="outline" className="text-xs font-normal rounded-md">
                                                         {item.unit}
                                                     </Badge>
                                                 </td>
 
                                                 <td className="px-4 py-3.5 text-right">
                                                     {isRecorded ? (
-                                                        <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                                                        <span className="font-mono font-bold text-foreground">
                                                             {formatCurrency(item.price)}
                                                         </span>
                                                     ) : (
-                                                        <span className="italic text-neutral-400">Belum diinput</span>
+                                                        <span className="italic text-muted-foreground">Belum diinput</span>
                                                     )}
                                                 </td>
 
                                                 <td className="px-4 py-3.5 text-right">
                                                     {item.applicable_het ? (
                                                         <div>
-                                                            <span className="font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                                                            <span className="font-mono font-medium text-foreground">
                                                                 {formatCurrency(item.applicable_het.price)}
                                                             </span>
-                                                            <div className="text-[11px] text-neutral-400">
+                                                            <div className="text-[11px] text-muted-foreground font-mono">
                                                                 Efektif: {item.applicable_het.effective_date}
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-xs text-neutral-400">-</span>
+                                                        <span className="text-xs text-muted-foreground">-</span>
                                                     )}
                                                 </td>
 
@@ -1182,10 +1203,10 @@ export default function ConsumerPricesIndex({
                                                         <div
                                                             className={
                                                                 isAbove
-                                                                    ? 'font-bold text-red-600 dark:text-red-400'
+                                                                    ? 'font-bold text-[#EF4444]'
                                                                     : isBelow
-                                                                      ? 'font-bold text-emerald-600 dark:text-emerald-400'
-                                                                      : 'text-neutral-500'
+                                                                      ? 'font-bold text-[#059669]'
+                                                                      : 'text-[#0D9488]'
                                                             }
                                                         >
                                                             {item.diff > 0 ? `+${formatCurrency(item.diff)}` : formatCurrency(item.diff)}
@@ -1196,36 +1217,36 @@ export default function ConsumerPricesIndex({
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-neutral-400">-</span>
+                                                        <span className="text-muted-foreground">-</span>
                                                     )}
                                                 </td>
 
                                                 <td className="px-4 py-3.5 text-center">
                                                     {isRecorded ? (
                                                         isAbove ? (
-                                                            <Badge variant="destructive" className="gap-1 font-semibold">
+                                                            <Badge variant="inactive" className="gap-1 font-semibold">
                                                                 <ArrowUpRight className="size-3" /> Di Atas HET
                                                             </Badge>
                                                         ) : isBelow ? (
-                                                            <Badge className="gap-1 bg-emerald-600 font-semibold text-white hover:bg-emerald-700">
+                                                            <Badge variant="active" className="gap-1 font-semibold">
                                                                 <ArrowDownRight className="size-3" /> Di Bawah HET
                                                             </Badge>
                                                         ) : isEqual ? (
                                                             <Badge variant="secondary" className="gap-1 font-semibold">
-                                                                <CheckCircle2 className="size-3 text-blue-500" /> Sesuai HET
+                                                                <CheckCircle2 className="size-3" /> Sesuai HET
                                                             </Badge>
                                                         ) : (
                                                             <Badge variant="outline">Tanpa HET</Badge>
                                                         )
                                                     ) : (
-                                                        <Badge variant="outline" className="border-dashed text-neutral-400">
+                                                        <Badge variant="outline" className="border-dashed text-muted-foreground">
                                                             Belum Ada Data
                                                         </Badge>
                                                     )}
                                                 </td>
 
                                                 <td className="px-4 py-3.5">
-                                                    <div className="text-xs text-neutral-600 dark:text-neutral-300">
+                                                    <div className="text-xs text-muted-foreground">
                                                         {item.applicable_het?.source_regulation || item.notes || '-'}
                                                     </div>
                                                 </td>
@@ -1233,12 +1254,12 @@ export default function ConsumerPricesIndex({
                                                 <td className="px-4 py-3.5 text-center">
                                                     <div className="flex items-center justify-center gap-1.5">
                                                         <Button
-                                                            variant="outline"
+                                                            variant="secondary"
                                                             size="sm"
                                                             onClick={() => handleOpenEdit(item)}
                                                             className="h-8 gap-1 px-2.5 text-xs"
                                                         >
-                                                            <Edit3 className="size-3.5 text-neutral-600 dark:text-neutral-300" />
+                                                            <Edit3 className="size-3.5 text-[#7C3AED]" />
                                                             {isRecorded ? 'Edit' : 'Input'}
                                                         </Button>
 
@@ -1247,7 +1268,7 @@ export default function ConsumerPricesIndex({
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => handleDeletePrice(item)}
-                                                                className="size-8 p-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50"
+                                                                className="size-8 p-0 text-[#EF4444] hover:bg-[#FEF2F2] hover:text-[#DC2626] dark:hover:bg-rose-950/50"
                                                                 title="Hapus data harga"
                                                             >
                                                                 <Trash2 className="size-3.5" />
@@ -1268,35 +1289,37 @@ export default function ConsumerPricesIndex({
                 <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <ShoppingBag className="size-5 text-emerald-600" />
-                                {editingItem?.price !== null ? 'Perbarui Harga Konsumen' : 'Input Harga Konsumen'}
+                            <DialogTitle className="flex items-center gap-2.5">
+                                <div className="flex size-8 items-center justify-center rounded-lg bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950/60 dark:text-purple-300">
+                                    <ShoppingBag className="size-4.5" />
+                                </div>
+                                <span>{editingItem?.price !== null ? 'Perbarui Harga Konsumen' : 'Input Harga Konsumen'}</span>
                             </DialogTitle>
                             <DialogDescription>
-                                Komoditas: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{editingItem?.commodity_name}</span> ({editingItem?.unit})
+                                Komoditas: <span className="font-semibold text-foreground">{editingItem?.commodity_name}</span> ({editingItem?.unit})
                             </DialogDescription>
                         </DialogHeader>
 
                         <form onSubmit={handleSaveSingle} className="space-y-4">
-                            <div className="rounded-lg bg-neutral-50 p-3 text-xs dark:bg-neutral-900">
-                                <div className="flex justify-between py-0.5">
-                                    <span className="text-neutral-500">Pasar:</span>
-                                    <span className="font-medium">{selectedMarket?.name}</span>
+                            <div className="rounded-lg border border-purple-100 bg-[#F5F3FF]/50 p-3.5 text-xs dark:border-purple-950/40 dark:bg-purple-950/20">
+                                <div className="flex justify-between py-1">
+                                    <span className="text-muted-foreground">Pasar:</span>
+                                    <span className="font-medium text-foreground">{selectedMarket?.name}</span>
                                 </div>
-                                <div className="flex justify-between py-0.5">
-                                    <span className="text-neutral-500">Tanggal:</span>
-                                    <span className="font-mono font-medium">{currentDate}</span>
+                                <div className="flex justify-between py-1">
+                                    <span className="text-muted-foreground">Tanggal:</span>
+                                    <span className="font-mono font-medium text-foreground">{currentDate}</span>
                                 </div>
-                                <div className="flex justify-between py-0.5">
-                                    <span className="text-neutral-500">HET Berlaku:</span>
-                                    <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
+                                <div className="flex justify-between py-1">
+                                    <span className="text-muted-foreground">HET Berlaku:</span>
+                                    <span className="font-mono font-bold text-foreground">
                                         {formatCurrency(editingItem?.applicable_het?.price ?? null)} / {editingItem?.unit}
                                     </span>
                                 </div>
                                 {editingItem?.applicable_het?.source_regulation && (
-                                    <div className="flex justify-between py-0.5">
-                                        <span className="text-neutral-500">Regulasi HET:</span>
-                                        <span className="text-neutral-700 dark:text-neutral-300">
+                                    <div className="flex justify-between py-1">
+                                        <span className="text-muted-foreground">Regulasi HET:</span>
+                                        <span className="text-foreground">
                                             {editingItem.applicable_het.source_regulation}
                                         </span>
                                     </div>
@@ -1306,7 +1329,7 @@ export default function ConsumerPricesIndex({
                             <div className="space-y-1.5">
                                 <Label htmlFor="single-price">Harga Konsumen (Rp / {editingItem?.unit})</Label>
                                 <div className="relative">
-                                    <span className="absolute left-3 top-2.5 text-xs font-semibold text-neutral-400">Rp</span>
+                                    <span className="absolute left-3 top-2.5 text-xs font-semibold text-muted-foreground">Rp</span>
                                     <Input
                                         id="single-price"
                                         type="number"
@@ -1322,15 +1345,15 @@ export default function ConsumerPricesIndex({
                                 {singlePrice && editingItem?.applicable_het && (
                                     <div className="text-xs">
                                         {parseFloat(singlePrice) > editingItem.applicable_het.price ? (
-                                            <span className="font-semibold text-red-600 dark:text-red-400">
+                                            <span className="font-semibold text-[#EF4444]">
                                                 Melebihi HET sebesar +Rp {(parseFloat(singlePrice) - editingItem.applicable_het.price).toLocaleString('id-ID')}
                                             </span>
                                         ) : parseFloat(singlePrice) < editingItem.applicable_het.price ? (
-                                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                            <span className="font-semibold text-[#059669]">
                                                 Di bawah HET sebesar -Rp {(editingItem.applicable_het.price - parseFloat(singlePrice)).toLocaleString('id-ID')}
                                             </span>
                                         ) : (
-                                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                            <span className="font-semibold text-[#0D9488]">
                                                 Tepat sesuai HET
                                             </span>
                                         )}
@@ -1352,7 +1375,7 @@ export default function ConsumerPricesIndex({
                                 <Button type="button" variant="outline" onClick={() => setEditModalOpen(false)}>
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={isSubmittingSingle} className="bg-emerald-600 hover:bg-emerald-700">
+                                <Button type="submit" disabled={isSubmittingSingle}>
                                     {isSubmittingSingle ? 'Menyimpan...' : 'Simpan Harga'}
                                 </Button>
                             </DialogFooter>
@@ -1366,39 +1389,41 @@ export default function ConsumerPricesIndex({
                         <DialogHeader>
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div>
-                                    <DialogTitle className="flex items-center gap-2">
-                                        <FileSpreadsheet className="size-5 text-emerald-600" />
-                                        Form Input Cepat 25 Komoditas Pangan
+                                    <DialogTitle className="flex items-center gap-2.5">
+                                        <div className="flex size-8 items-center justify-center rounded-lg bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950/60 dark:text-purple-300">
+                                            <FileSpreadsheet className="size-4.5" />
+                                        </div>
+                                        <span>Form Input Cepat 25 Komoditas Pangan</span>
                                     </DialogTitle>
                                     <DialogDescription className="mt-1">
                                         Masukkan harga konsumen harian secara terpadu untuk pasar{' '}
-                                        <span className="font-semibold text-neutral-900 dark:text-neutral-100">{selectedMarket?.name}</span>{' '}
-                                        pada tanggal <span className="font-mono font-semibold text-neutral-900 dark:text-neutral-100">{currentDate}</span>.
+                                        <span className="font-semibold text-foreground">{selectedMarket?.name}</span>{' '}
+                                        pada tanggal <span className="font-mono font-semibold text-foreground">{currentDate}</span>.
                                     </DialogDescription>
                                 </div>
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="secondary"
                                     size="sm"
                                     onClick={() => {
                                         setBulkModalOpen(false);
                                         handleOpenPasteModal();
                                     }}
-                                    className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950/40 text-xs shrink-0 self-start sm:self-center"
+                                    className="gap-1.5 text-xs shrink-0 self-start sm:self-center"
                                 >
                                     <ClipboardPaste className="size-3.5" />
                                     Tempel dari Excel (Ctrl+V)
                                 </Button>
                             </div>
-                            <div className="rounded-md bg-neutral-100/80 px-2.5 py-1 text-[11px] text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400">
-                                💡 <strong>Tip Cepat:</strong> Anda juga bisa langsung menekan <kbd className="rounded border bg-white px-1 py-0.5 font-mono text-[10px] text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">Ctrl+V</kbd> pada kolom input harga baris pertama untuk mengisi seluruh 25 komoditas ke bawah secara otomatis.
+                            <div className="rounded-lg border border-purple-200/60 bg-[#F5F3FF]/70 px-3 py-2 text-xs text-purple-950 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-300">
+                                💡 <strong>Tip Cepat:</strong> Anda juga bisa langsung menekan <kbd className="rounded border bg-white px-1 py-0.5 font-mono text-[10px] text-foreground dark:bg-slate-800">Ctrl+V</kbd> pada kolom input harga baris pertama untuk mengisi seluruh 25 komoditas ke bawah secara otomatis.
                             </div>
                         </DialogHeader>
 
                         <form onSubmit={handleSaveBulk} className="flex flex-1 flex-col overflow-hidden">
                             <div className="flex-1 overflow-y-auto pr-1">
                                 <table className="w-full text-left text-xs">
-                                    <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300">
+                                    <thead className="sticky top-0 border-b border-border bg-[#FAFAFA] font-semibold text-muted-foreground dark:bg-slate-900/80">
                                         <tr>
                                             <th className="py-2.5 pl-2 pr-2">No</th>
                                             <th className="py-2.5 px-2">Komoditas</th>
@@ -1408,7 +1433,7 @@ export default function ConsumerPricesIndex({
                                             <th className="py-2.5 px-2">Status / Selisih</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-sidebar-border/40">
+                                    <tbody className="divide-y divide-border/60">
                                         {allItemsForBulk.map((item, idx) => {
                                             const enteredVal = bulkPrices[item.commodity_id];
                                             const numVal = enteredVal ? parseFloat(enteredVal) : null;
@@ -1419,19 +1444,19 @@ export default function ConsumerPricesIndex({
                                                 const diff = numVal - hetVal;
                                                 if (diff > 0) {
                                                     diffBadge = (
-                                                        <span className="font-semibold text-red-600 dark:text-red-400">
+                                                        <span className="font-semibold text-[#EF4444]">
                                                             +Rp {diff.toLocaleString('id-ID')} (Di Atas HET)
                                                         </span>
                                                     );
                                                 } else if (diff < 0) {
                                                     diffBadge = (
-                                                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                        <span className="font-semibold text-[#059669]">
                                                             -Rp {Math.abs(diff).toLocaleString('id-ID')} (Di Bawah HET)
                                                         </span>
                                                     );
                                                 } else {
                                                     diffBadge = (
-                                                        <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                        <span className="font-semibold text-[#0D9488]">
                                                             Sesuai HET
                                                         </span>
                                                     );
@@ -1439,22 +1464,22 @@ export default function ConsumerPricesIndex({
                                             }
 
                                             return (
-                                                <tr key={item.commodity_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                                                    <td className="py-2 pl-2 pr-2 text-neutral-400 font-mono">
+                                                <tr key={item.commodity_id} className="hover:bg-[#F5F3FF]/60 dark:hover:bg-purple-950/20">
+                                                    <td className="py-2 pl-2 pr-2 text-muted-foreground font-mono">
                                                         {item.order || idx + 1}
                                                     </td>
                                                     <td className="py-2 px-2">
-                                                        <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                                                        <div className="font-medium text-foreground">
                                                             {item.commodity_name}
                                                         </div>
-                                                        <div className="text-[11px] text-neutral-400">{item.category}</div>
+                                                        <div className="text-[11px] text-muted-foreground">{item.category}</div>
                                                     </td>
                                                     <td className="py-2 px-2">
-                                                        <Badge variant="outline" className="text-[10px] font-normal">
+                                                        <Badge variant="outline" className="text-[10px] font-normal rounded-md">
                                                             {item.unit}
                                                         </Badge>
                                                     </td>
-                                                    <td className="py-2 px-2 text-right font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                                                    <td className="py-2 px-2 text-right font-mono font-medium text-foreground">
                                                         {hetVal !== null ? formatCurrency(hetVal) : '-'}
                                                     </td>
                                                     <td className="py-2 px-2">
@@ -1475,7 +1500,7 @@ export default function ConsumerPricesIndex({
                                                         />
                                                     </td>
                                                     <td className="py-2 px-2 text-[11px]">
-                                                        {diffBadge || <span className="text-neutral-400">-</span>}
+                                                        {diffBadge || <span className="text-muted-foreground">-</span>}
                                                     </td>
                                                 </tr>
                                             );
@@ -1484,11 +1509,11 @@ export default function ConsumerPricesIndex({
                                 </table>
                             </div>
 
-                            <DialogFooter className="mt-4 border-t pt-3">
+                            <DialogFooter className="mt-4 border-t border-border pt-3">
                                 <Button type="button" variant="outline" onClick={() => setBulkModalOpen(false)}>
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={isSubmittingBulk} className="bg-emerald-600 hover:bg-emerald-700">
+                                <Button type="submit" disabled={isSubmittingBulk}>
                                     {isSubmittingBulk ? 'Menyimpan Semua Data...' : 'Simpan Semua Data (25 Komoditas)'}
                                 </Button>
                             </DialogFooter>
@@ -1500,18 +1525,20 @@ export default function ConsumerPricesIndex({
                 {/* Import Excel Modal (Landscape Layout) */}
                 <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
                     <DialogContent className="w-[94vw] max-w-[94vw] sm:max-w-none md:max-w-4xl lg:max-w-5xl xl:max-w-[1180px] 2xl:max-w-[1280px] max-h-[92vh] p-4 sm:p-6 flex flex-col overflow-hidden">
-                        <DialogHeader className="pb-3 border-b shrink-0">
+                        <DialogHeader className="pb-3 border-b border-border shrink-0">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
                                 <div>
-                                    <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                        <Upload className="size-5 text-emerald-600" />
-                                        Import Data Harga dari File Excel (1 Hari, 1 Minggu s/d 1 Bulan)
+                                    <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg">
+                                        <div className="flex size-8 items-center justify-center rounded-lg bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950/60 dark:text-purple-300">
+                                            <Upload className="size-4.5" />
+                                        </div>
+                                        <span>Import Data Harga dari File Excel (1 Hari, 1 Minggu s/d 1 Bulan)</span>
                                     </DialogTitle>
                                     <DialogDescription className="text-xs mt-0.5">
                                         Unggah berkas spreadsheet (.xlsx atau .csv) untuk mencatat harga 25 komoditas pangan secara otomatis ke sistem database.
                                     </DialogDescription>
                                 </div>
-                                <Badge variant="outline" className="text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 py-1 px-3 shrink-0 self-start sm:self-auto">
+                                <Badge variant="filter" className="text-xs font-semibold py-1 px-3 shrink-0 self-start sm:self-auto">
                                     Maks. 31 Hari / Transaksi
                                 </Badge>
                             </div>
@@ -1523,17 +1550,17 @@ export default function ConsumerPricesIndex({
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
                                     {/* Left Column: Langkah 1 - Format & Unduh Template Resmi */}
                                     <div className="lg:col-span-5 flex flex-col gap-3.5">
-                                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20 flex flex-col justify-between flex-1">
+                                        <div className="rounded-xl border border-purple-200/80 bg-[#F5F3FF]/40 p-4 dark:border-purple-900/60 dark:bg-purple-950/20 flex flex-col justify-between flex-1">
                                             <div>
                                                 <div className="flex items-start gap-3">
-                                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                                                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#7C3AED] text-white shadow-xs">
                                                         <FileSpreadsheet className="size-5" />
                                                     </div>
                                                     <div>
-                                                        <h4 className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
+                                                        <h4 className="text-sm font-semibold text-foreground">
                                                             1. Format Template Resmi
                                                         </h4>
-                                                        <p className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
+                                                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
                                                             Unduh berkas acuan sesuai urutan baku 25 komoditas pangan beserta nilai HET aktif.
                                                         </p>
                                                     </div>
@@ -1541,17 +1568,17 @@ export default function ConsumerPricesIndex({
 
                                                 {/* Period Selector Tabs */}
                                                 <div className="mt-3.5 space-y-1.5">
-                                                    <div className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+                                                    <div className="text-[11px] font-semibold text-foreground">
                                                         Pilih Periode Template:
                                                     </div>
-                                                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-emerald-200 bg-white/80 p-1 dark:border-emerald-800 dark:bg-emerald-900/40">
+                                                    <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-white p-1 dark:bg-slate-900">
                                                         <button
                                                             type="button"
                                                             onClick={() => setImportPeriod('daily')}
                                                             className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
                                                                 importPeriod === 'daily'
-                                                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                                    ? 'bg-[#7C3AED] text-white shadow-xs'
+                                                                    : 'text-muted-foreground hover:text-[#7C3AED]'
                                                             }`}
                                                         >
                                                             1 Hari
@@ -1561,8 +1588,8 @@ export default function ConsumerPricesIndex({
                                                             onClick={() => setImportPeriod('weekly')}
                                                             className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
                                                                 importPeriod === 'weekly'
-                                                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                                    ? 'bg-[#7C3AED] text-white shadow-xs'
+                                                                    : 'text-muted-foreground hover:text-[#7C3AED]'
                                                             }`}
                                                         >
                                                             7 Hari (1 Mgg)
@@ -1572,8 +1599,8 @@ export default function ConsumerPricesIndex({
                                                             onClick={() => setImportPeriod('monthly')}
                                                             className={`rounded-md py-1.5 text-xs font-semibold transition-all ${
                                                                 importPeriod === 'monthly'
-                                                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                                                    : 'text-neutral-600 hover:text-emerald-700 dark:text-neutral-300'
+                                                                    ? 'bg-[#7C3AED] text-white shadow-xs'
+                                                                    : 'text-muted-foreground hover:text-[#7C3AED]'
                                                             }`}
                                                         >
                                                             31 Hari (1 Bln)
@@ -1598,9 +1625,9 @@ export default function ConsumerPricesIndex({
                                                                 ? 'format_harga_konsumen_bulanan_31_hari.xlsx'
                                                                 : 'format_harga_konsumen_25_komoditas.xlsx'
                                                         }
-                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400 bg-white px-3 py-2 text-xs font-semibold text-emerald-800 shadow-2xs hover:bg-emerald-100 transition-colors dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200"
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#7C3AED] bg-white px-3 py-2 text-xs font-semibold text-[#7C3AED] shadow-2xs hover:bg-[#F5F3FF] transition-colors dark:bg-purple-950/40 dark:text-purple-300"
                                                     >
-                                                        <Download className="size-4 text-emerald-600" />
+                                                        <Download className="size-4 text-[#7C3AED]" />
                                                         Download Template Excel (.xlsx)
                                                     </a>
                                                     <a
@@ -1619,15 +1646,15 @@ export default function ConsumerPricesIndex({
                                                                 ? 'format_harga_konsumen_bulanan_31_hari.csv'
                                                                 : 'format_harga_konsumen_25_komoditas.csv'
                                                         }
-                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-2xs hover:bg-neutral-100 transition-colors dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
+                                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-xs font-semibold text-foreground shadow-2xs hover:bg-[#F3F4F6] transition-colors dark:bg-slate-800 dark:text-slate-200"
                                                     >
-                                                        <Download className="size-4 text-neutral-500" />
+                                                        <Download className="size-4 text-muted-foreground" />
                                                         Download Template CSV (.csv)
                                                     </a>
                                                 </div>
                                             </div>
 
-                                            <div className="mt-4 rounded-lg border border-emerald-300/60 bg-white/70 p-2.5 text-[11px] text-emerald-900/80 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300/80">
+                                            <div className="mt-4 rounded-lg border border-purple-200/60 bg-white/80 p-2.5 text-[11px] text-foreground dark:border-purple-900 dark:bg-purple-950/40">
                                                 <strong>Tip:</strong> Tanggal kolom pada template otomatis disesuaikan mulai dari <strong>{formatShortDate(importDate)}</strong>.
                                             </div>
                                         </div>
@@ -1636,13 +1663,13 @@ export default function ConsumerPricesIndex({
                                     {/* Right Column: Langkah 2 - Konfigurasi Target & Unggah Berkas */}
                                     <div className="lg:col-span-7 flex flex-col gap-3.5">
                                         {/* Market & Date Configuration */}
-                                        <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-neutral-200 bg-neutral-50/80 p-3.5 dark:border-neutral-800 dark:bg-neutral-900/40">
+                                        <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-border bg-[#FAFAFA] p-3.5 dark:bg-slate-900/60">
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="import-market" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                                <Label htmlFor="import-market" className="text-xs font-semibold text-foreground">
                                                     2. Lokasi Pasar Target
                                                 </Label>
                                                 <Select value={importMarketId} onValueChange={setImportMarketId}>
-                                                    <SelectTrigger id="import-market" className="w-full h-8 text-xs bg-white dark:bg-neutral-900">
+                                                    <SelectTrigger id="import-market" className="w-full h-9 text-xs bg-white dark:bg-slate-900">
                                                         <SelectValue placeholder="Pilih Pasar..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -1656,7 +1683,7 @@ export default function ConsumerPricesIndex({
                                             </div>
 
                                             <div className="space-y-1.5">
-                                                <Label htmlFor="import-date" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                                <Label htmlFor="import-date" className="text-xs font-semibold text-foreground">
                                                     Tanggal Mulai / Acuan
                                                 </Label>
                                                 <Input
@@ -1665,17 +1692,17 @@ export default function ConsumerPricesIndex({
                                                     value={importDate}
                                                     onChange={(e) => setImportDate(e.target.value)}
                                                     required
-                                                    className="h-8 text-xs bg-white dark:bg-neutral-900"
+                                                    className="h-9 text-xs bg-white dark:bg-slate-900 font-mono"
                                                 />
                                             </div>
                                         </div>
 
                                         {/* Upload Dropzone */}
                                         <div className="space-y-1.5 flex flex-col flex-1">
-                                            <Label htmlFor="import-file" className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                            <Label htmlFor="import-file" className="text-xs font-semibold text-foreground">
                                                 3. Pilih atau Seret Berkas Spreadsheet
                                             </Label>
-                                            <div className="relative flex flex-1 min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-neutral-300 p-4 text-center hover:border-emerald-500 transition-colors bg-white dark:border-neutral-700 dark:bg-neutral-900/50 dark:hover:border-emerald-500">
+                                            <div className="relative flex flex-1 min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-border p-4 text-center hover:border-[#7C3AED] transition-colors bg-white dark:border-slate-700 dark:bg-slate-900/50">
                                                 <input
                                                     id="import-file"
                                                     type="file"
@@ -1688,14 +1715,14 @@ export default function ConsumerPricesIndex({
                                                 />
                                                 {importFile ? (
                                                     <div className="flex flex-col items-center gap-2 p-2 text-center">
-                                                        <div className="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                                                        <div className="flex size-10 items-center justify-center rounded-full bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950 dark:text-purple-300">
                                                             <CheckCircle2 className="size-6" />
                                                         </div>
                                                         <div>
-                                                            <p className="font-semibold text-sm text-neutral-900 dark:text-neutral-100 truncate max-w-xs sm:max-w-md">
+                                                            <p className="font-semibold text-sm text-foreground truncate max-w-xs sm:max-w-md">
                                                                 {importFile.name}
                                                             </p>
-                                                            <p className="text-xs text-neutral-500 mt-0.5">
+                                                            <p className="text-xs text-muted-foreground mt-0.5">
                                                                 Ukuran: {(importFile.size / 1024).toFixed(1)} KB • Siap diimpor
                                                             </p>
                                                         </div>
@@ -1705,20 +1732,20 @@ export default function ConsumerPricesIndex({
                                                                 e.stopPropagation();
                                                                 setImportFile(null);
                                                             }}
-                                                            className="relative z-20 text-xs text-red-600 hover:text-red-700 font-medium underline mt-1"
+                                                            className="relative z-20 text-xs text-[#EF4444] hover:text-[#DC2626] font-medium underline mt-1"
                                                         >
                                                             Ganti atau Hapus Berkas
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex flex-col items-center justify-center gap-1.5 text-neutral-500">
-                                                        <div className="flex size-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                                                    <div className="flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
+                                                        <div className="flex size-10 items-center justify-center rounded-full bg-[#F5F3FF] text-[#7C3AED] dark:bg-slate-800 dark:text-purple-300">
                                                             <Upload className="size-5" />
                                                         </div>
-                                                        <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-200">
+                                                        <p className="text-xs font-semibold text-foreground">
                                                             Klik untuk memilih atau seret berkas ke sini
                                                         </p>
-                                                        <p className="text-[11px] text-neutral-400">
+                                                        <p className="text-[11px] text-muted-foreground">
                                                             Mendukung format .xlsx, .csv, atau .xls (Maksimal 10MB)
                                                         </p>
                                                     </div>
@@ -1727,15 +1754,15 @@ export default function ConsumerPricesIndex({
                                         </div>
 
                                         {/* Notice Callout */}
-                                        <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 text-xs text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-                                            <span className="font-semibold text-emerald-700 dark:text-emerald-400">💡 Deteksi Tanggal Otomatis:</span> Berkas dapat berisi 1 hari, 1 minggu (7 hari), atau hingga 31 hari (1 bulan). Sistem otomatis membaca kolom tanggal dan mencatat seluruh data dalam satu transaksi database yang aman.
+                                        <div className="rounded-lg border border-blue-200 bg-[#EFF6FF] p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                                            <span className="font-semibold text-[#2563EB] dark:text-blue-300">💡 Deteksi Tanggal Otomatis:</span> Berkas dapat berisi 1 hari, 1 minggu (7 hari), atau hingga 31 hari (1 bulan). Sistem otomatis membaca kolom tanggal dan mencatat seluruh data dalam satu transaksi database yang aman.
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Footer Section */}
-                            <DialogFooter className="mt-2 border-t pt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
+                            <DialogFooter className="mt-2 border-t border-border pt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
                                 <Button
                                     type="button"
                                     variant="outline"
@@ -1749,7 +1776,7 @@ export default function ConsumerPricesIndex({
                                 <Button
                                     type="submit"
                                     disabled={!importFile || isSubmittingImport}
-                                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    className="gap-2"
                                 >
                                     {isSubmittingImport ? (
                                         <>
@@ -1771,20 +1798,22 @@ export default function ConsumerPricesIndex({
                 {/* Copy-Paste dari Excel Modal */}
                 <Dialog open={pasteModalOpen} onOpenChange={setPasteModalOpen}>
                     <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-none xl:max-w-[1550px] 2xl:max-w-[1720px] h-[94vh] max-h-[94vh] p-4 sm:p-5 flex flex-col overflow-hidden">
-                        <DialogHeader className="pb-2.5 border-b shrink-0">
+                        <DialogHeader className="pb-2.5 border-b border-border shrink-0">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pr-6">
                                 <div>
-                                    <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-                                        <ClipboardPaste className="size-5 text-blue-600" />
-                                        Salin & Tempel (Copy-Paste) Data Excel (1 Hari, 1 Minggu s/d 1 Bulan)
+                                    <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg">
+                                        <div className="flex size-8 items-center justify-center rounded-lg bg-[#F5F3FF] text-[#7C3AED] dark:bg-purple-950/60 dark:text-purple-300">
+                                            <ClipboardPaste className="size-4.5" />
+                                        </div>
+                                        <span>Salin & Tempel (Copy-Paste) Data Excel (1 Hari, 1 Minggu s/d 1 Bulan)</span>
                                     </DialogTitle>
                                     <DialogDescription className="text-xs mt-0.5">
                                         Salin kolom harga dari spreadsheet Excel (<kbd className="rounded border bg-muted px-1 font-mono text-[10px]">Ctrl+C</kbd>), lalu tempelkan (<kbd className="rounded border bg-muted px-1 font-mono text-[10px]">Ctrl+V</kbd>) di area tempel. Sistem otomatis memetakan ke 25 komoditas pangan.
                                     </DialogDescription>
                                 </div>
                                 {pasteDetectedDates.length > 0 && totalPastedPrices > 0 && (
-                                    <Badge variant="outline" className="text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 py-1 px-3 shrink-0 self-start sm:self-auto">
-                                        <CheckCheck className="size-3.5 mr-1 text-emerald-600" />
+                                    <Badge variant="filter" className="text-xs font-semibold py-1 px-3 shrink-0 self-start sm:self-auto gap-1">
+                                        <CheckCheck className="size-3.5 text-[#7C3AED]" />
                                         {pasteDetectedDates.length} Hari Terdeteksi ({totalPastedPrices} Nilai Harga)
                                     </Badge>
                                 )}
@@ -1796,13 +1825,13 @@ export default function ConsumerPricesIndex({
                             {/* Left Panel: Sidebar Kontrol & Tempel Data */}
                             <div className="w-full lg:w-[330px] xl:w-[370px] shrink-0 flex flex-col gap-2.5 overflow-y-auto pr-1">
                                 {/* Box 1: Pengaturan Data */}
-                                <div className="space-y-2.5 rounded-lg border border-neutral-200 bg-neutral-50/80 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+                                <div className="space-y-2.5 rounded-lg border border-border bg-[#FAFAFA] p-3 dark:bg-slate-900/60">
                                     <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                        <Label className="text-[11px] font-semibold text-foreground">
                                             Lokasi Pasar Target
                                         </Label>
                                         <Select value={pasteMarketId} onValueChange={setPasteMarketId}>
-                                            <SelectTrigger className="h-8 text-xs bg-white dark:bg-neutral-900">
+                                            <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900">
                                                 <SelectValue placeholder="Pilih Pasar..." />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -1816,10 +1845,10 @@ export default function ConsumerPricesIndex({
                                     </div>
 
                                     <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                        <Label className="text-[11px] font-semibold text-foreground">
                                             Pilihan Periode
                                         </Label>
-                                        <div className="grid grid-cols-3 gap-1 rounded-md border border-neutral-200 bg-neutral-100/70 p-1 dark:border-neutral-800 dark:bg-neutral-900">
+                                        <div className="grid grid-cols-3 gap-1 rounded-md border border-border bg-white p-1 dark:bg-slate-900">
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -1831,8 +1860,8 @@ export default function ConsumerPricesIndex({
                                                 }}
                                                 className={`rounded py-1 text-xs font-semibold transition-all ${
                                                     pastePeriod === 'daily'
-                                                        ? 'bg-blue-600 text-white shadow-2xs'
-                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                        ? 'bg-[#7C3AED] text-white shadow-2xs'
+                                                        : 'text-muted-foreground hover:text-[#7C3AED]'
                                                 }`}
                                             >
                                                 1 Hari
@@ -1851,8 +1880,8 @@ export default function ConsumerPricesIndex({
                                                 }}
                                                 className={`rounded py-1 text-xs font-semibold transition-all ${
                                                     pastePeriod === 'weekly'
-                                                        ? 'bg-blue-600 text-white shadow-2xs'
-                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                        ? 'bg-[#7C3AED] text-white shadow-2xs'
+                                                        : 'text-muted-foreground hover:text-[#7C3AED]'
                                                 }`}
                                             >
                                                 7 Hari (1 Mgg)
@@ -1871,8 +1900,8 @@ export default function ConsumerPricesIndex({
                                                 }}
                                                 className={`rounded py-1 text-xs font-semibold transition-all ${
                                                     pastePeriod === 'monthly'
-                                                        ? 'bg-blue-600 text-white shadow-2xs'
-                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                        ? 'bg-[#7C3AED] text-white shadow-2xs'
+                                                        : 'text-muted-foreground hover:text-[#7C3AED]'
                                                 }`}
                                             >
                                                 31 Hari (1 Bln)
@@ -1881,7 +1910,7 @@ export default function ConsumerPricesIndex({
                                     </div>
 
                                     <div className="space-y-1">
-                                        <Label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400">
+                                        <Label className="text-[11px] font-semibold text-foreground">
                                             Tanggal Mulai
                                         </Label>
                                         <Input
@@ -1901,7 +1930,7 @@ export default function ConsumerPricesIndex({
                                                     handlePasteRawChange(pasteRawText, newD);
                                                 }
                                             }}
-                                            className="h-8 text-xs bg-white dark:bg-neutral-900"
+                                            className="h-8 text-xs bg-white dark:bg-slate-900 font-mono"
                                         />
                                     </div>
                                 </div>
@@ -1909,7 +1938,7 @@ export default function ConsumerPricesIndex({
                                 {/* Box 2: Area Tempel (Ctrl + V) */}
                                 <div className="space-y-1.5 flex flex-col flex-1">
                                     <div className="flex items-center justify-between">
-                                        <Label htmlFor="paste-textarea" className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                                        <Label htmlFor="paste-textarea" className="text-xs font-semibold text-foreground">
                                             Area Tempel Clipboard (Ctrl+V)
                                         </Label>
                                         {pasteRawText && (
@@ -1927,7 +1956,7 @@ export default function ConsumerPricesIndex({
                                                     }
                                                     setPasteDetectedDates(newDates);
                                                 }}
-                                                className="text-[11px] font-medium text-red-600 hover:text-red-700 dark:text-red-400"
+                                                className="text-[11px] font-medium text-[#EF4444] hover:text-[#DC2626]"
                                             >
                                                 Bersihkan
                                             </button>
@@ -1938,13 +1967,13 @@ export default function ConsumerPricesIndex({
                                         value={pasteRawText}
                                         onChange={(e) => handlePasteRawChange(e.target.value)}
                                         placeholder={'Klik di sini lalu tekan Ctrl+V...\nContoh:\n14500\t14500\t14600\t...\n13000\t13000\t13000\t...'}
-                                        className="h-32 sm:h-36 w-full rounded-md border border-neutral-300 bg-white p-2.5 font-mono text-xs focus:border-blue-500 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-900 leading-relaxed"
+                                        className="h-32 sm:h-36 w-full rounded-md border border-border bg-white p-2.5 font-mono text-xs focus:border-[#7C3AED] focus:ring-[3px] focus:ring-[#7C3AED]/25 focus:outline-none dark:bg-slate-900 leading-relaxed"
                                     />
                                 </div>
 
                                 {/* Box 3: Panduan Format Ringkas */}
-                                <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
-                                    <div className="font-semibold mb-1 text-[11px] uppercase tracking-wider text-blue-800 dark:text-blue-300">Format yang Didukung:</div>
+                                <div className="rounded-lg border border-blue-200 bg-[#EFF6FF] p-3 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+                                    <div className="font-semibold mb-1 text-[11px] uppercase tracking-wider text-[#2563EB] dark:text-blue-300">Format yang Didukung:</div>
                                     <ul className="space-y-1 text-[11px] text-blue-800 dark:text-blue-300 list-disc pl-3.5">
                                         <li><strong>1 Hari:</strong> 25 baris &times; 1 kolom harga di Excel.</li>
                                         <li><strong>1 Minggu:</strong> 25 baris &times; 7 kolom harga (atau tabel dengan kolom tanggal).</li>
@@ -1954,19 +1983,19 @@ export default function ConsumerPricesIndex({
                             </div>
 
                             {/* Right Panel: Workspace Editor Tabel Matriks & Detail HET */}
-                            <div className="flex-1 min-w-0 flex flex-col rounded-lg border border-sidebar-border overflow-hidden bg-card">
+                            <div className="flex-1 min-w-0 flex flex-col rounded-lg border border-border overflow-hidden bg-card">
                                 {/* Toolbar Bar */}
-                                <div className="bg-neutral-50 px-3.5 py-2 text-xs font-semibold border-b dark:bg-neutral-900/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                                <div className="bg-[#FAFAFA] px-3.5 py-2 text-xs font-semibold border-b border-border dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2 shrink-0">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-neutral-500 text-[11px]">Mode Tampilan:</span>
-                                        <div className="inline-flex rounded-md border border-neutral-300 bg-white p-0.5 dark:border-neutral-700 dark:bg-neutral-900">
+                                        <span className="text-muted-foreground text-[11px]">Mode Tampilan:</span>
+                                        <div className="inline-flex rounded-md border border-border bg-white p-0.5 dark:bg-slate-900">
                                             <button
                                                 type="button"
                                                 onClick={() => setPasteViewMode('matrix')}
                                                 className={`rounded px-3 py-1 text-xs font-semibold transition-all ${
                                                     pasteViewMode === 'matrix'
-                                                        ? 'bg-blue-600 text-white shadow-2xs'
-                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                        ? 'bg-[#7C3AED] text-white shadow-2xs'
+                                                        : 'text-muted-foreground hover:text-foreground'
                                                 }`}
                                             >
                                                 Tabel Matriks ({pasteDetectedDates.length} Hari)
@@ -1976,8 +2005,8 @@ export default function ConsumerPricesIndex({
                                                 onClick={() => setPasteViewMode('daily')}
                                                 className={`rounded px-3 py-1 text-xs font-semibold transition-all ${
                                                     pasteViewMode === 'daily'
-                                                        ? 'bg-blue-600 text-white shadow-2xs'
-                                                        : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-300'
+                                                        ? 'bg-[#7C3AED] text-white shadow-2xs'
+                                                        : 'text-muted-foreground hover:text-foreground'
                                                 }`}
                                             >
                                                 Detail Per Hari & HET
@@ -1985,26 +2014,26 @@ export default function ConsumerPricesIndex({
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 text-[11px] text-neutral-500">
+                                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                                         {pasteViewMode === 'daily' && (
                                             <div className="flex items-center gap-1.5">
-                                                <span className="font-medium text-neutral-700 dark:text-neutral-300">Pilih Tanggal:</span>
+                                                <span className="font-medium text-foreground">Pilih Tanggal:</span>
                                                 <Select value={pasteSelectedDay} onValueChange={setPasteSelectedDay}>
-                                                    <SelectTrigger className="h-7 w-40 text-xs bg-white dark:bg-neutral-900">
+                                                    <SelectTrigger className="h-7 w-40 text-xs bg-white dark:bg-slate-900">
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {pasteDetectedDates.map((d) => (
                                                             <SelectItem key={d} value={d}>
                                                                 {formatShortDate(d)} ({getDayName(d)})
-                                                             </SelectItem>
+                                                            </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                         )}
                                         <span className="hidden sm:inline">
-                                            Pasar: <strong className="text-neutral-900 dark:text-neutral-100">{markets.find((m) => String(m.id) === String(pasteMarketId))?.name || selectedMarket?.name}</strong>
+                                            Pasar: <strong className="text-foreground">{markets.find((m) => String(m.id) === String(pasteMarketId))?.name || selectedMarket?.name}</strong>
                                         </span>
                                     </div>
                                 </div>
@@ -2014,19 +2043,19 @@ export default function ConsumerPricesIndex({
                                     {pasteViewMode === 'matrix' ? (
                                         /* Horizontal Scrolling Matrix View */
                                         <table className="w-full text-left text-xs border-collapse">
-                                            <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300 z-10 shadow-xs">
+                                            <thead className="sticky top-0 border-b border-border bg-[#FAFAFA] font-semibold text-muted-foreground dark:bg-slate-900/80 z-10 shadow-xs">
                                                 <tr>
-                                                    <th className="py-2.5 pl-3 pr-2 w-10 sticky left-0 bg-card z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">No</th>
-                                                    <th className="py-2.5 px-3 min-w-[200px] sticky left-10 bg-card z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">Nama Komoditas</th>
-                                                    <th className="py-2.5 px-2.5 w-16 sticky left-[240px] bg-card z-20 shadow-[2px_0_0_0_rgba(0,0,0,0.08)]">Satuan</th>
+                                                    <th className="py-2.5 pl-3 pr-2 w-10 sticky left-0 bg-[#FAFAFA] dark:bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">No</th>
+                                                    <th className="py-2.5 px-3 min-w-[200px] sticky left-10 bg-[#FAFAFA] dark:bg-slate-900 z-20 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">Nama Komoditas</th>
+                                                    <th className="py-2.5 px-2.5 w-16 sticky left-[240px] bg-[#FAFAFA] dark:bg-slate-900 z-20 shadow-[2px_0_0_0_rgba(0,0,0,0.08)]">Satuan</th>
                                                     {pasteDetectedDates.map((d) => {
                                                         const filledForDay = allItemsForBulk.filter((it) => pasteMultiDayPrices[d]?.[it.commodity_id]).length;
                                                         return (
-                                                            <th key={d} className="py-2.5 px-2 min-w-[130px] text-center border-l border-sidebar-border/60">
-                                                                <div className="font-semibold text-neutral-800 dark:text-neutral-200">
+                                                            <th key={d} className="py-2.5 px-2 min-w-[130px] text-center border-l border-border/60">
+                                                                <div className="font-semibold text-foreground">
                                                                     {formatShortDate(d)}
                                                                 </div>
-                                                                <div className="text-[10px] text-neutral-400 font-normal">
+                                                                <div className="text-[10px] text-muted-foreground font-normal">
                                                                     {getDayName(d)} • {filledForDay}/25
                                                                 </div>
                                                             </th>
@@ -2034,27 +2063,27 @@ export default function ConsumerPricesIndex({
                                                     })}
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-sidebar-border/40">
+                                            <tbody className="divide-y divide-border/50">
                                                 {allItemsForBulk.map((item, idx) => (
-                                                    <tr key={item.commodity_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                                                        <td className="py-1.5 pl-3 pr-2 text-neutral-400 font-mono sticky left-0 bg-card z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
+                                                    <tr key={item.commodity_id} className="hover:bg-[#F5F3FF]/60 dark:hover:bg-purple-950/20">
+                                                        <td className="py-1.5 pl-3 pr-2 text-muted-foreground font-mono sticky left-0 bg-card z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
                                                             {item.order || idx + 1}
                                                         </td>
                                                         <td className="py-1.5 px-3 sticky left-10 bg-card z-10 shadow-[1px_0_0_0_rgba(0,0,0,0.08)]">
-                                                            <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate max-w-[190px]">
+                                                            <div className="font-medium text-foreground truncate max-w-[190px]">
                                                                 {item.commodity_name}
                                                             </div>
-                                                            <div className="text-[10px] text-neutral-400 truncate max-w-[190px]">{item.category}</div>
+                                                            <div className="text-[10px] text-muted-foreground truncate max-w-[190px]">{item.category}</div>
                                                         </td>
                                                         <td className="py-1.5 px-2.5 sticky left-[240px] bg-card z-10 shadow-[2px_0_0_0_rgba(0,0,0,0.08)]">
-                                                            <Badge variant="outline" className="text-[10px] font-normal px-1 py-0">
+                                                            <Badge variant="outline" className="text-[10px] font-normal px-1 py-0 rounded-md">
                                                                 {item.unit}
                                                             </Badge>
                                                         </td>
                                                         {pasteDetectedDates.map((d) => {
                                                             const val = pasteMultiDayPrices[d]?.[item.commodity_id] ?? '';
                                                             return (
-                                                                <td key={d} className="p-1 min-w-[130px] border-l border-sidebar-border/60">
+                                                                <td key={d} className="p-1 min-w-[130px] border-l border-border/60">
                                                                     <Input
                                                                         type="number"
                                                                         min="0"
@@ -2064,8 +2093,8 @@ export default function ConsumerPricesIndex({
                                                                         onChange={(e) => handleMatrixPriceChange(d, item.commodity_id, e.target.value)}
                                                                         className={`h-7 font-mono text-xs text-right ${
                                                                             val
-                                                                                ? 'border-emerald-400 bg-emerald-50/50 font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
-                                                                                : 'text-neutral-400'
+                                                                                ? 'border-[#7C3AED]/50 bg-[#F5F3FF] font-semibold text-[#7C3AED] dark:bg-purple-950/30 dark:text-purple-300'
+                                                                                : 'text-muted-foreground'
                                                                         }`}
                                                                     />
                                                                 </td>
@@ -2078,7 +2107,7 @@ export default function ConsumerPricesIndex({
                                     ) : (
                                         /* Single Day Detailed HET View */
                                         <table className="w-full text-left text-xs">
-                                            <thead className="sticky top-0 border-b border-sidebar-border bg-card font-semibold text-neutral-600 dark:text-neutral-300 shadow-xs">
+                                            <thead className="sticky top-0 border-b border-border bg-[#FAFAFA] font-semibold text-muted-foreground dark:bg-slate-900/80 shadow-xs">
                                                 <tr>
                                                     <th className="py-2.5 pl-3 pr-2 w-10">No</th>
                                                     <th className="py-2.5 px-3">Nama Komoditas</th>
@@ -2088,7 +2117,7 @@ export default function ConsumerPricesIndex({
                                                     <th className="py-2.5 px-2">Status / Selisih</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-sidebar-border/40">
+                                            <tbody className="divide-y divide-border/60">
                                                 {allItemsForBulk.map((item, idx) => {
                                                     const enteredVal = pasteMultiDayPrices[pasteSelectedDay]?.[item.commodity_id] ?? '';
                                                     const numVal = enteredVal ? parseFloat(enteredVal) : null;
@@ -2099,19 +2128,19 @@ export default function ConsumerPricesIndex({
                                                         const diff = numVal - hetVal;
                                                         if (diff > 0) {
                                                             diffBadge = (
-                                                                <span className="font-semibold text-red-600 dark:text-red-400">
+                                                                <span className="font-semibold text-[#EF4444]">
                                                                     +Rp {diff.toLocaleString('id-ID')} (Di Atas HET)
                                                                 </span>
                                                             );
                                                         } else if (diff < 0) {
                                                             diffBadge = (
-                                                                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                <span className="font-semibold text-[#059669]">
                                                                     -Rp {Math.abs(diff).toLocaleString('id-ID')} (Di Bawah HET)
                                                                 </span>
                                                             );
                                                         } else {
                                                             diffBadge = (
-                                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                                <span className="font-semibold text-[#0D9488]">
                                                                     Sesuai HET
                                                                 </span>
                                                             );
@@ -2119,22 +2148,22 @@ export default function ConsumerPricesIndex({
                                                     }
 
                                                     return (
-                                                        <tr key={item.commodity_id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-900/30">
-                                                            <td className="py-2 pl-3 pr-2 text-neutral-400 font-mono">
+                                                        <tr key={item.commodity_id} className="hover:bg-[#F5F3FF]/60 dark:hover:bg-purple-950/20">
+                                                            <td className="py-2 pl-3 pr-2 text-muted-foreground font-mono">
                                                                 {item.order || idx + 1}
                                                             </td>
                                                             <td className="py-2 px-3">
-                                                                <div className="font-medium text-neutral-900 dark:text-neutral-100">
+                                                                <div className="font-medium text-foreground">
                                                                     {item.commodity_name}
                                                                 </div>
-                                                                <div className="text-[11px] text-neutral-400">{item.category}</div>
+                                                                <div className="text-[11px] text-muted-foreground">{item.category}</div>
                                                             </td>
                                                             <td className="py-2 px-2">
-                                                                <Badge variant="outline" className="text-[10px] font-normal">
+                                                                <Badge variant="outline" className="text-[10px] font-normal rounded-md">
                                                                     {item.unit}
                                                                 </Badge>
                                                             </td>
-                                                            <td className="py-2 px-2 text-right font-mono font-medium text-neutral-700 dark:text-neutral-300">
+                                                            <td className="py-2 px-2 text-right font-mono font-medium text-foreground">
                                                                 {hetVal !== null ? formatCurrency(hetVal) : '-'}
                                                             </td>
                                                             <td className="py-2 px-2">
@@ -2149,14 +2178,14 @@ export default function ConsumerPricesIndex({
                                                                     }
                                                                     className={`h-8 font-mono text-xs ${
                                                                         enteredVal
-                                                                            ? 'border-emerald-400 bg-emerald-50/30 font-semibold dark:bg-emerald-950/20'
+                                                                            ? 'border-[#7C3AED]/50 bg-[#F5F3FF]/50 font-semibold dark:bg-purple-950/20'
                                                                             : ''
                                                                     }`}
                                                                 />
                                                             </td>
                                                             <td className="py-2 px-2 text-[11px]">
                                                                 {diffBadge || (
-                                                                    <span className="italic text-neutral-400">
+                                                                    <span className="italic text-muted-foreground">
                                                                         {item.price ? `Tercatat: Rp ${item.price.toLocaleString('id-ID')}` : 'Kosong'}
                                                                     </span>
                                                                 )}
@@ -2172,7 +2201,7 @@ export default function ConsumerPricesIndex({
                         </div>
 
                         {/* Footer Section */}
-                        <DialogFooter className="mt-2 border-t pt-2.5 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
+                        <DialogFooter className="mt-2 border-t border-border pt-2.5 flex flex-col sm:flex-row gap-2 sm:justify-between items-center shrink-0">
                             <Button
                                 type="button"
                                 variant="outline"
@@ -2195,7 +2224,7 @@ export default function ConsumerPricesIndex({
                                     type="button"
                                     onClick={handleSavePasteDirectly}
                                     disabled={totalPastedPrices === 0 || isSubmittingPaste}
-                                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                    className="gap-1.5 text-xs"
                                 >
                                     {isSubmittingPaste
                                         ? 'Menyimpan...'

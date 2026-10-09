@@ -42,8 +42,8 @@ export function NavMain({ items, groups }: NavMainProps) {
                                         className={cn(
                                             'transition-all duration-200',
                                             active
-                                                ? 'bg-[#e6f4f2] font-bold text-[#006565] shadow-xs dark:bg-teal-950/60 dark:text-teal-300'
-                                                : 'font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200',
+                                                ? 'bg-[#F5F3FF] font-semibold text-[#7C3AED] shadow-xs dark:bg-purple-950/60 dark:text-purple-300'
+                                                : 'font-medium text-slate-600 hover:bg-[#F5F3FF]/60 hover:text-[#7C3AED] dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200',
                                         )}
                                     >
                                         <Link
@@ -58,8 +58,8 @@ export function NavMain({ items, groups }: NavMainProps) {
                                                         className={cn(
                                                             'shrink-0 transition-colors',
                                                             active
-                                                                ? 'text-[#006565] dark:text-teal-300'
-                                                                : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300',
+                                                                ? 'text-[#7C3AED] dark:text-purple-300'
+                                                                : 'text-slate-400 group-hover:text-[#7C3AED] dark:text-slate-500 dark:group-hover:text-slate-300',
                                                         )}
                                                     />
                                                 )}
@@ -71,8 +71,8 @@ export function NavMain({ items, groups }: NavMainProps) {
                                                     className={cn(
                                                         'ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors group-data-[collapsible=icon]:hidden',
                                                         active
-                                                            ? 'bg-[#006565] text-white dark:bg-teal-400 dark:text-slate-900'
-                                                            : 'border border-teal-200/60 bg-teal-50 text-[#006565] dark:border-teal-900 dark:bg-teal-950 dark:text-teal-300',
+                                                            ? 'bg-[#7C3AED] text-white dark:bg-purple-500 dark:text-white'
+                                                            : 'border border-purple-200/60 bg-[#F5F3FF] text-[#7C3AED] dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
                                                     )}
                                                 >
                                                     {item.badge}

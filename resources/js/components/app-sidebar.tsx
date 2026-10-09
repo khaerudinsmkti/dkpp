@@ -64,7 +64,7 @@ const navGroups: NavGroup[] = [
 ];
 
 function SidebarPromoCard() {
-
+    return null;
 }
 
 export function AppSidebar() {
