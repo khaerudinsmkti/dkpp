@@ -29,6 +29,8 @@ class DatabaseSeeder extends Seeder
             CommoditySeeder::class,
             CommodityHetSeeder::class,
             ConsumerPriceSeeder::class,
+            ProducerCommoditySeeder::class,
+            ProducerPriceSeeder::class,
         ]);
     }
 }

@@ -1016,4 +1016,363 @@ class SimpleExcelService
 
         return $content;
     }
+
+    /**
+     * Generate an Excel .xlsx binary string for producer prices template (6 commodities).
+     *
+     * @param  array<int|string, mixed>  $prices
+     * @param  int|array<int, string>  $days
+     */
+    public function generateProducerXlsxTemplate(?string $selectedDate = null, array $prices = [], int|array $days = 1): string
+    {
+        $dates = $this->resolveDateRange($selectedDate, $days);
+        $isMultiDay = count($dates) > 1;
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_prod_tmpl_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk template Excel.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Template Harga Produsen" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="2">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="3">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFB45309"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="3">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="36" customWidth="1"/>'
+            .'<col min="3" max="3" width="10" customWidth="1"/>'
+            .'<col min="4" max="4" width="18" customWidth="1"/>';
+
+        for ($c = 5; $c < 5 + count($dates); $c++) {
+            $sheetXml .= '<col min="'.$c.'" max="'.$c.'" width="18" customWidth="1"/>';
+        }
+        $notesColIdx = 5 + count($dates);
+        $sheetXml .= '<col min="'.$notesColIdx.'" max="'.$notesColIdx.'" width="25" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>';
+
+        // Header Row
+        $sheetXml .= '<row r="1" ht="26" customHeight="1">'
+            .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B1" s="1" t="inlineStr"><is><t>Nama Komoditas Produsen</t></is></c>'
+            .'<c r="C1" s="1" t="inlineStr"><is><t>Satuan</t></is></c>'
+            .'<c r="D1" s="1" t="inlineStr"><is><t>HAP Acuan (Rp)</t></is></c>';
+
+        if (! $isMultiDay) {
+            $sheetXml .= '<c r="E1" s="1" t="inlineStr"><is><t>Harga Produsen (Rp)</t></is></c>';
+        } else {
+            foreach ($dates as $idx => $dateStr) {
+                $colLetter = $this->getColumnLetter(5 + $idx);
+                $sheetXml .= '<c r="'.$colLetter.'1" s="1" t="inlineStr"><is><t>Tgl '.$dateStr.'</t></is></c>';
+            }
+        }
+        $notesLetter = $this->getColumnLetter($notesColIdx);
+        $sheetXml .= '<c r="'.$notesLetter.'1" s="1" t="inlineStr"><is><t>Catatan</t></is></c></row>';
+
+        $rowIdx = 2;
+        foreach ($commodities as $comm) {
+            $orderNo = $comm['order'];
+            $nameEsc = htmlspecialchars($comm['name'], ENT_XML1, 'UTF-8');
+            $unitEsc = htmlspecialchars($comm['unit'], ENT_XML1, 'UTF-8');
+            $hapVal = (float) $comm['hap'];
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$orderNo.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$nameEsc.'</t></is></c>'
+                .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$unitEsc.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2"><v>'.$hapVal.'</v></c>';
+
+            if (! $isMultiDay) {
+                $val = $prices[$comm['key']] ?? null;
+                $cellXml = ($val !== null && $val !== '')
+                    ? '<c r="E'.$rowIdx.'" s="2"><v>'.((float) $val).'</v></c>'
+                    : '<c r="E'.$rowIdx.'" s="2"/>';
+                $sheetXml .= $cellXml;
+            } else {
+                foreach ($dates as $dIdx => $dateStr) {
+                    $colLetter = $this->getColumnLetter(5 + $dIdx);
+                    $val = $prices[$dateStr][$comm['key']] ?? null;
+                    $cellXml = ($val !== null && $val !== '')
+                        ? '<c r="'.$colLetter.$rowIdx.'" s="2"><v>'.((float) $val).'</v></c>'
+                        : '<c r="'.$colLetter.$rowIdx.'" s="2"/>';
+                    $sheetXml .= $cellXml;
+                }
+            }
+
+            $sheetXml .= '<c r="'.$notesLetter.$rowIdx.'" s="2"/>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file template XLSX produsen yang dibuat.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Generate a CSV string for producer prices template.
+     */
+    public function generateProducerCsvTemplate(?string $selectedDate = null, array $prices = [], int|array $days = 1): string
+    {
+        $dates = $this->resolveDateRange($selectedDate, $days);
+        $isMultiDay = count($dates) > 1;
+
+        $output = "\xEF\xBB\xBF";
+
+        if (! $isMultiDay) {
+            $output .= "No;Nama Komoditas Produsen;Satuan;HAP Acuan (Rp);Harga Produsen (Rp);Catatan\r\n";
+        } else {
+            $dateHeaders = array_map(fn ($d) => "Tgl {$d}", $dates);
+            $output .= 'No;Nama Komoditas Produsen;Satuan;HAP Acuan (Rp);'.implode(';', $dateHeaders).";Catatan\r\n";
+        }
+
+        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+
+        foreach ($commodities as $comm) {
+            $line = [
+                $comm['order'],
+                '"'.str_replace('"', '""', $comm['name']).'"',
+                $comm['unit'],
+                $comm['hap'],
+            ];
+
+            if (! $isMultiDay) {
+                $line[] = $prices[$comm['key']] ?? '';
+            } else {
+                foreach ($dates as $dateStr) {
+                    $line[] = $prices[$dateStr][$comm['key']] ?? '';
+                }
+            }
+
+            $line[] = '';
+            $output .= implode(';', $line)."\r\n";
+        }
+
+        return $output;
+    }
+
+    /**
+     * Match raw imported Excel/CSV rows to producer price fields.
+     *
+     * @param  array<int, array<int, string>>  $rawRows
+     * @return array{matched: array<string, array<string, mixed>>, dates: array<int, string>, total_detected: int}
+     */
+    public function matchProducerPrices(array $rawRows, string $defaultDate, int $maxDays = 31): array
+    {
+        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+        $fieldKeyByOrder = [];
+        foreach ($commodities as $c) {
+            $fieldKeyByOrder[$c['order']] = $c['key'];
+        }
+
+        $resolveKey = function (string $text): ?string {
+            $t = strtolower(preg_replace('/[^a-z0-9]/', '', $text));
+            if (str_contains($t, 'gkp') && (str_contains($t, 'petani') || str_contains($t, 'tani'))) {
+                return 'gkp_petani';
+            }
+            if (str_contains($t, 'gkp') && (str_contains($t, 'giling') || str_contains($t, 'penggilingan'))) {
+                return 'gkp_penggilingan';
+            }
+            if (str_contains($t, 'gkg')) {
+                return 'gkg_penggilingan';
+            }
+            if (str_contains($t, 'medium')) {
+                return 'beras_medium_penggilingan';
+            }
+            if (str_contains($t, 'premium')) {
+                return 'beras_premium_penggilingan';
+            }
+            if (str_contains($t, 'sapi')) {
+                return 'sapi_hidup';
+            }
+            return null;
+        };
+
+        if (empty($rawRows)) {
+            return ['matched' => [], 'dates' => [], 'total_detected' => 0];
+        }
+
+        // Check header row for dates
+        $firstRow = $rawRows[0] ?? [];
+        $headerDates = [];
+        $isFirstRowHeader = false;
+
+        foreach ($firstRow as $idx => $cell) {
+            $extracted = $this->extractDateFromText($cell, $defaultDate);
+            if ($extracted) {
+                $headerDates[$idx] = $extracted;
+                $isFirstRowHeader = true;
+            } elseif (preg_match('/(nama|komoditas|harga|satuan|hap|gkp|gkg|beras|sapi)/i', $cell)) {
+                $isFirstRowHeader = true;
+            }
+        }
+
+        $dataRows = $isFirstRowHeader ? array_slice($rawRows, 1) : $rawRows;
+        $matchedByDate = [];
+        $totalDetected = 0;
+
+        foreach ($dataRows as $rIdx => $row) {
+            if (empty(array_filter($row, fn ($v) => trim($v) !== ''))) {
+                continue;
+            }
+
+            // Determine which commodity this row corresponds to
+            $matchedKey = null;
+            foreach ($row as $cell) {
+                $found = $resolveKey($cell);
+                if ($found) {
+                    $matchedKey = $found;
+                    break;
+                }
+            }
+
+            // Fallback by order number in column 0 or row index
+            if (! $matchedKey && isset($row[0]) && is_numeric(trim($row[0]))) {
+                $orderNum = (int) trim($row[0]);
+                $matchedKey = $fieldKeyByOrder[$orderNum] ?? null;
+            }
+
+            if (! $matchedKey && isset($fieldKeyByOrder[$rIdx + 1])) {
+                $matchedKey = $fieldKeyByOrder[$rIdx + 1];
+            }
+
+            if (! $matchedKey) {
+                continue;
+            }
+
+            // Extract price for each date
+            if (! empty($headerDates)) {
+                foreach ($headerDates as $colIdx => $dateStr) {
+                    $rawPrice = $row[$colIdx] ?? '';
+                    $parsed = $this->parsePriceValue($rawPrice);
+                    if ($parsed !== null && $parsed > 0) {
+                        if (! isset($matchedByDate[$dateStr])) {
+                            $matchedByDate[$dateStr] = ['recorded_date' => $dateStr];
+                        }
+                        $matchedByDate[$dateStr][$matchedKey] = $parsed;
+                        $totalDetected++;
+                    }
+                }
+                continue;
+            }
+
+            // Single price column fallback: col 4 or last numeric col
+            $rawPrice = null;
+            $notes = null;
+
+            if (isset($row[4]) && $this->parsePriceValue($row[4]) !== null) {
+                $rawPrice = $row[4];
+                $notes = $row[5] ?? null;
+            } elseif (isset($row[3]) && $this->parsePriceValue($row[3]) !== null) {
+                $rawPrice = $row[3];
+                $notes = $row[4] ?? null;
+            } else {
+                for ($c = count($row) - 1; $c >= 0; $c--) {
+                    if ($this->parsePriceValue($row[$c]) !== null) {
+                        $rawPrice = $row[$c];
+                        break;
+                    }
+                }
+            }
+
+            $parsed = $this->parsePriceValue($rawPrice);
+            if ($parsed !== null && $parsed > 0) {
+                if (! isset($matchedByDate[$defaultDate])) {
+                    $matchedByDate[$defaultDate] = ['recorded_date' => $defaultDate];
+                }
+                $matchedByDate[$defaultDate][$matchedKey] = $parsed;
+                if ($notes && ! isset($matchedByDate[$defaultDate]['notes'])) {
+                    $matchedByDate[$defaultDate]['notes'] = $notes;
+                }
+                $totalDetected++;
+            }
+        }
+
+        $dates = array_keys($matchedByDate);
+        sort($dates);
+
+        return [
+            'matched' => $matchedByDate,
+            'dates' => $dates,
+            'total_detected' => $totalDetected,
+        ];
+    }
 }
+

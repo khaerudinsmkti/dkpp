@@ -12,22 +12,59 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { router } from '@inertiajs/react';
 import { dashboard, login, register } from '@/routes';
+
+export interface ProducerCommodity {
+    key: string;
+    name: string;
+    short_name: string;
+    category: string;
+    unit: string;
+    order: number;
+    hap: number;
+    hap_label: string;
+    description: string;
+    today_price: number | null;
+    yesterday_price: number | null;
+    diff_hap: number | null;
+    diff_hap_percentage: number | null;
+    status: 'above' | 'equal' | 'below' | 'not_recorded';
+    diff_yesterday: number | null;
+    diff_yesterday_percentage: number | null;
+    change_type: 'up' | 'down' | 'stable';
+}
 
 export interface HargaProdusenProps {
     marketName?: string;
+    selectedDate?: string;
     latestDate?: string;
+    prevDate?: string | null;
+    minDate?: string;
+    maxDate?: string;
+    commodities?: ProducerCommodity[];
 }
 
 export default function HargaProdusen({
     marketName = 'Kabupaten Indramayu',
+    selectedDate,
     latestDate,
+    prevDate,
+    minDate = '2026-01-01',
+    maxDate,
+    commodities = [],
 }: HargaProdusenProps = {}) {
     const { auth } = usePage().props;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [hargaMenuOpen, setHargaMenuOpen] = useState(false);
     const [mobileHargaOpen, setMobileHargaOpen] = useState(true);
+    const [filterDate, setFilterDate] = useState(selectedDate || latestDate || new Date().toISOString().split('T')[0]);
     const hargaMenuRef = useRef<HTMLDivElement>(null);
+
+    const handleDateChange = (newDate: string) => {
+        setFilterDate(newDate);
+        router.get('/harga-produsen', { date: newDate }, { preserveState: true, preserveScroll: true });
+    };
 
     // Close desktop dropdown on outside click
     useEffect(() => {
@@ -304,95 +341,224 @@ export default function HargaProdusen({
                                 </span>
                                 <span>Integrasi Sentra Pertanian &amp; Bapanas</span>
                             </div>
-                            <div className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-xs">
+                            <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-xs">
                                 <Clock className="h-3.5 w-3.5 text-slate-500" />
-                                <span>{latestDate ? `Update: ${latestDate}` : 'Update: Hari Ini'}</span>
+                                <span className="font-semibold text-slate-600">Pilih Tanggal:</span>
+                                <input
+                                    type="date"
+                                    value={filterDate}
+                                    min={minDate}
+                                    max={maxDate}
+                                    onChange={(e) => handleDateChange(e.target.value)}
+                                    className="text-xs font-bold text-slate-800 bg-slate-50 rounded-lg px-2 py-1 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
                             </div>
                         </div>
                     </div>
 
-                    {/* Produsen Commodity Cards */}
-                    <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                        <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-amber-700 uppercase">
-                                <span>Tingkat Petani</span>
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 font-extrabold">GKP</span>
-                            </div>
-                            <h4 className="mt-2 text-sm font-black text-slate-900">Gabah Kering Panen</h4>
-                            <div className="mt-3 flex items-baseline gap-1">
-                                <span className="text-xl font-black text-slate-900">Rp 6.800</span>
-                                <span className="text-xs text-slate-500">/Kg</span>
-                            </div>
-                            <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 flex justify-between">
-                                <span>HAP Pemerintah:</span>
-                                <span className="font-bold text-emerald-700">Rp 6.000 /Kg</span>
-                            </div>
-                        </div>
+                    {/* Produsen 6 Commodity Cards */}
+                    {(() => {
+                        const defaultCommodities: ProducerCommodity[] = [
+                            {
+                                key: 'gkp_petani',
+                                name: 'GKP Tingkat Petani',
+                                short_name: 'GKP Petani',
+                                category: 'Gabah',
+                                unit: 'Kg',
+                                order: 1,
+                                hap: 6000,
+                                hap_label: 'HAP Bapanas',
+                                description: 'Gabah Kering Panen di tingkat petani sawah',
+                                today_price: 6800,
+                                yesterday_price: 6750,
+                                diff_hap: 800,
+                                diff_hap_percentage: 13.3,
+                                status: 'above',
+                                diff_yesterday: 50,
+                                diff_yesterday_percentage: 0.7,
+                                change_type: 'up',
+                            },
+                            {
+                                key: 'gkp_penggilingan',
+                                name: 'GKP Tingkat Penggilingan',
+                                short_name: 'GKP Penggilingan',
+                                category: 'Gabah',
+                                unit: 'Kg',
+                                order: 2,
+                                hap: 6200,
+                                hap_label: 'HAP Bapanas',
+                                description: 'Gabah Kering Panen di tingkat usaha penggilingan padi',
+                                today_price: 7000,
+                                yesterday_price: 6950,
+                                diff_hap: 800,
+                                diff_hap_percentage: 12.9,
+                                status: 'above',
+                                diff_yesterday: 50,
+                                diff_yesterday_percentage: 0.7,
+                                change_type: 'up',
+                            },
+                            {
+                                key: 'gkg_penggilingan',
+                                name: 'GKG Tingkat Penggilingan',
+                                short_name: 'GKG Penggilingan',
+                                category: 'Gabah',
+                                unit: 'Kg',
+                                order: 3,
+                                hap: 7400,
+                                hap_label: 'HAP Bapanas',
+                                description: 'Gabah Kering Giling di tingkat usaha penggilingan padi',
+                                today_price: 7900,
+                                yesterday_price: 7850,
+                                diff_hap: 500,
+                                diff_hap_percentage: 6.8,
+                                status: 'above',
+                                diff_yesterday: 50,
+                                diff_yesterday_percentage: 0.6,
+                                change_type: 'up',
+                            },
+                            {
+                                key: 'beras_medium_penggilingan',
+                                name: 'Beras Medium Penggilingan',
+                                short_name: 'Beras Medium Giling',
+                                category: 'Beras',
+                                unit: 'Kg',
+                                order: 4,
+                                hap: 12000,
+                                hap_label: 'HAP Bapanas',
+                                description: 'Beras Medium hasil produksi di tingkat penggilingan',
+                                today_price: 12200,
+                                yesterday_price: 12150,
+                                diff_hap: 200,
+                                diff_hap_percentage: 1.7,
+                                status: 'above',
+                                diff_yesterday: 50,
+                                diff_yesterday_percentage: 0.4,
+                                change_type: 'up',
+                            },
+                            {
+                                key: 'beras_premium_penggilingan',
+                                name: 'Beras Premium Penggilingan',
+                                short_name: 'Beras Premium Giling',
+                                category: 'Beras',
+                                unit: 'Kg',
+                                order: 5,
+                                hap: 13900,
+                                hap_label: 'HAP Bapanas',
+                                description: 'Beras Premium hasil produksi di tingkat penggilingan',
+                                today_price: 14200,
+                                yesterday_price: 14100,
+                                diff_hap: 300,
+                                diff_hap_percentage: 2.2,
+                                status: 'above',
+                                diff_yesterday: 100,
+                                diff_yesterday_percentage: 0.7,
+                                change_type: 'up',
+                            },
+                            {
+                                key: 'sapi_hidup',
+                                name: 'Sapi Hidup',
+                                short_name: 'Sapi Hidup Farm Gate',
+                                category: 'Peternakan',
+                                unit: 'Kg',
+                                order: 6,
+                                hap: 56000,
+                                hap_label: 'HAP Farm Gate',
+                                description: 'Sapi potong hidup di tingkat peternak / produsen',
+                                today_price: 58000,
+                                yesterday_price: 58000,
+                                diff_hap: 2000,
+                                diff_hap_percentage: 3.6,
+                                status: 'above',
+                                diff_yesterday: 0,
+                                diff_yesterday_percentage: 0,
+                                change_type: 'stable',
+                            },
+                        ];
 
-                        <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-amber-700 uppercase">
-                                <span>Penggilingan</span>
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 font-extrabold">GKG</span>
-                            </div>
-                            <h4 className="mt-2 text-sm font-black text-slate-900">Gabah Kering Giling</h4>
-                            <div className="mt-3 flex items-baseline gap-1">
-                                <span className="text-xl font-black text-slate-900">Rp 7.900</span>
-                                <span className="text-xs text-slate-500">/Kg</span>
-                            </div>
-                            <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 flex justify-between">
-                                <span>HAP Pemerintah:</span>
-                                <span className="font-bold text-emerald-700">Rp 7.400 /Kg</span>
-                            </div>
-                        </div>
+                        const displayCommodities = commodities && commodities.length > 0 ? commodities : defaultCommodities;
 
-                        <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-emerald-700 uppercase">
-                                <span>Penggilingan</span>
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 font-extrabold">Beras</span>
-                            </div>
-                            <h4 className="mt-2 text-sm font-black text-slate-900">Beras Medium (Giling)</h4>
-                            <div className="mt-3 flex items-baseline gap-1">
-                                <span className="text-xl font-black text-slate-900">Rp 12.200</span>
-                                <span className="text-xs text-slate-500">/Kg</span>
-                            </div>
-                            <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 flex justify-between">
-                                <span>HAP Pemerintah:</span>
-                                <span className="font-bold text-emerald-700">Rp 12.000 /Kg</span>
-                            </div>
-                        </div>
+                        return (
+                            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                {displayCommodities.map((comm) => (
+                                    <div
+                                        key={comm.key}
+                                        className="rounded-2xl border-2 border-slate-200 bg-white p-5 shadow-xs hover:border-amber-400 hover:shadow-md transition-all flex flex-col justify-between"
+                                    >
+                                        <div>
+                                            <div className="flex items-center justify-between text-[11px] font-bold uppercase">
+                                                <span className="text-amber-800 font-extrabold">{comm.category}</span>
+                                                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-800 font-extrabold text-[10px]">
+                                                    {comm.short_name}
+                                                </span>
+                                            </div>
+                                            <h4 className="mt-2 text-base font-black text-slate-900">{comm.name}</h4>
+                                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{comm.description}</p>
+                                        </div>
 
-                        <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-rose-700 uppercase">
-                                <span>Petani Sentra</span>
-                                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-800 font-extrabold">Cabai</span>
-                            </div>
-                            <h4 className="mt-2 text-sm font-black text-slate-900">Cabai Rawit Merah</h4>
-                            <div className="mt-3 flex items-baseline gap-1">
-                                <span className="text-xl font-black text-slate-900">Rp 58.000</span>
-                                <span className="text-xs text-slate-500">/Kg</span>
-                            </div>
-                            <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 flex justify-between">
-                                <span>vs Kemarin:</span>
-                                <span className="font-bold text-rose-600">+Rp 2.000 (+3.5%)</span>
-                            </div>
-                        </div>
+                                        <div className="mt-4">
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-2xl font-black text-slate-900">
+                                                    {comm.today_price ? `Rp ${comm.today_price.toLocaleString('id-ID')}` : 'Belum Terdata'}
+                                                </span>
+                                                {comm.today_price && (
+                                                    <span className="text-xs font-semibold text-slate-500">/{comm.unit}</span>
+                                                )}
+                                            </div>
 
-                        <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-xs hover:border-amber-400 hover:shadow-md transition-all">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-amber-700 uppercase">
-                                <span>Peternak Layer</span>
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 font-extrabold">Farm Gate</span>
+                                            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px]">
+                                                <span className="text-slate-500">{comm.hap_label}:</span>
+                                                <span className="font-extrabold text-emerald-700">
+                                                    Rp {comm.hap.toLocaleString('id-ID')} /{comm.unit}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-2 flex items-center justify-between text-[11px]">
+                                                <span className="text-slate-500">vs Kemarin:</span>
+                                                {comm.today_price !== null && comm.yesterday_price !== null ? (
+                                                    comm.change_type === 'up' ? (
+                                                        <span className="font-bold text-rose-600">
+                                                            +Rp {comm.diff_yesterday?.toLocaleString('id-ID')} (+{comm.diff_yesterday_percentage}%)
+                                                        </span>
+                                                    ) : comm.change_type === 'down' ? (
+                                                        <span className="font-bold text-emerald-700">
+                                                            -Rp {Math.abs(comm.diff_yesterday || 0).toLocaleString('id-ID')} ({comm.diff_yesterday_percentage}%)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="font-bold text-slate-500">Tetap (0%)</span>
+                                                    )
+                                                ) : (
+                                                    <span className="text-slate-400">-</span>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-2 text-right">
+                                                {comm.status === 'above' && (
+                                                    <span className="inline-block rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-extrabold text-amber-700 border border-amber-200">
+                                                        Di Atas HAP (+Rp {comm.diff_hap?.toLocaleString('id-ID')})
+                                                    </span>
+                                                )}
+                                                {comm.status === 'equal' && (
+                                                    <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 border border-emerald-200">
+                                                        Sesuai HAP Bapanas
+                                                    </span>
+                                                )}
+                                                {comm.status === 'below' && (
+                                                    <span className="inline-block rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-extrabold text-rose-700 border border-rose-200">
+                                                        Di Bawah HAP
+                                                    </span>
+                                                )}
+                                                {comm.status === 'not_recorded' && (
+                                                    <span className="inline-block rounded-md bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-200">
+                                                        Belum Dicatat
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <h4 className="mt-2 text-sm font-black text-slate-900">Telur Ayam Ras</h4>
-                            <div className="mt-3 flex items-baseline gap-1">
-                                <span className="text-xl font-black text-slate-900">Rp 22.500</span>
-                                <span className="text-xs text-slate-500">/Kg</span>
-                            </div>
-                            <div className="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500 flex justify-between">
-                                <span>HAP Farm Gate:</span>
-                                <span className="font-bold text-emerald-700">Rp 22.000 /Kg</span>
-                            </div>
-                        </div>
-                    </div>
+                        );
+                    })()}
 
                     {/* Info Banner */}
                     <div className="mt-8 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

@@ -17,6 +17,9 @@ import { index as commoditiesIndex } from '@/routes/commodities';
 import { index as consumerPricesIndex } from '@/routes/consumer-prices';
 import { index as hetsIndex } from '@/routes/hets';
 import { index as marketsIndex } from '@/routes/markets';
+import { index as producerCommoditiesIndex } from '@/routes/producer-commodities';
+import { index as producerHapsIndex } from '@/routes/producer-haps';
+import { index as producerPricesIndex } from '@/routes/producer-prices';
 import type { NavGroup } from '@/types';
 
 const navGroups: NavGroup[] = [
@@ -40,8 +43,19 @@ const navGroups: NavGroup[] = [
                 badge: '25 Komoditas',
             },
             {
-                title: 'Kelola HET',
+                title: 'Harga Produsen',
+                href: producerPricesIndex(),
+                icon: Wheat,
+                badge: '6 Komoditas',
+            },
+            {
+                title: 'Kelola HET Konsumen',
                 href: hetsIndex(),
+                icon: Scale,
+            },
+            {
+                title: 'Kelola HAP Produsen',
+                href: producerHapsIndex(),
                 icon: Scale,
             },
         ],
@@ -50,8 +64,13 @@ const navGroups: NavGroup[] = [
         title: 'Data Master',
         items: [
             {
-                title: 'Kelola Komoditas',
+                title: 'Komoditas Konsumen',
                 href: commoditiesIndex(),
+                icon: Wheat,
+            },
+            {
+                title: 'Komoditas Produsen',
+                href: producerCommoditiesIndex(),
                 icon: Wheat,
             },
             {

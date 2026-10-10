@@ -6,9 +6,14 @@ use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
 use App\Http\Controllers\MarketController;
+use App\Http\Controllers\ProducerCommodityController;
+use App\Http\Controllers\ProducerHapController;
+use App\Http\Controllers\ProducerPriceController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
+use App\Models\ProducerCommodity;
+use App\Models\ProducerPrice;
 use Inertia\Inertia;
 
 Route::get('/', function () {
@@ -94,11 +99,110 @@ Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
     ]);
 })->name('harga-konsumen');
 
-Route::get('/harga-produsen', function () {
-    $latestOverallDate = ConsumerPrice::max('recorded_date') ?? now()->format('Y-m-d');
+Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
+    $maxRecordedDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
+    $minRecordedDate = ProducerPrice::min('recorded_date') ?? '2026-01-01';
+
+    $selectedDate = $request->query('date', $maxRecordedDate);
+    if (! is_string($selectedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
+        $selectedDate = $maxRecordedDate;
+    }
+
+    $currentRecord = ProducerPrice::where('recorded_date', $selectedDate)->first();
+    $prevDate = ProducerPrice::where('recorded_date', '<', $selectedDate)->max('recorded_date');
+    $prevRecord = $prevDate ? ProducerPrice::where('recorded_date', $prevDate)->first() : null;
+
+    $dbCommodities = ProducerCommodity::where('is_active', true)
+        ->with(['haps' => fn ($q) => $q->where('effective_date', '<=', $selectedDate)->orderByDesc('effective_date')->orderByDesc('id')])
+        ->orderBy('order')
+        ->get();
+
+    if ($dbCommodities->isNotEmpty()) {
+        $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
+            $hap = $c->hapAt($selectedDate);
+            return [
+                'key' => $c->key,
+                'name' => $c->name,
+                'short_name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+                'order' => $c->order,
+                'hap' => $hap ? (float) $hap->price : 0,
+                'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
+                'description' => $c->description ?? '',
+            ];
+        })->toArray();
+    } else {
+        $commoditiesConfig = ProducerPrice::COMMODITIES;
+    }
+
+    $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
+        $key = $cfg['key'];
+        $currentPrice = $currentRecord && $currentRecord->{$key} !== null ? (float) $currentRecord->{$key} : null;
+        $prevPrice = $prevRecord && $prevRecord->{$key} !== null ? (float) $prevRecord->{$key} : null;
+        $hapPrice = (float) $cfg['hap'];
+
+        $diffHap = null;
+        $diffHapPercentage = null;
+        $status = 'not_recorded';
+
+        if ($currentPrice !== null) {
+            $diffHap = round($currentPrice - $hapPrice, 2);
+            $diffHapPercentage = $hapPrice > 0 ? round(($diffHap / $hapPrice) * 100, 2) : 0;
+            if ($diffHap > 0) {
+                $status = 'above';
+            } elseif ($diffHap < 0) {
+                $status = 'below';
+            } else {
+                $status = 'equal';
+            }
+        }
+
+        $diffYesterday = null;
+        $diffYesterdayPercentage = null;
+        $changeType = 'stable';
+
+        if ($currentPrice !== null && $prevPrice !== null) {
+            $diffYesterday = round($currentPrice - $prevPrice, 2);
+            $diffYesterdayPercentage = $prevPrice > 0 ? round(($diffYesterday / $prevPrice) * 100, 2) : 0;
+            if ($diffYesterday > 0) {
+                $changeType = 'up';
+            } elseif ($diffYesterday < 0) {
+                $changeType = 'down';
+            } else {
+                $changeType = 'stable';
+            }
+        }
+
+        return [
+            'key' => $key,
+            'name' => $cfg['name'],
+            'short_name' => $cfg['short_name'],
+            'category' => $cfg['category'],
+            'unit' => $cfg['unit'],
+            'order' => $cfg['order'],
+            'hap' => $hapPrice,
+            'hap_label' => $cfg['hap_label'],
+            'description' => $cfg['description'],
+            'today_price' => $currentPrice,
+            'yesterday_price' => $prevPrice,
+            'diff_hap' => $diffHap,
+            'diff_hap_percentage' => $diffHapPercentage,
+            'status' => $status,
+            'diff_yesterday' => $diffYesterday,
+            'diff_yesterday_percentage' => $diffYesterdayPercentage,
+            'change_type' => $changeType,
+        ];
+    }, $commoditiesConfig);
+
     return Inertia::render('harga-produsen', [
         'marketName' => 'Kabupaten Indramayu',
-        'latestDate' => $latestOverallDate,
+        'selectedDate' => $selectedDate,
+        'latestDate' => $maxRecordedDate,
+        'prevDate' => $prevDate,
+        'minDate' => $minRecordedDate,
+        'maxDate' => now()->format('Y-m-d'),
+        'commodities' => $producerCommodities,
     ]);
 })->name('harga-produsen');
 
@@ -131,11 +235,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/consumer-prices/bulk', [ConsumerPriceController::class, 'bulkStore'])->name('consumer-prices.bulk-store');
     Route::delete('/consumer-prices/{consumerPrice}', [ConsumerPriceController::class, 'destroy'])->name('consumer-prices.destroy');
 
+    // Modul Harga Produsen
+    Route::get('/producer-prices', [ProducerPriceController::class, 'index'])->name('producer-prices.index');
+    Route::get('/producer-prices/template', [ProducerPriceController::class, 'downloadTemplate'])->name('producer-prices.template');
+    Route::post('/producer-prices/import', [ProducerPriceController::class, 'import'])->name('producer-prices.import');
+    Route::post('/producer-prices', [ProducerPriceController::class, 'store'])->name('producer-prices.store');
+    Route::post('/producer-prices/bulk', [ProducerPriceController::class, 'bulkStore'])->name('producer-prices.bulk-store');
+    Route::delete('/producer-prices/{producerPrice}', [ProducerPriceController::class, 'destroy'])->name('producer-prices.destroy');
+
     // Modul Pengelolaan HET Komoditas (Dinamis)
     Route::get('/hets', [CommodityHetController::class, 'index'])->name('hets.index');
     Route::post('/hets', [CommodityHetController::class, 'store'])->name('hets.store');
     Route::put('/hets/{het}', [CommodityHetController::class, 'update'])->name('hets.update');
     Route::delete('/hets/{het}', [CommodityHetController::class, 'destroy'])->name('hets.destroy');
+
+    // Modul Kelola Komoditas Produsen
+    Route::get('/producer-commodities', [ProducerCommodityController::class, 'index'])->name('producer-commodities.index');
+    Route::post('/producer-commodities', [ProducerCommodityController::class, 'store'])->name('producer-commodities.store');
+    Route::put('/producer-commodities/{producerCommodity}', [ProducerCommodityController::class, 'update'])->name('producer-commodities.update');
+    Route::delete('/producer-commodities/{producerCommodity}', [ProducerCommodityController::class, 'destroy'])->name('producer-commodities.destroy');
+
+    // Modul Pengelolaan HAP Produsen (Dinamis)
+    Route::get('/producer-haps', [ProducerHapController::class, 'index'])->name('producer-haps.index');
+    Route::post('/producer-haps', [ProducerHapController::class, 'store'])->name('producer-haps.store');
+    Route::put('/producer-haps/{hap}', [ProducerHapController::class, 'update'])->name('producer-haps.update');
+    Route::delete('/producer-haps/{hap}', [ProducerHapController::class, 'destroy'])->name('producer-haps.destroy');
 });
 
 require __DIR__.'/settings.php';
