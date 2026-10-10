@@ -1,10 +1,12 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
+    Activity,
     AlertCircle,
     AlertTriangle,
     ArrowDown,
     ArrowRight,
     ArrowUp,
+    ArrowUpRight,
     BarChart3,
     Calendar,
     CheckCircle2,
@@ -19,13 +21,16 @@ import {
     Info,
     Layers,
     LineChart,
+    MapPin,
     Menu,
     Minus,
     Pause,
     Play,
     Printer,
     RefreshCw,
+    ShieldCheck,
     SlidersHorizontal,
+    Sparkles,
     Store,
     TrendingDown,
     TrendingUp,
@@ -428,6 +433,29 @@ export default function HargaKonsumen({
         }, 5000);
         return () => clearInterval(timer);
     }, [isSliderPlaying, isSliderHovered, totalConsumerSlides]);
+
+    // Hero Banner carousel state & interactions
+    const [heroSlide, setHeroSlide] = useState(0);
+    const [isHeroPlaying, setIsHeroPlaying] = useState(true);
+    const [isHeroHovered, setIsHeroHovered] = useState(false);
+    const TOTAL_HERO_SLIDES = 3;
+
+    // Auto rotate hero banner every 6 seconds unless paused or hovered
+    useEffect(() => {
+        if (!isHeroPlaying || isHeroHovered) return;
+        const timer = setInterval(() => {
+            setHeroSlide((prev) => (prev + 1) % TOTAL_HERO_SLIDES);
+        }, 6000);
+        return () => clearInterval(timer);
+    }, [isHeroPlaying, isHeroHovered]);
+
+    // Smooth scroll helper for quick navigation pills & buttons
+    const scrollToSection = (id: string) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
 
     // Chart states & tabulasi
     const [chartTab, setChartTab] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -1109,6 +1137,94 @@ export default function HargaKonsumen({
         }).format(val);
     };
 
+    // Hero statistical metrics computed from commoditiesList
+    const heroStats = useMemo(() => {
+        let countUp = 0;
+        let countDown = 0;
+        let countStable = 0;
+        let withHetCount = 0;
+        let compliedHetCount = 0;
+
+        commoditiesList.forEach((c) => {
+            if (c.today_price !== null && c.yesterday_price !== null) {
+                if (c.today_price > c.yesterday_price) countUp++;
+                else if (c.today_price < c.yesterday_price) countDown++;
+                else countStable++;
+            } else if (c.today_price !== null) {
+                countStable++;
+            }
+
+            if (c.het_price !== null && c.het_price > 0 && c.today_price !== null) {
+                withHetCount++;
+                if (c.today_price <= c.het_price) {
+                    compliedHetCount++;
+                }
+            }
+        });
+
+        const hetComplianceRate =
+            withHetCount > 0
+                ? Math.round((compliedHetCount / withHetCount) * 100)
+                : 100;
+
+        // Key spotlight commodities for quick ticker / radar
+        const spotlightNames = [
+            'Beras Premium',
+            'Cabai Rawit Merah',
+            'Minyak Goreng Kemasan',
+            'Bawang Merah',
+            'Daging Sapi',
+        ];
+        const spotlights = commoditiesList
+            .filter((c) =>
+                spotlightNames.some((n) =>
+                    c.name.toLowerCase().includes(n.toLowerCase()),
+                ),
+            )
+            .slice(0, 3);
+
+        return {
+            total: commoditiesList.length,
+            countUp,
+            countDown,
+            countStable,
+            withHetCount,
+            compliedHetCount,
+            hetComplianceRate,
+            spotlights,
+        };
+    }, [commoditiesList]);
+
+    // Share Radar Pasar via WhatsApp
+    const handleShareRadarWhatsApp = () => {
+        const marketNameText =
+            selectedMarketName || marketName || 'Pasar Daerah Indramayu';
+        const dateText = formatIndoDate(currentDate) || 'Hari Ini';
+        let text = `📢 *RINGKASAN HARGA PANGAN KONSUMEN*\n`;
+        text += `🏛️ DKPP KABUPATEN INDRAMAYU\n`;
+        text += `📍 Pasar: ${marketNameText}\n`;
+        text += `📅 Tanggal: ${dateText}\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `📊 *Kondisi 25 Komoditas:*\n`;
+        text += `• Tetap/Stabil: ${heroStats.countStable} komoditas\n`;
+        text += `• Kenaikan: ${heroStats.countUp} komoditas\n`;
+        text += `• Penurunan: ${heroStats.countDown} komoditas\n`;
+        text += `• Kepatuhan HET: ${heroStats.hetComplianceRate}%\n`;
+        if (aboveHetCommodities.length > 0) {
+            text += `\n⚠️ *Di Atas HET (${aboveHetCommodities.length} komoditas):*\n`;
+            aboveHetCommodities.slice(0, 5).forEach((item) => {
+                text += `• ${item.name}: ${formatCurrency(item.today_price ?? 0)} (HET: ${formatCurrency(item.het_price ?? 0)})\n`;
+            });
+            if (aboveHetCommodities.length > 5) {
+                text += `  ...dan ${aboveHetCommodities.length - 5} komoditas lainnya\n`;
+            }
+        }
+        text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `🌐 Cek selengkapnya:\n${typeof window !== 'undefined' ? window.location.origin : ''}/harga-konsumen?market_id=${currentMarketId}&date=${currentDate}\n`;
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, '_blank');
+    };
+
     // Helper penentu warna grafik batang berdasarkan persentase selisih terhadap batas HET:
     // - Hijau (#006565): harga <= HET atau tidak memiliki HET (normal)
     // - Kuning (#f59e0b): harga melebihi HET 1 - 10%
@@ -1271,231 +1387,843 @@ export default function HargaKonsumen({
 
             <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] antialiased selection:bg-[#006565] selection:text-white">
                 {/* ============================================================== */}
-                {/* 1. TOP NAVBAR (MENU HARGA PANGAN: HARGA KONSUMEN & PRODUSEN)   */}
                 {/* ============================================================== */}
-                <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/85 backdrop-blur-md transition-all">
-                    <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                        {/* Logo & Brand Identity */}
-                        <Link href="/harga-konsumen" className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#006565] text-white shadow-md shadow-[#006565]/20">
-                                <Wheat className="h-6 w-6 stroke-[2.2]" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-base font-extrabold tracking-tight text-[#191c1e] sm:text-lg">
-                                    DKPP INDRAMAYU
-                                </span>
-                                <span className="text-[11px] font-semibold tracking-wider text-[#006565] uppercase">
-                                    Lumbung Padi Nasional
-                                </span>
-                            </div>
-                        </Link>
+                {/* 1. TOP NAVBAR - MODERN & KEKINIAN (DKPP INDRAMAYU)             */}
+                {/* ============================================================== */}
+                <header className="sticky top-0 z-50 transition-all">
+                    {/* Top Accent Gradient Shimmer Line */}
+                    <div className="h-[2.5px] w-full bg-gradient-to-r from-emerald-500 via-[#006565] to-teal-400" />
 
-                        {/* Desktop Navigation Links */}
-                        <nav className="hidden items-center gap-1 md:flex">
-                            {/* Dropdown Menu Harga Pangan */}
-                            <div className="relative" ref={hargaMenuRef}>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setHargaMenuOpen(!hargaMenuOpen)
-                                    }
-                                    onMouseEnter={() => setHargaMenuOpen(true)}
-                                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50/70 px-4 py-2 text-xs font-bold text-[#006565] transition-colors hover:bg-emerald-100 lg:text-sm"
-                                    aria-expanded={hargaMenuOpen}
-                                >
-                                    <TrendingUp className="h-4 w-4 text-[#006565]" />
-                                    <span>Harga Pangan</span>
-                                    <ChevronDown
-                                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                                            hargaMenuOpen
-                                                ? 'rotate-180 text-[#006565]'
-                                                : ''
-                                        }`}
-                                    />
-                                </button>
-
-                                {hargaMenuOpen && (
-                                    <div
-                                        onMouseLeave={() =>
-                                            setHargaMenuOpen(false)
-                                        }
-                                        className="absolute left-0 mt-1.5 w-64 rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xl ring-1 ring-slate-900/5 transition-all z-50 animate-in fade-in slide-in-from-top-1"
-                                    >
-                                        <Link
-                                            href="/harga-konsumen"
-                                            onClick={() =>
-                                                setHargaMenuOpen(false)
-                                            }
-                                            className="flex items-start gap-3 rounded-xl p-2.5 bg-emerald-50/80 text-emerald-950 transition-colors group"
-                                        >
-                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#006565] text-white">
-                                                <Store className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-[#006565]">
-                                                    Harga Konsumen
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    Card 25 komoditi &amp; status HET
-                                                </div>
-                                            </div>
-                                        </Link>
-                                        <Link
-                                            href="/harga-produsen"
-                                            onClick={() =>
-                                                setHargaMenuOpen(false)
-                                            }
-                                            className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-amber-50/70 group"
-                                        >
-                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 text-amber-700 group-hover:bg-[#006565] group-hover:text-white transition-colors">
-                                                <Wheat className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-slate-900 group-hover:text-[#006565]">
-                                                    Harga Produsen
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    Tingkat petani &amp; produsen pangan
-                                                </div>
-                                            </div>
-                                        </Link>
+                    <div className="border-b border-slate-200/70 bg-white/85 backdrop-blur-xl shadow-xs">
+                        <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+                            {/* Logo & Brand Identity */}
+                            <Link href="/harga-konsumen" className="group flex items-center gap-3">
+                                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#006565] via-[#005555] to-[#003838] text-white shadow-md shadow-[#006565]/25 ring-1 ring-white/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-[#006565]/35">
+                                    <Wheat className="h-6 w-6 stroke-[2.2] text-emerald-100 transition-transform group-hover:rotate-6" />
+                                    <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-400 ring-2 ring-white">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-base font-black tracking-tight text-slate-900 transition-colors group-hover:text-[#006565] sm:text-lg">
+                                            DKPP INDRAMAYU
+                                        </span>
+                                        <span className="hidden sm:inline-flex rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black tracking-wider text-[#006565] border border-emerald-500/20 uppercase">
+                                            Satu Data
+                                        </span>
                                     </div>
-                                )}
-                            </div>
-                        </nav>
+                                    <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-[#006565]">
+                                        <span>Lumbung Padi Nasional</span>
+                                        <span className="text-slate-300">•</span>
+                                        <span className="font-semibold text-slate-400 lowercase">portal pangan</span>
+                                    </div>
+                                </div>
+                            </Link>
 
-                        {/* Action Buttons */}
-                        <div className="hidden items-center gap-3 md:flex">
-                            {auth.user ? (
-                                <Link
-                                    href={dashboard()}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-[#006565] px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:bg-[#005252] lg:text-sm"
-                                >
-                                    <Layers className="h-4 w-4" />
-                                    <span>Buka Dashboard</span>
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:border-[#006565]/40 hover:bg-slate-50 hover:text-[#006565] lg:text-sm"
-                                    >
-                                        Portal Masuk
-                                    </Link>
-                                    <Link
-                                        href={register()}
-                                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#006565] px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:bg-[#005252] lg:text-sm"
-                                    >
-                                        <span>Registrasi Petugas</span>
-                                        <ArrowRight className="h-3.5 w-3.5" />
-                                    </Link>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Mobile Menu Hamburger */}
-                        <div className="flex md:hidden">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setMobileMenuOpen(!mobileMenuOpen)
-                                }
-                                className="inline-flex items-center justify-center rounded-xl p-2 text-slate-600 hover:bg-slate-100"
-                                aria-label="Toggle Menu"
-                            >
-                                {mobileMenuOpen ? (
-                                    <X className="h-6 w-6" />
-                                ) : (
-                                    <Menu className="h-6 w-6" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Mobile Dropdown Menu */}
-                    {mobileMenuOpen && (
-                        <div className="border-b border-slate-200 bg-white px-4 pt-2 pb-6 md:hidden">
-                            <div className="flex flex-col space-y-2">
-                                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2">
+                            {/* Desktop Navigation Links Island */}
+                            <nav className="hidden items-center gap-1 rounded-2xl border border-slate-200/70 bg-slate-100/75 p-1 backdrop-blur-md lg:flex">
+                                {/* Dropdown Menu Harga Pangan */}
+                                <div className="relative" ref={hargaMenuRef}>
                                     <button
                                         type="button"
                                         onClick={() =>
-                                            setMobileHargaOpen(!mobileHargaOpen)
+                                            setHargaMenuOpen(!hargaMenuOpen)
                                         }
-                                        className="flex w-full items-center justify-between px-2 py-1.5 text-sm font-bold text-slate-800"
+                                        onMouseEnter={() => setHargaMenuOpen(true)}
+                                        className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                            hargaMenuOpen
+                                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80'
+                                                : 'text-slate-700 hover:text-[#006565] hover:bg-white/70'
+                                        }`}
+                                        aria-expanded={hargaMenuOpen}
                                     >
-                                        <span className="flex items-center gap-2">
-                                            <TrendingUp className="h-4 w-4 text-[#006565]" />
-                                            <span>Harga Pangan</span>
-                                        </span>
+                                        <TrendingUp className="h-4 w-4 text-[#006565]" />
+                                        <span>Harga Pangan</span>
                                         <ChevronDown
-                                            className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${
-                                                mobileHargaOpen
+                                            className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                                                hargaMenuOpen
                                                     ? 'rotate-180 text-[#006565]'
-                                                    : ''
+                                                    : 'text-slate-400'
                                             }`}
                                         />
                                     </button>
-                                    {mobileHargaOpen && (
-                                        <div className="mt-1 space-y-1 border-t border-slate-200/60 pt-2 pl-3">
+
+                                    {hargaMenuOpen && (
+                                        <div
+                                            onMouseLeave={() =>
+                                                setHargaMenuOpen(false)
+                                            }
+                                            className="absolute left-0 mt-2 w-72 rounded-2xl border border-slate-200/90 bg-white/95 p-2 shadow-2xl backdrop-blur-xl ring-1 ring-slate-900/5 transition-all z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                                        >
+                                            <div className="px-3 pt-2 pb-1 text-[10px] font-black tracking-wider text-slate-400 uppercase">
+                                                Pilih Pasar &amp; Tingkat Harga
+                                            </div>
+
+                                            {/* Active Option: Harga Konsumen */}
                                             <Link
                                                 href="/harga-konsumen"
                                                 onClick={() =>
-                                                    setMobileMenuOpen(false)
+                                                    setHargaMenuOpen(false)
                                                 }
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs font-bold text-[#006565] bg-emerald-50/80"
+                                                className="group flex items-start gap-3 rounded-xl p-2.5 bg-gradient-to-r from-emerald-50/90 to-teal-50/40 text-slate-900 border border-emerald-500/20 transition-all hover:border-emerald-500/40"
                                             >
-                                                <Store className="h-3.5 w-3.5 text-emerald-600" />
-                                                <span>Harga Konsumen (25 Komoditi)</span>
+                                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#006565] to-[#004e4e] text-white shadow-xs">
+                                                    <Store className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-bold text-[#006565]">
+                                                            Harga Konsumen
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                                            Aktif
+                                                        </span>
+                                                    </div>
+                                                    <p className="mt-0.5 text-[11px] text-slate-500 leading-tight">
+                                                        25 Komoditi eceran harian &amp; status HET
+                                                    </p>
+                                                </div>
                                             </Link>
+
+                                            {/* Option: Harga Produsen */}
                                             <Link
                                                 href="/harga-produsen"
                                                 onClick={() =>
-                                                    setMobileMenuOpen(false)
+                                                    setHargaMenuOpen(false)
                                                 }
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white hover:text-[#006565]"
+                                                className="group mt-1 flex items-start gap-3 rounded-xl p-2.5 transition-all hover:bg-amber-50/80 border border-transparent hover:border-amber-200/60"
                                             >
-                                                <Wheat className="h-3.5 w-3.5 text-amber-600" />
-                                                <span>Harga Produsen</span>
+                                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 transition-colors group-hover:bg-amber-600 group-hover:text-white">
+                                                    <Wheat className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-xs font-bold text-slate-800 group-hover:text-amber-800 transition-colors">
+                                                        Harga Produsen
+                                                    </div>
+                                                    <p className="mt-0.5 text-[11px] text-slate-500 leading-tight">
+                                                        Tingkat petani, peternak &amp; penggilingan
+                                                    </p>
+                                                </div>
                                             </Link>
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-2">
-                                    {auth.user ? (
+                                {/* Quick Scroll Nav Link: 25 Komoditas */}
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('komoditas-section')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-[#006565] hover:bg-white/70 transition-all cursor-pointer"
+                                >
+                                    <Store className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>25 Komoditas</span>
+                                </button>
+
+                                {/* Quick Scroll Nav Link: Grafik & HET */}
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('grafik-section')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-[#006565] hover:bg-white/70 transition-all cursor-pointer"
+                                >
+                                    <LineChart className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>Grafik &amp; HET</span>
+                                </button>
+
+                                {/* Quick Scroll Nav Link: Rekapitulasi */}
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('rekap-section')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-[#006565] hover:bg-white/70 transition-all cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>Rekapitulasi</span>
+                                </button>
+                            </nav>
+
+                            {/* Action Buttons & Status */}
+                            <div className="hidden items-center gap-3 md:flex">
+                                {/* Live Status Badge */}
+                                <div className="hidden xl:inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-50/70 px-3 py-1.5 text-[11px] font-bold text-[#006565]">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                                    </span>
+                                    <span>Live Monitoring</span>
+                                </div>
+
+                                {auth.user ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="hidden lg:flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-2.5 py-1 text-xs">
+                                            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#006565] text-[10px] font-bold text-white uppercase">
+                                                {auth.user.name ? auth.user.name.charAt(0) : 'U'}
+                                            </div>
+                                            <span className="font-bold text-slate-700 max-w-[120px] truncate">
+                                                {auth.user.name}
+                                            </span>
+                                        </div>
                                         <Link
                                             href={dashboard()}
-                                            className="w-full rounded-xl bg-[#006565] py-2.5 text-center text-sm font-bold text-white shadow-md"
+                                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:shadow-lg hover:shadow-[#006565]/30 hover:scale-[1.02] active:scale-[0.98] lg:text-sm"
                                         >
-                                            Buka Dashboard
+                                            <Layers className="h-4 w-4" />
+                                            <span>Dashboard</span>
                                         </Link>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2.5">
+                                        <Link
+                                            href={login()}
+                                            className="rounded-xl border border-slate-200/80 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-all hover:border-[#006565]/40 hover:bg-emerald-50/40 hover:text-[#006565] lg:text-sm"
+                                        >
+                                            Portal Masuk
+                                        </Link>
+                                        <Link
+                                            href={register()}
+                                            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:shadow-lg hover:shadow-[#006565]/30 hover:scale-[1.02] active:scale-[0.98] lg:text-sm"
+                                        >
+                                            <span>Registrasi Petugas</span>
+                                            <ArrowRight className="h-3.5 w-3.5" />
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Mobile Menu Hamburger */}
+                            <div className="flex md:hidden">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setMobileMenuOpen(!mobileMenuOpen)
+                                    }
+                                    className="inline-flex items-center justify-center rounded-xl border border-slate-200/80 bg-slate-50 p-2 text-slate-700 hover:bg-slate-100 hover:text-[#006565] transition-all cursor-pointer"
+                                    aria-label="Toggle Menu"
+                                >
+                                    {mobileMenuOpen ? (
+                                        <X className="h-6 w-6" />
                                     ) : (
-                                        <>
-                                            <Link
-                                                href={login()}
-                                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-center text-sm font-bold text-slate-700"
-                                            >
-                                                Portal Masuk
-                                            </Link>
-                                            <Link
-                                                href={register()}
-                                                className="w-full rounded-xl bg-[#006565] py-2.5 text-center text-sm font-bold text-white shadow-md"
-                                            >
-                                                Registrasi Petugas
-                                            </Link>
-                                        </>
+                                        <Menu className="h-6 w-6" />
                                     )}
-                                </div>
+                                </button>
                             </div>
                         </div>
-                    )}
+
+                        {/* Mobile Dropdown Menu Drawer */}
+                        {mobileMenuOpen && (
+                            <div className="border-t border-slate-200/80 bg-white/95 px-4 pt-3 pb-6 backdrop-blur-xl md:hidden shadow-xl animate-in slide-in-from-top-2 duration-200">
+                                <div className="flex flex-col space-y-3">
+                                    {/* Mobile Top Context Pill */}
+                                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-50/70 border border-emerald-500/15">
+                                        <span className="flex items-center gap-2 text-xs font-bold text-[#006565]">
+                                            <span className="relative flex h-2 w-2">
+                                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                                            </span>
+                                            <span>Satu Data Pangan Indramayu</span>
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                            Live Harian
+                                        </span>
+                                    </div>
+
+                                    {/* Harga Pangan Options */}
+                                    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setMobileHargaOpen(!mobileHargaOpen)
+                                            }
+                                            className="flex w-full items-center justify-between px-2 py-1 text-xs font-black uppercase tracking-wider text-slate-700 cursor-pointer"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <TrendingUp className="h-4 w-4 text-[#006565]" />
+                                                <span>Pilihan Portal Harga Pangan</span>
+                                            </span>
+                                            <ChevronDown
+                                                className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${
+                                                    mobileHargaOpen
+                                                        ? 'rotate-180 text-[#006565]'
+                                                        : ''
+                                                }`}
+                                            />
+                                        </button>
+                                        {mobileHargaOpen && (
+                                            <div className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2">
+                                                <Link
+                                                    href="/harga-konsumen"
+                                                    onClick={() =>
+                                                        setMobileMenuOpen(false)
+                                                    }
+                                                    className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold text-[#006565] bg-emerald-50 border border-emerald-500/20"
+                                                >
+                                                    <div className="flex items-center gap-2.5">
+                                                        <Store className="h-4 w-4 text-emerald-600" />
+                                                        <span>Harga Konsumen (25 Komoditi)</span>
+                                                    </div>
+                                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900">
+                                                        Aktif
+                                                    </span>
+                                                </Link>
+                                                <Link
+                                                    href="/harga-produsen"
+                                                    onClick={() =>
+                                                        setMobileMenuOpen(false)
+                                                    }
+                                                    className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-white hover:text-[#006565] transition-colors"
+                                                >
+                                                    <Wheat className="h-4 w-4 text-amber-600" />
+                                                    <span>Harga Produsen (Tingkat Petani)</span>
+                                                </Link>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Mobile Quick Scroll Section Links */}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMobileMenuOpen(false);
+                                                scrollToSection('komoditas-section');
+                                            }}
+                                            className="flex flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white p-2.5 text-center transition-colors hover:border-[#006565] hover:text-[#006565] cursor-pointer"
+                                        >
+                                            <Store className="h-4 w-4 text-[#006565] mb-1" />
+                                            <span className="text-[11px] font-bold text-slate-800">
+                                                25 Komoditi
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMobileMenuOpen(false);
+                                                scrollToSection('grafik-section');
+                                            }}
+                                            className="flex flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white p-2.5 text-center transition-colors hover:border-[#006565] hover:text-[#006565] cursor-pointer"
+                                        >
+                                            <LineChart className="h-4 w-4 text-[#006565] mb-1" />
+                                            <span className="text-[11px] font-bold text-slate-800">
+                                                Grafik &amp; HET
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setMobileMenuOpen(false);
+                                                scrollToSection('rekap-section');
+                                            }}
+                                            className="flex flex-col items-center justify-center rounded-xl border border-slate-200/80 bg-white p-2.5 text-center transition-colors hover:border-[#006565] hover:text-[#006565] cursor-pointer"
+                                        >
+                                            <FileSpreadsheet className="h-4 w-4 text-[#006565] mb-1" />
+                                            <span className="text-[11px] font-bold text-slate-800">
+                                                Rekapitulasi
+                                            </span>
+                                        </button>
+                                    </div>
+
+                                    {/* Mobile Auth Actions */}
+                                    <div className="mt-2 flex flex-col gap-2 border-t border-slate-200/70 pt-3">
+                                        {auth.user ? (
+                                            <Link
+                                                href={dashboard()}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 py-2.5 text-center text-sm font-bold text-white shadow-md"
+                                            >
+                                                <Layers className="h-4 w-4" />
+                                                <span>Buka Dashboard Petugas</span>
+                                            </Link>
+                                        ) : (
+                                            <>
+                                                <Link
+                                                    href={login()}
+                                                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-center text-xs font-bold text-slate-700 shadow-2xs"
+                                                >
+                                                    Portal Masuk
+                                                </Link>
+                                                <Link
+                                                    href={register()}
+                                                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 py-2.5 text-center text-xs font-bold text-white shadow-md"
+                                                >
+                                                    <span>Registrasi Petugas</span>
+                                                    <ArrowRight className="h-3.5 w-3.5" />
+                                                </Link>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </header>
 
                 {/* ============================================================== */}
-                {/* 2. HARGA KONSUMEN - 25 KOMODITI CARD SLIDER                    */}
+                {/* 2. HERO BANNER - MODERN & KEKINIAN (DKPP SATU DATA PANGAN)    */}
                 {/* ============================================================== */}
-                <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
+                <section
+                    className="relative overflow-hidden bg-gradient-to-br from-[#003737] via-[#005252] to-[#012626] text-white border-b border-emerald-950/40 shadow-xl"
+                    onMouseEnter={() => setIsHeroHovered(true)}
+                    onMouseLeave={() => setIsHeroHovered(false)}
+                    aria-label="Hero Banner Pusat Data Harga Pangan"
+                >
+                    {/* Glowing ambient orbs & mesh background effect */}
+                    <div className="pointer-events-none absolute -top-40 -left-20 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl" />
+                    <div className="pointer-events-none absolute top-1/2 -right-24 h-96 w-96 rounded-full bg-amber-400/15 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-teal-300/15 blur-3xl" />
+                    <div className="pointer-events-none absolute inset-0 opacity-15 [background-image:radial-gradient(rgba(255,255,255,0.4)_1px,transparent_1px)] [background-size:24px_24px]" />
+
+                    <div className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+                        {/* Top Context & Live Status Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/20 px-3 py-1 text-[11px] font-bold tracking-wider text-emerald-200 uppercase backdrop-blur-md">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                                    </span>
+                                    <span>Pusat Data Pangan Real-Time</span>
+                                </span>
+                                <span className="hidden sm:inline-flex text-xs font-semibold text-emerald-200/70">
+                                    DKPP Kabupaten Indramayu
+                                </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-emerald-100/90">
+                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                                    <MapPin className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span className="font-semibold text-white">
+                                        {selectedMarketName || marketName || 'Pasar Daerah Indramayu'}
+                                    </span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                                    <Calendar className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span>{formatIndoDate(currentDate) || 'Hari Ini'}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Main Grid: Left Slider Content & Right Radar Card */}
+                        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+                            {/* Left Column: Interactive Banner Slide */}
+                            <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between">
+                                {/* Slide 0: Stabilitas 25 Komoditi Pangan */}
+                                {heroSlide === 0 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3.5 py-1 text-xs font-bold text-emerald-200 backdrop-blur-md">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
+                                            <span>PORTAL PEMANTAUAN HARGA KONSUMEN</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Stabilitas Harga Pangan,{' '}
+                                            <span className="bg-gradient-to-r from-emerald-300 via-teal-100 to-amber-200 bg-clip-text text-transparent">
+                                                Kesejahteraan Warga
+                                            </span>{' '}
+                                            Indramayu
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Monitoring pergerakan harga eceran harian 25 komoditas pangan pokok, evaluasi kepatuhan Harga Eceran Tertinggi (HET), dan deteksi dini lonjakan disparitas pasar di Kabupaten Indramayu.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('komoditas-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-[#006565] px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-[#005555] active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <Store className="h-4 w-4" />
+                                                <span>Jelajahi 25 Komoditas</span>
+                                                <ArrowDown className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('grafik-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <LineChart className="h-4 w-4 text-emerald-300" />
+                                                <span>Tren &amp; Fluktuasi</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('rekap-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <FileSpreadsheet className="h-4 w-4 text-teal-300" />
+                                                <span>Rekapitulasi</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Dynamic Mini Metric Pills */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                                                <span>25 Komoditas Terpantau</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-teal-400" />
+                                                <span>{heroStats.countStable} Stabil</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                                                <span>{heroStats.countUp} Naik</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                                <span>{heroStats.countDown} Turun</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-200">
+                                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                                                <span>{heroStats.hetComplianceRate}% Sesuai HET</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Slide 1: Lumbung Padi & Pengendalian Inflasi */}
+                                {heroSlide === 1 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/15 px-3.5 py-1 text-xs font-bold text-amber-200 backdrop-blur-md">
+                                            <Wheat className="h-3.5 w-3.5 text-amber-300" />
+                                            <span>LUMBUNG PADI NASIONAL &amp; KETAHANAN PANGAN</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Kawal Pasokan Pokok &amp;{' '}
+                                            <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-emerald-200 bg-clip-text text-transparent">
+                                                Perlindungan Daya Beli
+                                            </span>
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Kabupaten Indramayu sebagai lumbung pangan utama berkomitmen menjaga ketersediaan Beras SPHP, aneka cabai, minyak goreng, dan daging melalui sinergi Bapanas, Bulog, serta TPID.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <Link
+                                                href="/harga-produsen"
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-700 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-amber-950/40 transition-all hover:scale-[1.02] hover:from-amber-400 hover:to-amber-600 active:scale-[0.98]"
+                                            >
+                                                <Wheat className="h-4 w-4" />
+                                                <span>Portal Harga Produsen</span>
+                                                <ArrowUpRight className="h-4 w-4" />
+                                            </Link>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('het-warning-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/15 px-5 py-3 text-xs sm:text-sm font-bold text-amber-200 backdrop-blur-md transition-all hover:bg-amber-500/25 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <AlertTriangle className="h-4 w-4 text-amber-300" />
+                                                <span>Peringatan Batas HET</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Value Badges */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                                                <span>🌾 Lumbung Beras Nasional</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                                                <span>⚖️ Evaluasi HET Bapanas &amp; Kemendag</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                                                <span>🛡️ Deteksi Lonjakan Cepat TPID</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Slide 2: Transparansi Satu Data & Rekapitulasi */}
+                                {heroSlide === 2 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-500/15 px-3.5 py-1 text-xs font-bold text-teal-200 backdrop-blur-md">
+                                            <ShieldCheck className="h-3.5 w-3.5 text-teal-300" />
+                                            <span>SATU DATA PANGAN INDRAMAYU</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Akses Data Terbuka,{' '}
+                                            <span className="bg-gradient-to-r from-teal-200 via-cyan-100 to-emerald-200 bg-clip-text text-transparent">
+                                                Laporan Resmi Siap Unduh
+                                            </span>
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Dapatkan transparansi data perkembangan harga pangan harian, mingguan, dan bulanan. Tersedia fitur ekspor PDF resmi, spreadsheet Excel, serta share laporan cepat via WhatsApp.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('rekap-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-teal-950/40 transition-all hover:scale-[1.02] hover:from-teal-400 hover:to-emerald-500 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                <span>Buka Lembar Rekap &amp; Ekspor</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('grafik-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <BarChart3 className="h-4 w-4 text-cyan-300" />
+                                                <span>Grafik Dinamis Harian</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Value Badges */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-100">
+                                                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-300" />
+                                                <span>Ekspor PDF &amp; Excel Resmi</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-100">
+                                                <LineChart className="h-3.5 w-3.5 text-teal-300" />
+                                                <span>Analisis MoM &amp; Historis</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-100">
+                                                <WhatsAppIcon className="h-3.5 w-3.5 fill-current text-emerald-300" />
+                                                <span>Integrasi Ringkasan WhatsApp</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Column: Modern Glassmorphic "Radar Pasar Hari Ini" Card */}
+                            <div className="lg:col-span-5 xl:col-span-4">
+                                <div className="rounded-3xl border border-white/20 bg-white/10 p-5 sm:p-6 backdrop-blur-xl shadow-2xl ring-1 ring-white/10">
+                                    {/* Header Radar Card */}
+                                    <div className="flex items-center justify-between border-b border-white/15 pb-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                                                </span>
+                                                <span className="text-[10px] font-extrabold tracking-wider text-emerald-200 uppercase">
+                                                    Radar Pasar Terkini
+                                                </span>
+                                            </div>
+                                            <h3 className="mt-1 text-sm font-bold text-white line-clamp-1">
+                                                {selectedMarketName || marketName || 'Pasar Daerah Indramayu'}
+                                            </h3>
+                                        </div>
+
+                                        {aboveHetCommodities.length > 0 ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('het-warning-section')}
+                                                className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/40 bg-rose-500/25 px-2.5 py-1 text-[11px] font-bold text-rose-200 transition-colors hover:bg-rose-500/40 cursor-pointer"
+                                                title="Klik untuk melihat daftar komoditas di atas HET"
+                                            >
+                                                <AlertTriangle className="h-3 w-3 text-rose-300" />
+                                                <span>{aboveHetCommodities.length} Di Atas HET</span>
+                                            </button>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/25 px-2.5 py-1 text-[11px] font-bold text-emerald-200">
+                                                <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                                                <span>100% Sesuai HET</span>
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Quick 3-Gauge Price Movement */}
+                                    <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                            <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-teal-200">
+                                                <Minus className="h-3 w-3 text-teal-300" />
+                                                <span>Stabil</span>
+                                            </div>
+                                            <div className="mt-1 text-lg font-black text-white">
+                                                {heroStats.countStable}
+                                            </div>
+                                            <div className="text-[10px] text-emerald-100/70">komoditas</div>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                            <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-rose-200">
+                                                <TrendingUp className="h-3 w-3 text-rose-400" />
+                                                <span>Naik</span>
+                                            </div>
+                                            <div className="mt-1 text-lg font-black text-white">
+                                                {heroStats.countUp}
+                                            </div>
+                                            <div className="text-[10px] text-emerald-100/70">komoditas</div>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                            <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-200">
+                                                <TrendingDown className="h-3 w-3 text-emerald-400" />
+                                                <span>Turun</span>
+                                            </div>
+                                            <div className="mt-1 text-lg font-black text-white">
+                                                {heroStats.countDown}
+                                            </div>
+                                            <div className="text-[10px] text-emerald-100/70">komoditas</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Spotlight Komoditas Strategis Hari Ini */}
+                                    <div className="mt-4">
+                                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-200/80 uppercase tracking-wider mb-2">
+                                            <span>Spotlight Komoditas</span>
+                                            <span className="text-[10px] text-emerald-200/60 lowercase">vs kemarin</span>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {heroStats.spotlights.map((item) => {
+                                                const diff =
+                                                    item.today_price !== null && item.yesterday_price !== null
+                                                        ? item.today_price - item.yesterday_price
+                                                        : 0;
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 transition-all hover:bg-white/10"
+                                                    >
+                                                        <div className="min-w-0 flex-1 pr-2">
+                                                            <div className="text-xs font-bold text-white truncate">
+                                                                {item.name}
+                                                            </div>
+                                                            <div className="text-[10px] text-emerald-100/60">
+                                                                per {item.unit}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right shrink-0">
+                                                            <div className="text-xs font-mono font-black text-white">
+                                                                {item.today_price !== null
+                                                                    ? formatCurrency(item.today_price)
+                                                                    : '-'}
+                                                            </div>
+                                                            <div className="text-[10px] font-semibold">
+                                                                {diff > 0 ? (
+                                                                    <span className="text-rose-300 font-mono">
+                                                                        +{formatCurrency(diff)}
+                                                                    </span>
+                                                                ) : diff < 0 ? (
+                                                                    <span className="text-emerald-300 font-mono">
+                                                                        {formatCurrency(diff)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-teal-200/80">
+                                                                        Stabil
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Card Footer Actions */}
+                                    <div className="mt-5 flex items-center gap-2 pt-3 border-t border-white/15">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollToSection('komoditas-section')}
+                                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 py-2.5 px-3 text-xs font-bold text-white transition-all cursor-pointer"
+                                        >
+                                            <span>Lihat Semua 25 Komoditi</span>
+                                            <ArrowRight className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleShareRadarWhatsApp}
+                                            className="inline-flex items-center justify-center rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 p-2.5 text-emerald-200 border border-emerald-400/30 transition-all cursor-pointer"
+                                            title="Bagikan Ringkasan Radar via WhatsApp"
+                                            aria-label="Bagikan Ringkasan Radar via WhatsApp"
+                                        >
+                                            <WhatsAppIcon className="h-4 w-4 fill-current" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Banner Navigation Bar: Dots, Counter, and Controls */}
+                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/10 pt-4">
+                            {/* Slide Indicator Pills */}
+                            <div className="flex items-center gap-2">
+                                {[0, 1, 2].map((idx) => (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => setHeroSlide(idx)}
+                                        className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                                            heroSlide === idx
+                                                ? 'w-8 bg-gradient-to-r from-emerald-300 to-teal-200 shadow-md shadow-emerald-400/30'
+                                                : 'w-2 bg-white/30 hover:bg-white/60'
+                                        }`}
+                                        aria-label={`Pindah ke banner slide ${idx + 1}`}
+                                    />
+                                ))}
+                                <span className="ml-2 text-xs font-mono font-medium text-emerald-200/80">
+                                    0{heroSlide + 1} / 0{TOTAL_HERO_SLIDES}
+                                </span>
+                            </div>
+
+                            {/* Banner Navigation Controls */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setHeroSlide(
+                                            (prev) =>
+                                                (prev - 1 + TOTAL_HERO_SLIDES) %
+                                                TOTAL_HERO_SLIDES,
+                                        )
+                                    }
+                                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/25 active:scale-95 cursor-pointer"
+                                    aria-label="Slide banner sebelumnya"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsHeroPlaying(!isHeroPlaying)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/25 active:scale-95 cursor-pointer"
+                                    aria-label={
+                                        isHeroPlaying
+                                            ? 'Jeda rotasi otomatis'
+                                            : 'Putar rotasi otomatis'
+                                    }
+                                    title={
+                                        isHeroPlaying
+                                            ? 'Jeda rotasi otomatis'
+                                            : 'Putar rotasi otomatis'
+                                    }
+                                >
+                                    {isHeroPlaying ? (
+                                        <Pause className="h-3.5 w-3.5" />
+                                    ) : (
+                                        <Play className="h-3.5 w-3.5 fill-current" />
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setHeroSlide(
+                                            (prev) => (prev + 1) % TOTAL_HERO_SLIDES,
+                                        )
+                                    }
+                                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/25 active:scale-95 cursor-pointer"
+                                    aria-label="Slide banner berikutnya"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ============================================================== */}
+                {/* 3. HARGA KONSUMEN - 25 KOMODITI CARD SLIDER                    */}
+                {/* ============================================================== */}
+                <main id="komoditas-section" className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
                     {/* Header Banner */}
                     <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
                         <div>
@@ -1883,9 +2611,9 @@ export default function HargaKonsumen({
                     </div>
 
                     {/* ============================================================== */}
-                    {/* 3. DUA KOLOM: 80% GRAFIK HARGA & 20% DAFTAR DI ATAS HET        */}
+                    {/* 4. DUA KOLOM: 80% GRAFIK HARGA & 20% DAFTAR DI ATAS HET        */}
                     {/* ============================================================== */}
-                    <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+                    <div id="grafik-section" className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start scroll-mt-20">
                         {/* ---------------------------------------------------------- */}
                         {/* KOLOM KIRI (80% / 9.6 cols -> lg:col-span-9 or lg:col-span-12 xl:col-span-10 / 2) */}
                         {/* Layout: lg:col-span-9 xl:col-span-9 / lg:col-span-3 (atau fleksibel 80%:20% di desktop besar) */}
@@ -2274,7 +3002,7 @@ export default function HargaKonsumen({
                         {/* KOLOM KANAN (20% / ~3 cols di grid 12)                      */}
                         {/* FITUR DAFTAR KOMODITAS HARI INI DI ATAS HET               */}
                         {/* ---------------------------------------------------------- */}
-                        <div className="lg:col-span-4 xl:col-span-3">
+                        <div id="het-warning-section" className="lg:col-span-4 xl:col-span-3 scroll-mt-20">
                             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                                 {/* Header Widget */}
                                 <div className="border-b border-slate-100 pb-3">
@@ -2406,7 +3134,7 @@ export default function HargaKonsumen({
                     {/* ============================================================== */}
                     {/* TABEL HISTORIS PERKEMBANGAN HARGA PANGAN (1 KOLOM FULL)        */}
                     {/* ============================================================== */}
-                    <div className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs">
+                    <div id="rekap-section" className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs scroll-mt-20">
                         {/* Header & Export Actions */}
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
                             <div>
@@ -2631,16 +3359,14 @@ export default function HargaKonsumen({
                                                                     {price !== null && price !== undefined && Number(price) > 0 ? (
                                                                         <div className="inline-flex items-center justify-end gap-1.5 font-mono">
                                                                             {diff === 'up' && (
-                                                                                <ArrowUp
-                                                                                    className="h-3.5 w-3.5 stroke-[2.5] text-rose-600 shrink-0"
-                                                                                    title="Harga naik dibanding kemarin"
-                                                                                />
+                                                                                <span title="Harga naik dibanding kemarin">
+                                                                                    <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600 shrink-0" />
+                                                                                </span>
                                                                             )}
                                                                             {diff === 'down' && (
-                                                                                <ArrowDown
-                                                                                    className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600 shrink-0"
-                                                                                    title="Harga turun dibanding kemarin"
-                                                                                />
+                                                                                <span title="Harga turun dibanding kemarin">
+                                                                                    <ArrowDown className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600 shrink-0" />
+                                                                                </span>
                                                                             )}
                                                                             <span className={isAbove ? 'font-black text-rose-950' : 'text-slate-800'}>
                                                                                 {formatCurrency(Number(price))}
