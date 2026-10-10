@@ -35,6 +35,7 @@ import {
     AreaChart,
     Bar,
     CartesianGrid,
+    Cell,
     ComposedChart,
     LabelList,
     Legend,
@@ -573,6 +574,31 @@ export default function HargaKonsumen({
             currency: 'IDR',
             maximumFractionDigits: 0,
         }).format(val);
+    };
+
+    // Helper penentu warna grafik batang berdasarkan persentase selisih terhadap batas HET:
+    // - Hijau (#006565): harga <= HET atau tidak memiliki HET (normal)
+    // - Kuning (#f59e0b): harga melebihi HET 1 - 10%
+    // - Merah (#ef4444): harga melebihi HET > 10%
+    const getBarColor = (entry: any) => {
+        if (
+            entry?.price === null ||
+            entry?.price === undefined ||
+            entry?.het === null ||
+            entry?.het === undefined ||
+            Number(entry?.het) <= 0
+        ) {
+            return '#006565';
+        }
+        const diff = Number(entry.price) - Number(entry.het);
+        if (diff <= 0) {
+            return '#006565';
+        }
+        const pct = (diff / Number(entry.het)) * 100;
+        if (pct > 10) {
+            return '#ef4444'; // Merah (> 10%)
+        }
+        return '#f59e0b'; // Kuning (1 - 10%)
     };
 
     // Sliced commodities for the active slide (10 commodities per slide: 5 cols x 2 rows)
@@ -1465,6 +1491,25 @@ export default function HargaKonsumen({
                                             </select>
                                         </div>
                                     )}
+
+                                    {/* Indikator Status Warna Batang HET (Mingguan & Bulanan) */}
+                                    {chartTab !== 'daily' && (
+                                        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-1 text-[11px] border border-slate-200/80 shadow-2xs">
+                                            <span className="font-bold text-slate-600">Status HET:</span>
+                                            <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                                                <span className="h-2 w-2 rounded-full bg-[#006565]" />
+                                                Normal
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 font-medium text-amber-700">
+                                                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                                Kuning (1-10%)
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 font-medium text-rose-700">
+                                                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                                Merah (&gt;10%)
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Area Canvas Grafik */}
@@ -1513,7 +1558,7 @@ export default function HargaKonsumen({
                                                         axisLine={false}
                                                         tickLine={false}
                                                         tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
-                                                        domain={['auto', 'auto']}
+                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
                                                     />
                                                     <Tooltip
                                                         formatter={(value: any, name: any) => [
@@ -1587,10 +1632,21 @@ export default function HargaKonsumen({
                                                         domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
                                                     />
                                                     <Tooltip
-                                                        formatter={(value: any, name: any) => [
-                                                            value !== null && value !== undefined ? formatCurrency(Number(value)) : '-',
-                                                            name === 'price' ? 'Harga Rata-rata' : 'Harga Eceran Tertinggi (HET)',
-                                                        ]}
+                                                        formatter={(value: any, name: any, item: any) => {
+                                                            if (value === null || value === undefined) return ['-', name];
+                                                            const valFormatted = formatCurrency(Number(value));
+                                                            if (name === 'price') {
+                                                                const pHet = item?.payload?.het;
+                                                                if (pHet && Number(value) > Number(pHet)) {
+                                                                    const pDiff = Number(value) - Number(pHet);
+                                                                    const pPct = (pDiff / Number(pHet)) * 100;
+                                                                    const statusText = pPct > 10 ? 'Di atas HET >10%' : 'Di atas HET 1-10%';
+                                                                    return [valFormatted, `Harga Rata-rata (${statusText} / +${pPct.toFixed(1)}%)`];
+                                                                }
+                                                                return [valFormatted, 'Harga Rata-rata'];
+                                                            }
+                                                            return [valFormatted, 'Harga Eceran Tertinggi (HET)'];
+                                                        }}
                                                         labelFormatter={(label, payload) => {
                                                             const p = payload && payload[0]?.payload;
                                                             return p?.full_date || p?.date_range || p?.full_month || label;
@@ -1618,6 +1674,12 @@ export default function HargaKonsumen({
                                                         radius={[6, 6, 0, 0]}
                                                         maxBarSize={chartTab === 'weekly' ? 60 : 36}
                                                     >
+                                                        {chartPoints.map((entry, index) => (
+                                                            <Cell
+                                                                key={`bar-cell-${index}`}
+                                                                fill={getBarColor(entry)}
+                                                            />
+                                                        ))}
                                                         <LabelList
                                                             dataKey="price"
                                                             position="top"
