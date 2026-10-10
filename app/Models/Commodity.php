@@ -24,9 +24,35 @@ class Commodity extends Model
         'category',
         'unit',
         'description',
+        'image',
         'is_active',
         'order',
     ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'image_url',
+    ];
+
+    /**
+     * Get the commodity's image URL.
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        if (! $this->image) {
+            return null;
+        }
+
+        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
+            return $this->image;
+        }
+
+        return asset('storage/'.$this->image);
+    }
 
     /**
      * Get the attributes that should be cast.

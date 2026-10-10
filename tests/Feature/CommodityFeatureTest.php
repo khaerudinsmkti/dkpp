@@ -108,3 +108,51 @@ test('authenticated user can delete a commodity and cascades its hets', function
     $this->assertDatabaseMissing('commodities', ['id' => $commodity->id]);
     $this->assertDatabaseMissing('commodity_hets', ['commodity_id' => $commodity->id]);
 });
+
+test('authenticated user can upload an image for commodity and delete it', function () {
+    \Illuminate\Support\Facades\Storage::fake('public');
+    $user = User::factory()->create();
+
+    $file = \Illuminate\Http\UploadedFile::fake()->image('beras.jpg');
+
+    $response = $this->actingAs($user)->post('/commodities', [
+        'name' => 'Beras Organik Istimewa',
+        'category' => 'Beras',
+        'unit' => 'Kg',
+        'image' => $file,
+    ]);
+
+    $response->assertRedirect();
+    $commodity = Commodity::where('name', 'Beras Organik Istimewa')->first();
+    expect($commodity)->not->toBeNull()
+        ->and($commodity->image)->not->toBeNull();
+
+    \Illuminate\Support\Facades\Storage::disk('public')->assertExists($commodity->image);
+
+    // Update with new image
+    $newFile = \Illuminate\Http\UploadedFile::fake()->image('beras-baru.png');
+    $oldPath = $commodity->image;
+
+    $this->actingAs($user)->put("/commodities/{$commodity->id}", [
+        'name' => 'Beras Organik Istimewa',
+        'category' => 'Beras',
+        'unit' => 'Kg',
+        'image' => $newFile,
+    ]);
+
+    $commodity->refresh();
+    \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($oldPath);
+    \Illuminate\Support\Facades\Storage::disk('public')->assertExists($commodity->image);
+
+    // Remove image
+    $this->actingAs($user)->put("/commodities/{$commodity->id}", [
+        'name' => 'Beras Organik Istimewa',
+        'category' => 'Beras',
+        'unit' => 'Kg',
+        'remove_image' => true,
+    ]);
+
+    $commodity->refresh();
+    expect($commodity->image)->toBeNull();
+});
+

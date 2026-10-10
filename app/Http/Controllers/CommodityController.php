@@ -8,6 +8,7 @@ use App\Models\Commodity;
 use App\Models\CommodityHet;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -44,6 +45,8 @@ class CommodityController extends Controller
                 'category' => $commodity->category,
                 'unit' => $commodity->unit,
                 'description' => $commodity->description,
+                'image' => $commodity->image,
+                'image_url' => $commodity->image_url,
                 'is_active' => (bool) $commodity->is_active,
                 'order' => (int) $commodity->order,
                 'current_het' => $currentHet ? [
@@ -116,11 +119,17 @@ class CommodityController extends Controller
             ? (int) $validated['order']
             : (Commodity::max('order') ?? 0) + 1;
 
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('commodities', 'public');
+        }
+
         $commodity = Commodity::create([
             'name' => $validated['name'],
             'slug' => $slug,
             'category' => $validated['category'],
             'unit' => $validated['unit'],
+            'image' => $imagePath,
             'order' => $order,
             'is_active' => $validated['is_active'] ?? true,
             'description' => $validated['description'] ?? null,
@@ -159,6 +168,18 @@ class CommodityController extends Controller
             $commodity->slug = $slug;
         }
 
+        if ($request->boolean('remove_image')) {
+            if ($commodity->image && Storage::disk('public')->exists($commodity->image)) {
+                Storage::disk('public')->delete($commodity->image);
+            }
+            $commodity->image = null;
+        } elseif ($request->hasFile('image')) {
+            if ($commodity->image && Storage::disk('public')->exists($commodity->image)) {
+                Storage::disk('public')->delete($commodity->image);
+            }
+            $commodity->image = $request->file('image')->store('commodities', 'public');
+        }
+
         $commodity->name = $validated['name'];
         $commodity->category = $validated['category'];
         $commodity->unit = $validated['unit'];
@@ -176,6 +197,11 @@ class CommodityController extends Controller
     public function destroy(Commodity $commodity): RedirectResponse
     {
         $name = $commodity->name;
+
+        if ($commodity->image && Storage::disk('public')->exists($commodity->image)) {
+            Storage::disk('public')->delete($commodity->image);
+        }
+
         $commodity->delete();
 
         return back()->with('success', "Komoditas '{$name}' berhasil dihapus.");

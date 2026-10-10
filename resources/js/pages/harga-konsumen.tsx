@@ -12,6 +12,9 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
+    Download,
+    FileSpreadsheet,
+    FileText,
     Filter,
     Info,
     Layers,
@@ -20,6 +23,7 @@ import {
     Minus,
     Pause,
     Play,
+    Printer,
     RefreshCw,
     SlidersHorizontal,
     Store,
@@ -45,12 +49,19 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
+ 
+const WhatsAppIcon = ({ className = 'h-3.5 w-3.5 fill-current' }: { className?: string }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.888 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.82 11.82 0 00-3.48-8.413z" />
+    </svg>
+);
 
 export interface ConsumerCommodityItem {
     id: number;
     name: string;
     category?: string;
     unit: string;
+    image?: string | null;
     today_price: number | null;
     yesterday_price: number | null;
     het_price: number | null;
@@ -401,12 +412,13 @@ export default function HargaKonsumen({
             : DEFAULT_CONSUMER_COMMODITIES;
     }, [consumerCommodities]);
 
-    // Slider state for 25 commodities (5 cols x 2 rows = 10 cards per slide)
+    // Slider state for commodities (6 cols x 2 rows = 12 cards per slide)
     const [consumerSlide, setConsumerSlide] = useState(0);
     const [isSliderPlaying, setIsSliderPlaying] = useState(true);
     const [isSliderHovered, setIsSliderHovered] = useState(false);
+    const CONSUMER_ITEMS_PER_SLIDE = 12;
 
-    const totalConsumerSlides = Math.ceil(commoditiesList.length / 10); // 3 slides
+    const totalConsumerSlides = Math.ceil(commoditiesList.length / CONSUMER_ITEMS_PER_SLIDE);
 
     // Auto slider timer (5 seconds)
     useEffect(() => {
@@ -540,6 +552,527 @@ export default function HargaKonsumen({
         }
     };
 
+    // ==============================================================
+    // FITUR TABEL HISTORIS PERKEMBANGAN HARGA PANGAN (25 KOMODITAS)
+    // ==============================================================
+    interface HistoryRow {
+        date: string;
+        formatted_date: string;
+        day_name: string;
+        prices: Record<number | string, number | null>;
+        hets?: Record<number | string, number | null>;
+        is_above_het?: Record<number | string, boolean>;
+        diffs?: Record<number | string, 'up' | 'down' | 'stable' | null>;
+    }
+
+    interface HistoryCommodity {
+        id: number;
+        name: string;
+        category: string;
+        unit: string;
+    }
+
+    const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
+    const [historyCommodities, setHistoryCommodities] = useState<HistoryCommodity[]>([]);
+    const [historyLoading, setHistoryLoading] = useState<boolean>(true);
+    const [historyError, setHistoryError] = useState<string | null>(null);
+    const [historyStartDate, setHistoryStartDate] = useState<string>('');
+    const [historyEndDate, setHistoryEndDate] = useState<string>('');
+    const [historyPreset, setHistoryPreset] = useState<'14' | '7' | '30' | 'custom'>('14');
+    const [historyDateWarning, setHistoryDateWarning] = useState<string | null>(null);
+    const [historyPrevMonthLabel, setHistoryPrevMonthLabel] = useState<string>('');
+    const [historyPrevMonthAvgs, setHistoryPrevMonthAvgs] = useState<Record<number | string, number | null>>({});
+    const [historyCommodityHets, setHistoryCommodityHets] = useState<Record<number | string, number | null>>({});
+
+    const fetchHistoryData = async (start?: string, end?: string) => {
+        setHistoryLoading(true);
+        setHistoryError(null);
+        try {
+            const params = new URLSearchParams();
+            params.append('market_id', String(currentMarketId));
+            if (start) params.append('start_date', start);
+            if (end) params.append('end_date', end);
+
+            const res = await fetch(`/api/public-history-data?${params.toString()}`);
+            if (!res.ok) throw new Error('Gagal mengambil data historis');
+            const data = await res.json();
+
+            setHistoryRows(data.rows || []);
+            setHistoryCommodities(data.commodities || []);
+            if (data.start_date) setHistoryStartDate(data.start_date);
+            if (data.end_date) setHistoryEndDate(data.end_date);
+            if (data.prev_month_label) setHistoryPrevMonthLabel(data.prev_month_label);
+            if (data.prev_month_averages) setHistoryPrevMonthAvgs(data.prev_month_averages);
+            if (data.commodity_hets) setHistoryCommodityHets(data.commodity_hets);
+        } catch (err: any) {
+            setHistoryError(err.message || 'Terjadi kesalahan saat memuat data historis');
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchHistoryData();
+    }, [currentMarketId]);
+
+    const handleApplyHistoryPreset = (preset: '14' | '7' | '30') => {
+        setHistoryPreset(preset);
+        setHistoryDateWarning(null);
+        if (preset === '14') {
+            fetchHistoryData();
+            return;
+        }
+        const anchor = historyEndDate || currentDate || maxDate || new Date().toISOString().split('T')[0];
+        const days = preset === '7' ? 7 : 30;
+        const dEnd = new Date(anchor + 'T00:00:00');
+        const dStart = new Date(anchor + 'T00:00:00');
+        dStart.setDate(dStart.getDate() - (days - 1));
+
+        const sStr = dStart.toISOString().split('T')[0];
+        const eStr = dEnd.toISOString().split('T')[0];
+        setHistoryStartDate(sStr);
+        setHistoryEndDate(eStr);
+        fetchHistoryData(sStr, eStr);
+    };
+
+    const handleHistoryStartDateChange = (val: string) => {
+        setHistoryPreset('custom');
+        let newStart = val;
+        let newEnd = historyEndDate;
+
+        if (newStart && newEnd) {
+            const dStart = new Date(newStart + 'T00:00:00');
+            const dEnd = new Date(newEnd + 'T00:00:00');
+            if (dStart > dEnd) {
+                newEnd = newStart;
+                setHistoryEndDate(newEnd);
+            } else {
+                const diffDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                if (diffDays > 31) {
+                    setHistoryDateWarning('Rentang tanggal maksimal 31 hari. Tanggal akhir disesuaikan.');
+                    const adjustedEnd = new Date(dStart);
+                    adjustedEnd.setDate(adjustedEnd.getDate() + 30);
+                    newEnd = adjustedEnd.toISOString().split('T')[0];
+                    setHistoryEndDate(newEnd);
+                } else {
+                    setHistoryDateWarning(null);
+                }
+            }
+        }
+        setHistoryStartDate(newStart);
+        fetchHistoryData(newStart, newEnd);
+    };
+
+    const handleHistoryEndDateChange = (val: string) => {
+        setHistoryPreset('custom');
+        let newStart = historyStartDate;
+        let newEnd = val;
+
+        if (newStart && newEnd) {
+            const dStart = new Date(newStart + 'T00:00:00');
+            const dEnd = new Date(newEnd + 'T00:00:00');
+            if (dStart > dEnd) {
+                newStart = newEnd;
+                setHistoryStartDate(newStart);
+            } else {
+                const diffDays = Math.round((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                if (diffDays > 31) {
+                    setHistoryDateWarning('Rentang tanggal maksimal 31 hari. Tanggal awal disesuaikan.');
+                    const adjustedStart = new Date(dEnd);
+                    adjustedStart.setDate(adjustedStart.getDate() - 30);
+                    newStart = adjustedStart.toISOString().split('T')[0];
+                    setHistoryStartDate(newStart);
+                } else {
+                    setHistoryDateWarning(null);
+                }
+            }
+        }
+        setHistoryEndDate(newEnd);
+        fetchHistoryData(newStart, newEnd);
+    };
+
+    const handleDownloadHistoryExcel = () => {
+        const params = new URLSearchParams({
+            market_id: String(currentMarketId),
+            start_date: historyStartDate,
+            end_date: historyEndDate,
+        });
+        window.location.href = `/api/public-history-excel?${params.toString()}`;
+    };
+
+    // Calculate period average for each commodity across historyRows
+    const historyPeriodAvgs = useMemo(() => {
+        const comms = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
+        const avgs: Record<number | string, number | null> = {};
+        comms.forEach((c) => {
+            let sum = 0;
+            let count = 0;
+            historyRows.forEach((r) => {
+                const p = r.prices[c.id];
+                if (p !== null && p !== undefined && Number(p) > 0) {
+                    sum += Number(p);
+                    count += 1;
+                }
+            });
+            avgs[c.id] = count > 0 ? Math.round(sum / count) : null;
+        });
+        return avgs;
+    }, [historyRows, historyCommodities, commoditiesList]);
+
+    // Format % change and determine color styling:
+    // - Penurunan (<0%): HIJAU
+    // - Kenaikan 1-10%: KUNING
+    // - Kenaikan >10%: MERAH
+    const getChangeColorAndText = (current: number | null, base: number | null) => {
+        if (current === null || base === null || base <= 0) {
+            return {
+                text: '-',
+                bgClass: 'bg-white text-slate-400',
+                style: 'background-color:#ffffff;color:#94a3b8;',
+            };
+        }
+        const diff = current - base;
+        const pct = (diff / base) * 100;
+        const text = `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+        if (pct < 0) {
+            // Penurunan: HIJAU
+            return {
+                text,
+                bgClass: 'bg-emerald-100/90 text-emerald-900 font-black',
+                style: 'background-color:#dcfce7;color:#15803d;',
+            };
+        } else if (pct > 0 && pct <= 10) {
+            // Kenaikan 1-10%: KUNING
+            return {
+                text,
+                bgClass: 'bg-amber-100/90 text-amber-900 font-black',
+                style: 'background-color:#fef9c3;color:#a16207;',
+            };
+        } else if (pct > 10) {
+            // Kenaikan >10%: MERAH
+            return {
+                text,
+                bgClass: 'bg-rose-100/90 text-rose-950 font-black',
+                style: 'background-color:#fee2e2;color:#b91c1c;',
+            };
+        }
+        return {
+            text: '0.0%',
+            bgClass: 'bg-white text-slate-700 font-bold',
+            style: 'background-color:#ffffff;color:#0f172a;',
+        };
+    };
+
+    const handleDownloadHistoryPdf = () => {
+        const marketObj = markets.find((m) => m.id === currentMarketId);
+        const marketTitle = marketObj?.name || selectedMarketName || 'Pasar Daerah Indramayu';
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        const commoditiesToRender = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
+
+        let tableHeaders = '<th>No</th><th>Tanggal</th>';
+        commoditiesToRender.forEach((c) => {
+            tableHeaders += `<th>${c.name}<br/><span style="font-weight:normal;font-size:7pt">(${c.unit})</span></th>`;
+        });
+
+        let tableRowsHtml = '';
+        historyRows.forEach((r, idx) => {
+            let cells = `<td style="text-align:center;font-weight:bold">${idx + 1}</td>`;
+            cells += `<td style="white-space:nowrap;font-weight:bold">${r.formatted_date || r.date}</td>`;
+            commoditiesToRender.forEach((c) => {
+                const price = r.prices[c.id];
+                const isAbove = r.is_above_het?.[c.id];
+                const diff = r.diffs?.[c.id];
+                const bgStyle = isAbove ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : '';
+                let arrowHtml = '';
+                if (diff === 'up') {
+                    arrowHtml = '<span style="color:#e11d48;font-weight:bold;margin-right:2px">▲</span>';
+                } else if (diff === 'down') {
+                    arrowHtml = '<span style="color:#059669;font-weight:bold;margin-right:2px">▼</span>';
+                }
+                cells += `<td style="text-align:right;white-space:nowrap;${bgStyle}">${price ? arrowHtml + formatCurrency(price) : '-'}</td>`;
+            });
+            tableRowsHtml += `<tr>${cells}</tr>`;
+        });
+
+        // 1. Baris Rata-rata periode
+        let avgRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">Rata-rata</td>';
+        commoditiesToRender.forEach((c) => {
+            const avg = historyPeriodAvgs[c.id];
+            avgRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;color:#0f172a;">${avg !== null ? formatCurrency(avg) : '-'}</td>`;
+        });
+
+        // 2. Baris Harga HET/HAP
+        let hetRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">Harga HET/HAP</td>';
+        commoditiesToRender.forEach((c) => {
+            const het = historyCommodityHets[c.id] ?? (historyRows[0]?.hets?.[c.id] ?? null);
+            hetRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;color:#0f172a;">${het !== null && Number(het) > 0 ? formatCurrency(Number(het)) : '-'}</td>`;
+        });
+
+        // 3. Baris % terhadap HET/HAP
+        let pctHetRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">% thd HET/HAP</td>';
+        commoditiesToRender.forEach((c) => {
+            const avg = historyPeriodAvgs[c.id];
+            const het = historyCommodityHets[c.id] ?? (historyRows[0]?.hets?.[c.id] ?? null);
+            const res = getChangeColorAndText(avg, het ? Number(het) : null);
+            pctHetRowHtml += `<td style="text-align:right;font-weight:bold;white-space:nowrap;${res.style}">${res.text}</td>`;
+        });
+
+        // 4. Baris Rata-rata Bulan Lalu
+        const prevMonthLabelText = historyPrevMonthLabel ? ` (${historyPrevMonthLabel})` : '';
+        let prevMonthRowHtml = `<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">Rata-rata Bln Lalu${prevMonthLabelText}</td>`;
+        commoditiesToRender.forEach((c) => {
+            const prevAvg = historyPrevMonthAvgs[c.id];
+            prevMonthRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;color:#0f172a;">${prevAvg !== null && prevAvg !== undefined && Number(prevAvg) > 0 ? formatCurrency(Number(prevAvg)) : '-'}</td>`;
+        });
+
+        // 5. Baris % Kenaikan/Penurunan terhadap Bulan Lalu
+        let pctMonthRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">% vs Bln Lalu</td>';
+        commoditiesToRender.forEach((c) => {
+            const avg = historyPeriodAvgs[c.id];
+            const prevAvg = historyPrevMonthAvgs[c.id];
+            const res = getChangeColorAndText(avg, prevAvg ? Number(prevAvg) : null);
+            pctMonthRowHtml += `<td style="text-align:right;font-weight:bold;white-space:nowrap;${res.style}">${res.text}</td>`;
+        });
+
+        const html = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8"/>
+            <title>Historis Perkembangan Harga Pangan - ${marketTitle}</title>
+            <style>
+                @page {
+                    size: landscape;
+                    margin: 8mm 6mm;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                    margin: 0;
+                    padding: 10px;
+                    color: #0f172a;
+                    font-size: 7.5pt;
+                }
+                .no-print {
+                    margin-bottom: 12px;
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    background: #f1f5f9;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                }
+                .btn {
+                    background: #006565;
+                    color: white;
+                    border: none;
+                    padding: 6px 14px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 8.5pt;
+                    cursor: pointer;
+                }
+                .btn-close {
+                    background: #64748b;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 10px;
+                    border-bottom: 2px solid #006565;
+                    padding-bottom: 6px;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 12pt;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                }
+                .header h2 {
+                    margin: 2px 0 0 0;
+                    font-size: 10pt;
+                    font-weight: 700;
+                    color: #006565;
+                }
+                .header p {
+                    margin: 3px 0 0 0;
+                    font-size: 7.5pt;
+                    color: #475569;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    border: 1px solid #cbd5e1;
+                    padding: 3.5px 4px;
+                    font-size: 7pt;
+                }
+                th {
+                    background-color: #006565;
+                    color: white;
+                    font-weight: bold;
+                    text-align: center;
+                    vertical-align: middle;
+                }
+                tbody tr:nth-child(even) {
+                    background-color: #f8fafc;
+                }
+                tfoot tr td {
+                    font-size: 6.8pt;
+                    padding: 3.5px 4px;
+                }
+                .footer {
+                    margin-top: 10px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 7pt;
+                    color: #64748b;
+                }
+                @media print {
+                    .no-print {
+                        display: none !important;
+                    }
+                    body {
+                        padding: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print">
+                <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                <span style="font-size: 8pt; color: #475569">Tips: Pada menu print browser, pilih <strong>Save as PDF</strong> dan orientasi <strong>Landscape</strong>.</span>
+            </div>
+            <div class="header">
+                <h1>Pemerintah Kabupaten Indramayu</h1>
+                <h2>Dinas Ketahanan Pangan dan Pertanian</h2>
+                <p><strong>Tabel Historis Perkembangan Harga Pangan Tingkat Konsumen</strong> | Pasar: <strong>${marketTitle}</strong> | Periode: <strong>${historyStartDate} s/d ${historyEndDate}</strong></p>
+            </div>
+            <table>
+                <thead>
+                    <tr>${tableHeaders}</tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid #006565;">${avgRowHtml}</tr>
+                    <tr>${hetRowHtml}</tr>
+                    <tr>${pctHetRowHtml}</tr>
+                    <tr>${prevMonthRowHtml}</tr>
+                    <tr>${pctMonthRowHtml}</tr>
+                </tfoot>
+            </table>
+            <div class="legend" style="margin-top: 8px; font-size: 6.8pt; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 5px;">
+                <span><strong>Keterangan Tabel:</strong></span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;"></span> Harga Di Atas HET</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="color:#e11d48;font-weight:bold;">▲</span> Naik vs Kemarin</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="color:#059669;font-weight:bold;">▼</span> Turun vs Kemarin</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;"></span> Hijau: Penurunan</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fef9c3;border:1px solid #fde047;border-radius:2px;"></span> Kuning: Kenaikan (1 - 10%)</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;"></span> Merah: Kenaikan (&gt; 10%)</span>
+            </div>
+            <div class="footer">
+                <span>DKPP Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
+                <span>Dicetak pada: ${new Date().toLocaleString('id-ID')}</span>
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+        }, 400);
+    };
+
+    const handleSendWhatsapp = (row: HistoryRow) => {
+        const marketObj = markets.find((m) => m.id === currentMarketId);
+        const marketNameText = marketObj?.name || selectedMarketName || 'Pasar Daerah Indramayu';
+        const commoditiesToRender = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
+        const dateFormatted = row.formatted_date || row.date;
+        const dayName = row.day_name || '';
+
+        let text = `📊 *LAPORAN PERKEMBANGAN HARGA PANGAN*\n`;
+        text += `🏛️ *DKPP KABUPATEN INDRAMAYU*\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `📍 *Pasar:* ${marketNameText}\n`;
+        text += `📅 *Tanggal:* ${dayName ? dayName + ', ' : ''}${dateFormatted}\n`;
+        text += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        commoditiesToRender.forEach((comm, idx) => {
+            const price = row.prices[comm.id];
+            const het = row.hets?.[comm.id];
+
+            let icon = '⚪';
+            let statusText = '';
+
+            if (price !== null && price !== undefined && Number(price) > 0) {
+                const numPrice = Number(price);
+                const priceStr = `Rp ${numPrice.toLocaleString('id-ID')}`;
+
+                if (het !== null && het !== undefined && Number(het) > 0) {
+                    const numHet = Number(het);
+                    const hetStr = `Rp ${numHet.toLocaleString('id-ID')}`;
+                    const diff = numPrice - numHet;
+                    const pct = (diff / numHet) * 100;
+
+                    if (numPrice <= numHet) {
+                        icon = '🟢';
+                        if (diff < 0) {
+                            statusText = `Di Bawah HET (-${Math.abs(pct).toFixed(1)}% / -Rp ${Math.abs(diff).toLocaleString('id-ID')})`;
+                        } else {
+                            statusText = `Sesuai HET (0.0% / Rp 0)`;
+                        }
+                    } else {
+                        const diffStr = `+Rp ${diff.toLocaleString('id-ID')}`;
+                        const pctStr = `+${pct.toFixed(1)}%`;
+
+                        if (pct <= 10) {
+                            icon = '🟡';
+                            statusText = `Di Atas HET 1-10% (${pctStr} / ${diffStr})`;
+                        } else {
+                            icon = '🔴';
+                            statusText = `Di Atas HET >10% (${pctStr} / ${diffStr})`;
+                        }
+                    }
+
+                    text += `${icon} *${idx + 1}. ${comm.name}* (${comm.unit})\n`;
+                    text += `   • Harga: *${priceStr}* | HET: ${hetStr}\n`;
+                    text += `   • Status: ${statusText}\n\n`;
+                } else {
+                    icon = '⚪';
+                    text += `${icon} *${idx + 1}. ${comm.name}* (${comm.unit})\n`;
+                    text += `   • Harga: *${priceStr}* (Non-HET)\n\n`;
+                }
+            } else {
+                text += `⚪ *${idx + 1}. ${comm.name}* (${comm.unit})\n`;
+                text += `   • Harga: *Tidak Ada Data*\n\n`;
+            }
+        });
+
+        text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+        text += `*Keterangan Status HET:*\n`;
+        text += `🟢 Sesuai / Di Bawah HET\n`;
+        text += `🟡 Di Atas HET (1% - 10%)\n`;
+        text += `🔴 Di Atas HET (>10%)\n`;
+        text += `⚪ Komoditas Non-HET\n\n`;
+        text += `🌐 *Portal Informasi Pangan:*\n`;
+        text += `${typeof window !== 'undefined' ? window.location.origin : ''}/harga-konsumen?market_id=${currentMarketId}&date=${row.date}\n`;
+
+        const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, '_blank');
+    };
+
     // Filter daftar komoditas hari ini yang statusnya di atas HET
     const aboveHetCommodities = useMemo(() => {
         return commoditiesList
@@ -601,10 +1134,10 @@ export default function HargaKonsumen({
         return '#f59e0b'; // Kuning (1 - 10%)
     };
 
-    // Sliced commodities for the active slide (10 commodities per slide: 5 cols x 2 rows)
+    // Sliced commodities for the active slide (12 commodities per slide: 6 cols x 2 rows)
     const currentSlideCommodities = useMemo(() => {
-        const start = consumerSlide * 10;
-        return commoditiesList.slice(start, start + 10);
+        const start = consumerSlide * CONSUMER_ITEMS_PER_SLIDE;
+        return commoditiesList.slice(start, start + CONSUMER_ITEMS_PER_SLIDE);
     }, [consumerSlide, commoditiesList]);
 
     // Card styling and HET status calculation based on user requirements:
@@ -1105,8 +1638,11 @@ export default function HargaKonsumen({
                             <span className="text-xs font-bold text-slate-500">Halaman:</span>
                             <div className="flex items-center gap-1.5">
                                 {Array.from({ length: totalConsumerSlides }).map((_, idx) => {
-                                    const startItem = idx * 10 + 1;
-                                    const endItem = Math.min((idx + 1) * 10, commoditiesList.length);
+                                    const startItem = idx * CONSUMER_ITEMS_PER_SLIDE + 1;
+                                    const endItem = Math.min(
+                                        (idx + 1) * CONSUMER_ITEMS_PER_SLIDE,
+                                        commoditiesList.length,
+                                    );
                                     const isActive = consumerSlide === idx;
                                     return (
                                         <button
@@ -1188,13 +1724,13 @@ export default function HargaKonsumen({
                         </div>
                     </div>
 
-                    {/* Cards Grid: 5 Kolom x 2 Baris (10 card per slide) */}
+                    {/* Cards Grid: 6 Kolom x 2 Baris (12 card per slide) */}
                     <div
                         className="mt-6"
                         onMouseEnter={() => setIsSliderHovered(true)}
                         onMouseLeave={() => setIsSliderHovered(false)}
                     >
-                        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
                             {currentSlideCommodities.map((item) => {
                                 const hetInfo = getCommodityHetInfo(item);
                                 const yestInfo = getYesterdayDiff(item);
@@ -1202,19 +1738,42 @@ export default function HargaKonsumen({
                                 return (
                                     <div
                                         key={item.id}
-                                        className={`group relative flex flex-col justify-between rounded-2xl border-2 p-3.5 transition-all duration-200 shadow-xs ${hetInfo.cardBgClass}`}
+                                        className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 sm:p-3 transition-all duration-200 shadow-xs hover:shadow-md ${hetInfo.cardBgClass}`}
                                     >
-                                        {/* Card Top: Category & HET Pill Badge */}
+                                        {/* Card Top: Image Showcase & Floating Badges */}
                                         <div>
-                                            <div className="mb-2 flex items-center justify-between gap-1">
-                                                <span className="truncate text-[10px] font-bold tracking-wider text-slate-500 uppercase max-w-[105px]">
-                                                    {item.category || `Komoditas #${item.id}`}
-                                                </span>
-                                                <span
-                                                    className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-extrabold ${hetInfo.badgeClass}`}
-                                                >
-                                                    {hetInfo.badgeText}
-                                                </span>
+                                            <div className="relative mb-2.5 aspect-[16/11] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 shadow-inner">
+                                                {item.image ? (
+                                                    <img
+                                                        src={item.image}
+                                                        alt={item.name}
+                                                        className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-105"
+                                                        loading="lazy"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-amber-50/60 via-slate-50 to-emerald-50/50 text-slate-400">
+                                                        <Wheat className="h-8 w-8 stroke-[1.5] text-amber-500/70 mb-0.5 transition-transform duration-300 group-hover:scale-110" />
+                                                        <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
+                                                            {item.category || 'Pangan'}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                {/* Floating Category Tag */}
+                                                <div className="absolute top-1.5 left-1.5">
+                                                    <span className="inline-block truncate max-w-[95px] rounded-md bg-white/95 dark:bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-slate-700 dark:text-slate-200 uppercase shadow-2xs backdrop-blur-xs">
+                                                        {item.category || `Komoditas #${item.id}`}
+                                                    </span>
+                                                </div>
+
+                                                {/* Floating HET Pill Badge */}
+                                                <div className="absolute top-1.5 right-1.5">
+                                                    <span
+                                                        className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs backdrop-blur-xs ${hetInfo.badgeClass}`}
+                                                    >
+                                                        {hetInfo.badgeText}
+                                                    </span>
+                                                </div>
                                             </div>
 
                                             {/* Commodity Name */}
@@ -1226,7 +1785,7 @@ export default function HargaKonsumen({
                                             </h4>
 
                                             {/* Today's Price */}
-                                            <div className="mt-2.5 flex items-baseline gap-1">
+                                            <div className="mt-1.5 flex items-baseline gap-1">
                                                 <span className="text-lg font-black tracking-tight text-slate-900">
                                                     {item.today_price !== null
                                                         ? formatCurrency(item.today_price)
@@ -1768,25 +2327,42 @@ export default function HargaKonsumen({
                                         aboveHetCommodities.map((item) => (
                                             <div
                                                 key={item.id}
-                                                className={`py-3 px-2 rounded-xl transition-colors mb-1.5 border ${
+                                                className={`py-2.5 px-2.5 rounded-xl transition-colors mb-1.5 border ${
                                                     item.isRed
                                                         ? 'bg-rose-50/60 border-rose-200 hover:bg-rose-50'
                                                         : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
                                                 }`}
                                             >
-                                                <div className="flex items-start justify-between gap-1.5">
-                                                    <span className="text-xs font-extrabold text-slate-900 line-clamp-1" title={item.name}>
-                                                        {item.name}
-                                                    </span>
-                                                    <span
-                                                        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black border ${
-                                                            item.isRed
-                                                                ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                                                : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                        }`}
-                                                    >
-                                                        +{item.pct.toFixed(1)}%
-                                                    </span>
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-2xs">
+                                                        {item.image ? (
+                                                            <img
+                                                                src={item.image}
+                                                                alt={item.name}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
+                                                                <Wheat className="size-4 stroke-[1.75]" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-1.5">
+                                                            <span className="text-xs font-extrabold text-slate-900 line-clamp-1" title={item.name}>
+                                                                {item.name}
+                                                            </span>
+                                                            <span
+                                                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black border ${
+                                                                    item.isRed
+                                                                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                }`}
+                                                            >
+                                                                +{item.pct.toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 <div className="mt-1.5 flex items-baseline justify-between text-xs">
@@ -1822,6 +2398,450 @@ export default function HargaKonsumen({
                                             </div>
                                         ))
                                     )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ============================================================== */}
+                    {/* TABEL HISTORIS PERKEMBANGAN HARGA PANGAN (1 KOLOM FULL)        */}
+                    {/* ============================================================== */}
+                    <div className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs">
+                        {/* Header & Export Actions */}
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                            <div>
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>Data Historis 25 Komoditas</span>
+                                </div>
+                                <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                                    Tabel Historis Perkembangan Harga Pangan
+                                </h3>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    Pergerakan harga komoditas pangan harian di{' '}
+                                    <strong className="text-slate-800">
+                                        {markets.find((m) => m.id === currentMarketId)?.name || selectedMarketName || 'Pasar Daerah Indramayu'}
+                                    </strong>
+                                    {historyStartDate && historyEndDate && (
+                                        <> ({historyStartDate} s/d {historyEndDate})</>
+                                    )}
+                                </p>
+                            </div>
+
+                            {/* Export Buttons */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadHistoryExcel}
+                                    disabled={historyLoading || historyRows.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                    title="Download data tabel dalam format Excel (.xlsx)"
+                                >
+                                    <FileSpreadsheet className="h-4 w-4" />
+                                    <span>Download Excel</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadHistoryPdf}
+                                    disabled={historyLoading || historyRows.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                    title="Cetak atau unduh dokumen PDF format Landscape"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    <span>Download PDF</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filter Bar: Presets & Date Range */}
+                        <div className="mt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 p-3.5">
+                            {/* Preset Buttons */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500 mr-1">
+                                    Rentang Cepat:
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleApplyHistoryPreset('14')}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                                        historyPreset === '14'
+                                            ? 'bg-[#006565] text-white shadow-xs'
+                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    14 Data Terbaru (Default)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleApplyHistoryPreset('7')}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                                        historyPreset === '7'
+                                            ? 'bg-[#006565] text-white shadow-xs'
+                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    7 Hari
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleApplyHistoryPreset('30')}
+                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                                        historyPreset === '30'
+                                            ? 'bg-[#006565] text-white shadow-xs'
+                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                    }`}
+                                >
+                                    30 Hari
+                                </button>
+                            </div>
+
+                            {/* Date Pickers */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                                    <span className="text-[11px] font-bold text-slate-400">Dari:</span>
+                                    <input
+                                        type="date"
+                                        value={historyStartDate}
+                                        max={historyEndDate || maxDate || undefined}
+                                        onChange={(e) => handleHistoryStartDateChange(e.target.value)}
+                                        className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
+                                    />
+                                </div>
+                                <span className="text-slate-400 font-bold text-xs">-</span>
+                                <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                                    <span className="text-[11px] font-bold text-slate-400">Sampai:</span>
+                                    <input
+                                        type="date"
+                                        value={historyEndDate}
+                                        max={maxDate || undefined}
+                                        onChange={(e) => handleHistoryEndDateChange(e.target.value)}
+                                        className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
+                                    />
+                                </div>
+                                <span className="rounded-lg bg-emerald-100/70 px-2 py-1 text-[10px] font-extrabold text-emerald-800">
+                                    Maks. 31 Hari
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Date Adjustment Notice */}
+                        {historyDateWarning && (
+                            <div className="mt-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs font-medium text-amber-800">
+                                <Info className="h-4 w-4 shrink-0 text-amber-600" />
+                                <span>{historyDateWarning}</span>
+                            </div>
+                        )}
+
+                        {/* Table Display */}
+                        <div className="mt-5 relative">
+                            {historyLoading && (
+                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/70 backdrop-blur-2xs rounded-2xl">
+                                    <div className="flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 shadow-md border border-slate-100 text-xs font-bold text-[#006565]">
+                                        <RefreshCw className="h-4 w-4 animate-spin text-[#006565]" />
+                                        <span>Memuat data historis harga...</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {historyError ? (
+                                <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-center text-xs text-rose-700">
+                                    <p className="font-bold">{historyError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => fetchHistoryData()}
+                                        className="mt-2 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+                                    >
+                                        Muat Ulang
+                                    </button>
+                                </div>
+                            ) : historyRows.length === 0 && !historyLoading ? (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
+                                    Tidak ada data historis yang tersedia untuk rentang tanggal ini.
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[580px] overflow-y-auto">
+                                    <table className="w-full border-collapse text-left text-xs">
+                                        <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                            <tr>
+                                                {/* Kolom 1: No (Sticky) */}
+                                                <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[50px] border-r border-slate-200">
+                                                    No
+                                                </th>
+                                                {/* Kolom 2: Tanggal (Sticky) */}
+                                                <th className="sticky left-[50px] z-40 bg-slate-100 px-4 py-3 text-left font-extrabold text-slate-700 min-w-[130px] border-r-2 border-slate-300 shadow-xs">
+                                                    Tanggal
+                                                </th>
+                                                {/* Kolom 3 s/d 27: 25 Komoditas */}
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => (
+                                                    <th
+                                                        key={c.id}
+                                                        className="px-3.5 py-3 text-right min-w-[135px] border-r border-slate-200/60 whitespace-nowrap"
+                                                        title={`${c.name} (${c.unit})`}
+                                                    >
+                                                        <div className="font-extrabold text-slate-800 line-clamp-1">
+                                                            {c.name}
+                                                        </div>
+                                                        <div className="text-[10px] font-normal text-slate-400">
+                                                            Rp/{c.unit}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                {/* Kolom Paling Akhir: Kirim */}
+                                                <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-center font-extrabold text-slate-700 min-w-[105px] border-l-2 border-slate-300 shadow-xs">
+                                                    Kirim
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {historyRows.map((row, idx) => {
+                                                const commoditiesListToRender = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
+                                                return (
+                                                    <tr
+                                                        key={row.date}
+                                                        className="group hover:bg-emerald-50/40 transition-colors"
+                                                    >
+                                                        {/* No (Sticky) */}
+                                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            {idx + 1}
+                                                        </td>
+                                                        {/* Tanggal (Sticky) */}
+                                                        <td className="sticky left-[50px] z-20 bg-white group-hover:bg-emerald-50/40 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                            <div className="font-bold text-slate-800">
+                                                                {row.formatted_date || row.date}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">
+                                                                {row.day_name}
+                                                            </div>
+                                                        </td>
+                                                        {/* Prices for each commodity */}
+                                                        {commoditiesListToRender.map((c) => {
+                                                            const price = row.prices[c.id];
+                                                            const isAbove = !!row.is_above_het?.[c.id];
+                                                            const diff = row.diffs?.[c.id];
+
+                                                            return (
+                                                                <td
+                                                                    key={c.id}
+                                                                    className={`px-3 py-2 text-right border-r whitespace-nowrap transition-colors ${
+                                                                        isAbove
+                                                                            ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200'
+                                                                            : 'border-slate-100 font-semibold text-slate-800'
+                                                                    }`}
+                                                                >
+                                                                    {price !== null && price !== undefined && Number(price) > 0 ? (
+                                                                        <div className="inline-flex items-center justify-end gap-1.5 font-mono">
+                                                                            {diff === 'up' && (
+                                                                                <ArrowUp
+                                                                                    className="h-3.5 w-3.5 stroke-[2.5] text-rose-600 shrink-0"
+                                                                                    title="Harga naik dibanding kemarin"
+                                                                                />
+                                                                            )}
+                                                                            {diff === 'down' && (
+                                                                                <ArrowDown
+                                                                                    className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600 shrink-0"
+                                                                                    title="Harga turun dibanding kemarin"
+                                                                                />
+                                                                            )}
+                                                                            <span className={isAbove ? 'font-black text-rose-950' : 'text-slate-800'}>
+                                                                                {formatCurrency(Number(price))}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300 font-normal">
+                                                                            -
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        {/* Kolom Paling Akhir: Tombol WhatsApp */}
+                                                        <td className="sticky right-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSendWhatsapp(row)}
+                                                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer"
+                                                                title={`Kirim laporan harga pangan tanggal ${row.formatted_date || row.date} ke WhatsApp`}
+                                                            >
+                                                                <WhatsAppIcon className="h-3.5 w-3.5 fill-current" />
+                                                                <span>Kirim</span>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        {/* TFOOT: Rata-rata, HET/HAP, % thd HET, Rata-rata Bln Lalu, % vs Bln Lalu */}
+                                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+                                            {/* Baris 1: Rata-rata */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    Rata-rata
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const avg = historyPeriodAvgs[c.id];
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-900"
+                                                        >
+                                                            {avg !== null ? formatCurrency(avg) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 2: Harga HET/HAP */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    Harga HET/HAP
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const het = historyCommodityHets[c.id] ?? (historyRows[0]?.hets?.[c.id] ?? null);
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-700"
+                                                        >
+                                                            {het !== null && Number(het) > 0 ? formatCurrency(Number(het)) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 3: % terhadap HET/HAP */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    % thd HET/HAP
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const avg = historyPeriodAvgs[c.id];
+                                                    const het = historyCommodityHets[c.id] ?? (historyRows[0]?.hets?.[c.id] ?? null);
+                                                    const res = getChangeColorAndText(avg, het ? Number(het) : null);
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className={`px-3 py-2 text-right border-r border-slate-200 font-mono whitespace-nowrap ${res.bgClass}`}
+                                                        >
+                                                            {res.text}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 4: Rata-rata Bulan Lalu */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    <div>Rata-rata Bln Lalu</div>
+                                                    {historyPrevMonthLabel && (
+                                                        <div className="text-[10px] text-slate-400 font-normal">
+                                                            ({historyPrevMonthLabel})
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const prevAvg = historyPrevMonthAvgs[c.id];
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-700"
+                                                        >
+                                                            {prevAvg !== null && prevAvg !== undefined && Number(prevAvg) > 0
+                                                                ? formatCurrency(Number(prevAvg))
+                                                                : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 5: % Kenaikan/Penurunan terhadap Bulan Lalu */}
+                                            <tr>
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    % vs Bln Lalu
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const avg = historyPeriodAvgs[c.id];
+                                                    const prevAvg = historyPrevMonthAvgs[c.id];
+                                                    const res = getChangeColorAndText(avg, prevAvg ? Number(prevAvg) : null);
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className={`px-3 py-2 text-right border-r border-slate-200 font-mono whitespace-nowrap ${res.bgClass}`}
+                                                        >
+                                                            {res.text}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                    -
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Legend & Scroll Hint */}
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 border-t border-slate-200/60 pt-3 px-1">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="font-bold text-slate-700">Keterangan:</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-6 rounded bg-rose-100 border border-rose-300" />
+                                        <span className="text-slate-700 font-medium">Merah: Di atas HET</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600" />
+                                        <span className="text-slate-700 font-medium">Panah Merah: Naik vs Kemarin</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <ArrowDown className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600" />
+                                        <span className="text-slate-700 font-medium">Panah Hijau: Turun vs Kemarin</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-3.5 rounded bg-emerald-100 border border-emerald-300" />
+                                        <span className="text-slate-700 font-medium">Hijau: Penurunan</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-3.5 rounded bg-amber-100 border border-amber-300" />
+                                        <span className="text-slate-700 font-medium">Kuning: Naik 1-10%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-3.5 rounded bg-rose-100 border border-rose-300" />
+                                        <span className="text-slate-700 font-medium">Merah: Naik &gt;10%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <WhatsAppIcon className="h-3.5 w-3.5 text-emerald-600 fill-current" />
+                                        <span className="text-slate-700 font-medium">Kirim: Bagikan Laporan ke WA</span>
+                                    </div>
+                                </div>
+                                <div className="text-slate-400">
+                                    👉 Geser tabel ke samping untuk melihat seluruh 25 komoditas.
                                 </div>
                             </div>
                         </div>

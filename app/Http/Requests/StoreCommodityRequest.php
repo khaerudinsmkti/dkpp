@@ -28,6 +28,7 @@ class StoreCommodityRequest extends FormRequest
             'unit' => ['required', 'string', 'max:50'],
             'order' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
             'description' => ['nullable', 'string', 'max:1000'],
             'initial_het_price' => ['nullable', 'numeric', 'min:1'],
             'initial_het_regulation' => ['nullable', 'string', 'max:255'],

@@ -547,4 +547,243 @@ class ConsumerPriceController extends Controller
 
         return response()->json(['error' => 'Invalid chart type'], 400);
     }
+
+    /**
+     * Resolve historical price data for the specified market and date range.
+     *
+     * @return array{market: ?Market, start_date: string, end_date: string, commodities: \Illuminate\Support\Collection<int, Commodity>, rows: array<int, array{date: string, formatted_date: string, day_name: string, prices: array<int, float|null>}>}
+     */
+    protected function getHistoryPricePayload(Request $request): array
+    {
+        $marketId = (int) $request->query('market_id');
+        if (! $marketId) {
+            $firstMarket = Market::where('is_active', true)->orderBy('order')->first();
+            $marketId = $firstMarket?->id ?? 1;
+        }
+
+        $market = Market::find($marketId);
+        $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
+
+        $startDate = (string) $request->query('start_date', '');
+        $endDate = (string) $request->query('end_date', '');
+
+        // If date range is not specified or invalid, default to 14 latest distinct dates in this market
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+            $latestDates = ConsumerPrice::where('market_id', $marketId)
+                ->distinct('recorded_date')
+                ->orderBy('recorded_date', 'desc')
+                ->limit(14)
+                ->pluck('recorded_date')
+                ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+                ->toArray();
+
+            if (empty($latestDates)) {
+                $today = now();
+                $latestDates = [];
+                for ($i = 0; $i < 14; $i++) {
+                    $latestDates[] = $today->copy()->subDays($i)->format('Y-m-d');
+                }
+            }
+
+            $dates = array_values($latestDates);
+            $startDate = end($dates);
+            $endDate = reset($dates);
+        } else {
+            $startCarbon = Carbon::parse($startDate);
+            $endCarbon = Carbon::parse($endDate);
+
+            if ($startCarbon->gt($endCarbon)) {
+                $temp = $startCarbon;
+                $startCarbon = $endCarbon;
+                $endCarbon = $temp;
+            }
+
+            // Enforce max 31 days
+            if ($startCarbon->diffInDays($endCarbon) > 31) {
+                $startCarbon = $endCarbon->copy()->subDays(30);
+            }
+
+            $startDate = $startCarbon->format('Y-m-d');
+            $endDate = $endCarbon->format('Y-m-d');
+
+            $dates = [];
+            $cur = $endCarbon->copy();
+            while ($cur->gte($startCarbon)) {
+                $dates[] = $cur->format('Y-m-d');
+                $cur->subDay();
+            }
+        }
+
+        // Distinct recorded dates up to endDate in this market to find yesterday's record
+        $distinctRecordedDates = ConsumerPrice::where('market_id', $marketId)
+            ->where('recorded_date', '<=', $endDate)
+            ->distinct('recorded_date')
+            ->orderBy('recorded_date', 'desc')
+            ->pluck('recorded_date')
+            ->map(fn ($d) => Carbon::parse($d)->format('Y-m-d'))
+            ->toArray();
+
+        // Get the date before $startDate to query its prices as well
+        $prevDateBeforeStart = ConsumerPrice::where('market_id', $marketId)
+            ->where('recorded_date', '<', $startDate)
+            ->orderBy('recorded_date', 'desc')
+            ->value('recorded_date');
+        $prevDateBeforeStartStr = $prevDateBeforeStart ? Carbon::parse($prevDateBeforeStart)->format('Y-m-d') : null;
+
+        $queryDates = array_values(array_unique(array_filter(array_merge($dates, [$prevDateBeforeStartStr]))));
+
+        $prices = ConsumerPrice::where('market_id', $marketId)
+            ->whereIn('recorded_date', $queryDates)
+            ->get();
+
+        $groupedPrices = [];
+        foreach ($prices as $p) {
+            $d = Carbon::parse($p->recorded_date)->format('Y-m-d');
+            $groupedPrices[$d][$p->commodity_id] = (float) $p->price;
+        }
+
+        $rows = [];
+        foreach ($dates as $dateStr) {
+            $cDate = Carbon::parse($dateStr);
+            $datePrices = $groupedPrices[$dateStr] ?? [];
+
+            // Find yesterday date
+            $curIdx = array_search($dateStr, $distinctRecordedDates, true);
+            $yestDateStr = ($curIdx !== false && isset($distinctRecordedDates[$curIdx + 1]))
+                ? $distinctRecordedDates[$curIdx + 1]
+                : $cDate->copy()->subDay()->format('Y-m-d');
+
+            $yestPrices = $yestDateStr ? ($groupedPrices[$yestDateStr] ?? []) : [];
+
+            $commodityPriceMap = [];
+            $commodityHetMap = [];
+            $commodityAboveHetMap = [];
+            $commodityDiffMap = [];
+
+            foreach ($commodities as $c) {
+                $todayPrice = $datePrices[$c->id] ?? null;
+                $yestPrice = $yestPrices[$c->id] ?? null;
+
+                $applicableHet = $c->hetAt($dateStr);
+                $hetPrice = $applicableHet ? (float) $applicableHet->price : null;
+
+                $isAboveHet = ($todayPrice !== null && $hetPrice !== null && $hetPrice > 0 && $todayPrice > $hetPrice);
+
+                $diffType = null;
+                if ($todayPrice !== null && $yestPrice !== null) {
+                    if ($todayPrice > $yestPrice) {
+                        $diffType = 'up';
+                    } elseif ($todayPrice < $yestPrice) {
+                        $diffType = 'down';
+                    } else {
+                        $diffType = 'stable';
+                    }
+                }
+
+                $commodityPriceMap[$c->id] = $todayPrice;
+                $commodityHetMap[$c->id] = $hetPrice;
+                $commodityAboveHetMap[$c->id] = $isAboveHet;
+                $commodityDiffMap[$c->id] = $diffType;
+            }
+
+            $rows[] = [
+                'date' => $dateStr,
+                'formatted_date' => $cDate->translatedFormat('d M Y'),
+                'day_name' => $cDate->translatedFormat('l'),
+                'prices' => $commodityPriceMap,
+                'hets' => $commodityHetMap,
+                'is_above_het' => $commodityAboveHetMap,
+                'diffs' => $commodityDiffMap,
+            ];
+        }
+
+        // Calculate previous month's date bounds & averages
+        $endCarbon = Carbon::parse($endDate);
+        $prevMonthCarbon = $endCarbon->copy()->subMonth();
+        $prevMonthStart = $prevMonthCarbon->copy()->startOfMonth()->format('Y-m-d');
+        $prevMonthEnd = $prevMonthCarbon->copy()->endOfMonth()->format('Y-m-d');
+        $prevMonthLabel = $prevMonthCarbon->translatedFormat('F Y');
+
+        $prevMonthPrices = ConsumerPrice::where('market_id', $marketId)
+            ->where('recorded_date', '>=', $prevMonthStart)
+            ->where('recorded_date', '<=', $prevMonthEnd)
+            ->selectRaw('commodity_id, AVG(price) as avg_price')
+            ->groupBy('commodity_id')
+            ->pluck('avg_price', 'commodity_id');
+
+        $prevMonthAverages = [];
+        $commodityHets = [];
+
+        foreach ($commodities as $c) {
+            $pmVal = $prevMonthPrices[$c->id] ?? null;
+            $prevMonthAverages[$c->id] = $pmVal !== null ? round((float) $pmVal, 0) : null;
+
+            $applicableHet = $c->hetAt($endDate) ?? $c->hets->first();
+            $commodityHets[$c->id] = $applicableHet ? (float) $applicableHet->price : null;
+        }
+
+        return [
+            'market' => $market,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'prev_month_label' => $prevMonthLabel,
+            'prev_month_averages' => $prevMonthAverages,
+            'commodity_hets' => $commodityHets,
+            'commodities' => $commodities,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * Get historical price data in JSON format for the interactive table.
+     */
+    public function historyData(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $payload = $this->getHistoryPricePayload($request);
+
+        return response()->json([
+            'market' => $payload['market'] ? [
+                'id' => $payload['market']->id,
+                'name' => $payload['market']->name,
+            ] : null,
+            'start_date' => $payload['start_date'],
+            'end_date' => $payload['end_date'],
+            'prev_month_label' => $payload['prev_month_label'],
+            'prev_month_averages' => $payload['prev_month_averages'],
+            'commodity_hets' => $payload['commodity_hets'],
+            'commodities' => $payload['commodities']->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+            ]),
+            'rows' => $payload['rows'],
+        ]);
+    }
+
+    /**
+     * Download historical price data as Excel (.xlsx).
+     */
+    public function historyExcel(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $payload = $this->getHistoryPricePayload($request);
+        $marketName = $payload['market']?->name ?? 'Pasar Indramayu';
+
+        $xlsxContent = $excelService->generateHistoricalXlsx(
+            marketName: $marketName,
+            startDate: $payload['start_date'],
+            endDate: $payload['end_date'],
+            commodities: $payload['commodities'],
+            rows: $payload['rows']
+        );
+
+        $safeMarketName = preg_replace('/[^A-Za-z0-9_-]/', '_', $marketName);
+        $filename = 'Historis_Harga_'.$safeMarketName.'_'.$payload['start_date'].'_sd_'.$payload['end_date'].'.xlsx';
+
+        return response($xlsxContent, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'max-age=0',
+        ]);
+    }
 }

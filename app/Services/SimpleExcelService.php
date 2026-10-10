@@ -846,4 +846,174 @@ class SimpleExcelService
 
         return (string) $name;
     }
+
+    /**
+     * Generate an Excel .xlsx binary string for historical commodity prices table.
+     * Columns: No, Tanggal, Commodity 1..25
+     * Rows: Date 1..N
+     *
+     * @param  string  $marketName
+     * @param  string  $startDate
+     * @param  string  $endDate
+     * @param  Collection<int, Commodity>  $commodities
+     * @param  array<int, array{date: string, formatted_date?: string, prices: array<int|string, float|int|null>}>  $rows
+     */
+    public function generateHistoricalXlsx(string $marketName, string $startDate, string $endDate, Collection $commodities, array $rows): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_hist_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk Excel historis.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        // 1. [Content_Types].xml
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        // 2. _rels/.rels
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        // 3. xl/_rels/workbook.xml.rels
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        // 4. xl/workbook.xml
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Historis Harga Konsumen" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        // 5. xl/styles.xml
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="4">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF991B1B"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="4">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="5">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        // 6. xl/worksheets/sheet1.xml
+        $totalCommodities = $commodities->count();
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="16" customWidth="1"/>';
+
+        for ($c = 3; $c <= 2 + $totalCommodities; $c++) {
+            $sheetXml .= '<col min="'.$c.'" max="'.$c.'" width="20" customWidth="1"/>';
+        }
+        $sheetXml .= '</cols><sheetData>';
+
+        // Row 1: Title
+        $sheetXml .= '<row r="1" ht="24" customHeight="1">'
+            .'<c r="A1" s="3" t="inlineStr"><is><t>TABEL HISTORIS PERKEMBANGAN HARGA PANGAN TINGKAT KONSUMEN - '.htmlspecialchars($marketName, ENT_XML1).'</t></is></c>'
+            .'</row>';
+
+        // Row 2: Subtitle
+        $periodLabel = 'Periode: '.$startDate.' s/d '.$endDate.' | Total Komoditas: '.$totalCommodities.' Komoditas';
+        $sheetXml .= '<row r="2" ht="18" customHeight="1">'
+            .'<c r="A2" s="0" t="inlineStr"><is><t>'.htmlspecialchars($periodLabel, ENT_XML1).'</t></is></c>'
+            .'</row>';
+
+        // Row 3: Empty spacer
+        $sheetXml .= '<row r="3" ht="10" customHeight="1"/>';
+
+        // Row 4: Column Headers
+        $sheetXml .= '<row r="4" ht="28" customHeight="1">'
+            .'<c r="A4" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B4" s="1" t="inlineStr"><is><t>Tanggal</t></is></c>';
+
+        foreach ($commodities as $idx => $comm) {
+            $colLetter = $this->getColumnLetter(3 + $idx);
+            $hdrText = $comm->name.' ('.$comm->unit.')';
+            $sheetXml .= '<c r="'.$colLetter.'4" s="1" t="inlineStr"><is><t>'.htmlspecialchars($hdrText, ENT_XML1).'</t></is></c>';
+        }
+        $sheetXml .= '</row>';
+
+        // Data Rows starting at row 5
+        $rowNum = 5;
+        foreach ($rows as $rIdx => $rowItem) {
+            $dateStr = $rowItem['formatted_date'] ?? $rowItem['date'];
+            $sheetXml .= '<row r="'.$rowNum.'" ht="20" customHeight="1">'
+                .'<c r="A'.$rowNum.'" s="2"><v>'.($rIdx + 1).'</v></c>'
+                .'<c r="B'.$rowNum.'" s="2" t="inlineStr"><is><t>'.htmlspecialchars($dateStr, ENT_XML1).'</t></is></c>';
+
+            foreach ($commodities as $cIdx => $comm) {
+                $colLetter = $this->getColumnLetter(3 + $cIdx);
+                $price = $rowItem['prices'][$comm->id] ?? null;
+                $isAbove = $rowItem['is_above_het'][$comm->id] ?? false;
+                $cellStyle = $isAbove ? 4 : 2;
+
+                if ($price !== null && is_numeric($price) && $price > 0) {
+                    $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="'.$cellStyle.'"><v>'.$price.'</v></c>';
+                } else {
+                    $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="2" t="inlineStr"><is><t>-</t></is></c>';
+                }
+            }
+
+            $sheetXml .= '</row>';
+            $rowNum++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = (string) file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        return $content;
+    }
 }

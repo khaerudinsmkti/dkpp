@@ -70,6 +70,7 @@ Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
             'name' => $c->name,
             'category' => $c->category,
             'unit' => $c->unit,
+            'image' => $c->image_url,
             'today_price' => $todayPrice,
             'yesterday_price' => $yesterdayPrice,
             'het_price' => $hetPrice,
@@ -102,6 +103,8 @@ Route::get('/harga-produsen', function () {
 })->name('harga-produsen');
 
 Route::get('/api/public-chart-data', [ConsumerPriceController::class, 'chartData'])->name('public.chart-data');
+Route::get('/api/public-history-data', [ConsumerPriceController::class, 'historyData'])->name('public.history-data');
+Route::get('/api/public-history-excel', [ConsumerPriceController::class, 'historyExcel'])->name('public.history-excel');
 
 
 Route::middleware(['auth', 'verified'])->group(function () {
