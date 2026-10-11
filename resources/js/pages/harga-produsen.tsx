@@ -36,6 +36,7 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import PortalNavbar from '@/components/portal-navbar';
 import { dashboard, login, register } from '@/routes';
 import {
     Area,
@@ -257,12 +258,7 @@ export default function HargaProdusen({
     maxDate,
     commodities = [],
 }: HargaProdusenProps = {}) {
-    const { auth } = usePage().props;
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [hargaMenuOpen, setHargaMenuOpen] = useState(false);
-    const [mobileHargaOpen, setMobileHargaOpen] = useState(true);
     const [filterDate, setFilterDate] = useState(selectedDate || latestDate || new Date().toISOString().split('T')[0]);
-    const hargaMenuRef = useRef<HTMLDivElement>(null);
 
     // Hero Banner carousel state & interactions
     const [heroSlide, setHeroSlide] = useState(0);
@@ -344,21 +340,6 @@ export default function HargaProdusen({
         router.get('/harga-produsen', { date: newDate }, { preserveState: true, preserveScroll: true });
     };
 
-    // Close desktop dropdown on outside click
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (
-                hargaMenuRef.current &&
-                !hargaMenuRef.current.contains(event.target as Node)
-            ) {
-                setHargaMenuOpen(false);
-            }
-        }
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
 
     // Smooth scroll helper for quick navigation pills & buttons
     const scrollToSection = (id: string) => {
@@ -827,244 +808,7 @@ export default function HargaProdusen({
             <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] antialiased selection:bg-[#006565] selection:text-white">
                 {/* ============================================================== */}
                 {/* 1. TOP NAVBAR (MENU HARGA PANGAN: HARGA KONSUMEN & PRODUSEN)   */}
-                {/* ============================================================== */}
-                <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/85 backdrop-blur-md transition-all">
-                    <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                        {/* Logo & Brand Identity */}
-                        <Link href="/harga-konsumen" className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#006565] text-white shadow-md shadow-[#006565]/20">
-                                <Wheat className="h-6 w-6 stroke-[2.2]" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-base font-extrabold tracking-tight text-[#191c1e] sm:text-lg">
-                                    DKPP INDRAMAYU
-                                </span>
-                                <span className="text-[11px] font-semibold tracking-wider text-[#006565] uppercase">
-                                    Lumbung Padi Nasional
-                                </span>
-                            </div>
-                        </Link>
-
-                        {/* Desktop Navigation Links */}
-                        <nav className="hidden items-center gap-1 md:flex">
-                            {/* Dropdown Menu Harga Pangan */}
-                            <div className="relative" ref={hargaMenuRef}>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setHargaMenuOpen(!hargaMenuOpen)
-                                    }
-                                    onMouseEnter={() => setHargaMenuOpen(true)}
-                                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-600/30 bg-amber-50/70 px-4 py-2 text-xs font-bold text-amber-900 transition-colors hover:bg-amber-100 lg:text-sm"
-                                    aria-expanded={hargaMenuOpen}
-                                >
-                                    <TrendingUp className="h-4 w-4 text-[#006565]" />
-                                    <span>Harga Pangan</span>
-                                    <ChevronDown
-                                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                                            hargaMenuOpen
-                                                ? 'rotate-180 text-[#006565]'
-                                                : ''
-                                        }`}
-                                    />
-                                </button>
-
-                                {hargaMenuOpen && (
-                                    <div
-                                        onMouseLeave={() =>
-                                            setHargaMenuOpen(false)
-                                        }
-                                        className="absolute left-0 mt-1.5 w-64 rounded-2xl border border-slate-200/90 bg-white p-2 shadow-xl ring-1 ring-slate-900/5 transition-all z-50 animate-in fade-in slide-in-from-top-1"
-                                    >
-                                        <Link
-                                            href="/harga-konsumen"
-                                            onClick={() =>
-                                                setHargaMenuOpen(false)
-                                            }
-                                            className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-emerald-50/70 group"
-                                        >
-                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 group-hover:bg-[#006565] group-hover:text-white transition-colors">
-                                                <Store className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-slate-900 group-hover:text-[#006565]">
-                                                    Harga Konsumen
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    Card 25 komoditi &amp; status HET
-                                                </div>
-                                            </div>
-                                        </Link>
-                                        <Link
-                                            href="/harga-produsen"
-                                            onClick={() =>
-                                                setHargaMenuOpen(false)
-                                            }
-                                            className="flex items-start gap-3 rounded-xl p-2.5 bg-amber-50/80 text-amber-950 transition-colors group"
-                                        >
-                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#006565] text-white">
-                                                <Wheat className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-[#006565]">
-                                                    Harga Produsen
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    Tingkat petani &amp; produsen pangan
-                                                </div>
-                                            </div>
-                                        </Link>
-                                        <Link
-                                            href="/neraca-pangan"
-                                            onClick={() =>
-                                                setHargaMenuOpen(false)
-                                            }
-                                            className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-emerald-50/70 group"
-                                        >
-                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 group-hover:bg-[#006565] group-hover:text-white transition-colors">
-                                                <Layers className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs font-bold text-slate-900 group-hover:text-[#006565]">
-                                                    Neraca Pangan Bulanan
-                                                </div>
-                                                <div className="text-[11px] text-slate-500">
-                                                    11 Komoditas &amp; surplus/defisit
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    </div>
-                                )}
-                            </div>
-                        </nav>
-
-                        {/* Action Buttons */}
-                        <div className="hidden items-center gap-3 md:flex">
-                            {auth.user ? (
-                                <Link
-                                    href={dashboard()}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-[#006565] px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:bg-[#005252] lg:text-sm"
-                                >
-                                    <Layers className="h-4 w-4" />
-                                    <span>Buka Dashboard</span>
-                                </Link>
-                            ) : (
-                                <>
-                                    <Link
-                                        href={login()}
-                                        className="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-xs transition-colors hover:border-[#006565]/40 hover:bg-slate-50 hover:text-[#006565] lg:text-sm"
-                                    >
-                                        Portal Masuk
-                                    </Link>
-                                    <Link
-                                        href={register()}
-                                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#006565] px-4.5 py-2 text-xs font-bold text-white shadow-md shadow-[#006565]/20 transition-all hover:bg-[#005252] lg:text-sm"
-                                    >
-                                        <span>Registrasi Petugas</span>
-                                        <ArrowRight className="h-3.5 w-3.5" />
-                                    </Link>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Mobile Menu Hamburger */}
-                        <div className="flex md:hidden">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setMobileMenuOpen(!mobileMenuOpen)
-                                }
-                                className="inline-flex items-center justify-center rounded-xl p-2 text-slate-600 hover:bg-slate-100"
-                                aria-label="Toggle Menu"
-                            >
-                                {mobileMenuOpen ? (
-                                    <X className="h-6 w-6" />
-                                ) : (
-                                    <Menu className="h-6 w-6" />
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Mobile Dropdown Menu */}
-                    {mobileMenuOpen && (
-                        <div className="border-b border-slate-200 bg-white px-4 pt-2 pb-6 md:hidden">
-                            <div className="flex flex-col space-y-2">
-                                <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setMobileHargaOpen(!mobileHargaOpen)
-                                        }
-                                        className="flex w-full items-center justify-between px-2 py-1.5 text-sm font-bold text-slate-800"
-                                    >
-                                        <span className="flex items-center gap-2">
-                                            <TrendingUp className="h-4 w-4 text-[#006565]" />
-                                            <span>Harga Pangan</span>
-                                        </span>
-                                        <ChevronDown
-                                            className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${
-                                                mobileHargaOpen
-                                                    ? 'rotate-180 text-[#006565]'
-                                                    : ''
-                                            }`}
-                                        />
-                                    </button>
-                                    {mobileHargaOpen && (
-                                        <div className="mt-1 space-y-1 border-t border-slate-200/60 pt-2 pl-3">
-                                            <Link
-                                                href="/harga-konsumen"
-                                                onClick={() =>
-                                                    setMobileMenuOpen(false)
-                                                }
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white hover:text-[#006565]"
-                                            >
-                                                <Store className="h-3.5 w-3.5 text-emerald-600" />
-                                                <span>Harga Konsumen (25 Komoditi)</span>
-                                            </Link>
-                                            <Link
-                                                href="/harga-produsen"
-                                                onClick={() =>
-                                                    setMobileMenuOpen(false)
-                                                }
-                                                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-xs font-bold text-[#006565] bg-amber-50/80"
-                                            >
-                                                <Wheat className="h-3.5 w-3.5 text-amber-600" />
-                                                <span>Harga Produsen</span>
-                                            </Link>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-2">
-                                    {auth.user ? (
-                                        <Link
-                                            href={dashboard()}
-                                            className="w-full rounded-xl bg-[#006565] py-2.5 text-center text-sm font-bold text-white shadow-md"
-                                        >
-                                            Buka Dashboard
-                                        </Link>
-                                    ) : (
-                                        <>
-                                            <Link
-                                                href={login()}
-                                                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 text-center text-sm font-bold text-slate-700"
-                                            >
-                                                Portal Masuk
-                                            </Link>
-                                            <Link
-                                                href={register()}
-                                                className="w-full rounded-xl bg-[#006565] py-2.5 text-center text-sm font-bold text-white shadow-md"
-                                            >
-                                                Registrasi Petugas
-                                            </Link>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </header>
+                <PortalNavbar activePage="harga-produsen" />
 
                 {/* ============================================================== */}
                 {/* 2. HERO BANNER - MODERN & KEKINIAN (DKPP PRODUSEN PANGAN)       */}

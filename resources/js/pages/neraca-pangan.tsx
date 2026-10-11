@@ -33,7 +33,7 @@ import {
     YAxis,
 } from 'recharts';
 
-import AppLogo from '@/components/app-logo';
+import PortalNavbar from '@/components/portal-navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -677,49 +677,7 @@ export default function NeracaPanganPublic({
             <Head title={`Neraca Pangan Bulanan (${getMonthLabel(selectedMonth)} ${selectedYear}) - DKPP Indramayu`} />
 
             {/* Top Navigation Bar */}
-            <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 bg-white/95 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95">
-                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-3">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <AppLogo />
-                        </Link>
-                    </div>
-
-                    {/* Navigation Pills */}
-                    <nav className="flex items-center gap-1.5 sm:gap-2">
-                        <Link
-                            href="/harga-konsumen"
-                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors"
-                        >
-                            <ShoppingBag className="size-3.5" />
-                            <span className="hidden sm:inline">Harga Konsumen</span>
-                        </Link>
-                        <Link
-                            href="/harga-produsen"
-                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 transition-colors"
-                        >
-                            <Wheat className="size-3.5" />
-                            <span className="hidden sm:inline">Harga Produsen</span>
-                        </Link>
-                        <Link
-                            href="/neraca-pangan"
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/60"
-                        >
-                            <Layers className="size-3.5" />
-                            <span>Neraca Pangan</span>
-                        </Link>
-
-                        <div className="ml-2 pl-2 border-l border-slate-200 dark:border-slate-800">
-                            <Link
-                                href="/dashboard"
-                                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 transition-colors shadow-sm"
-                            >
-                                Masuk Admin
-                            </Link>
-                        </div>
-                    </nav>
-                </div>
-            </header>
+            <PortalNavbar activePage="neraca-pangan" />
 
             {/* Main Content Container */}
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
