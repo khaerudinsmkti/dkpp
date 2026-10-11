@@ -5,10 +5,13 @@ import {
     ArrowDown,
     ArrowRight,
     ArrowUp,
+    ArrowUpRight,
     BarChart3,
     Calendar,
+    Check,
     CheckCircle2,
     ChevronDown,
+    ChevronRight,
     Clock,
     Download,
     FileSpreadsheet,
@@ -19,9 +22,13 @@ import {
     MapPin,
     Menu,
     Minus,
+    Pause,
+    Play,
     Printer,
     RefreshCw,
     Scale,
+    ShieldCheck,
+    Sparkles,
     Store,
     TrendingDown,
     TrendingUp,
@@ -103,6 +110,144 @@ const formatCurrency = (val: number | null | undefined): string => {
     return `Rp ${Math.round(val).toLocaleString('id-ID')}`;
 };
 
+export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
+    {
+        id: 1,
+        key: 'gkp_petani',
+        name: 'GKP Tingkat Petani',
+        short_name: 'GKP Petani',
+        category: 'Gabah',
+        unit: 'Kg',
+        order: 1,
+        hap: 6000,
+        hap_label: 'HAP Bapanas',
+        description: 'Gabah Kering Panen di tingkat petani sawah',
+        today_price: 6800,
+        yesterday_price: 6750,
+        diff_hap: 800,
+        diff_hap_percentage: 13.3,
+        status: 'above',
+        diff_yesterday: 50,
+        diff_yesterday_percentage: 0.7,
+        change_type: 'up',
+    },
+    {
+        id: 2,
+        key: 'gkp_penggilingan',
+        name: 'GKP Tingkat Penggilingan',
+        short_name: 'GKP Penggilingan',
+        category: 'Gabah',
+        unit: 'Kg',
+        order: 2,
+        hap: 6200,
+        hap_label: 'HAP Bapanas',
+        description: 'Gabah Kering Panen di tingkat usaha penggilingan padi',
+        today_price: 7000,
+        yesterday_price: 6950,
+        diff_hap: 800,
+        diff_hap_percentage: 12.9,
+        status: 'above',
+        diff_yesterday: 50,
+        diff_yesterday_percentage: 0.7,
+        change_type: 'up',
+    },
+    {
+        id: 3,
+        key: 'gkg_penggilingan',
+        name: 'GKG Tingkat Penggilingan',
+        short_name: 'GKG Penggilingan',
+        category: 'Gabah',
+        unit: 'Kg',
+        order: 3,
+        hap: 7400,
+        hap_label: 'HAP Bapanas',
+        description: 'Gabah Kering Giling di tingkat usaha penggilingan padi',
+        today_price: 7900,
+        yesterday_price: 7850,
+        diff_hap: 500,
+        diff_hap_percentage: 6.8,
+        status: 'above',
+        diff_yesterday: 50,
+        diff_yesterday_percentage: 0.6,
+        change_type: 'up',
+    },
+    {
+        id: 4,
+        key: 'beras_medium_penggilingan',
+        name: 'Beras Medium Penggilingan',
+        short_name: 'Beras Medium Giling',
+        category: 'Beras',
+        unit: 'Kg',
+        order: 4,
+        hap: 12000,
+        hap_label: 'HAP Bapanas',
+        description: 'Beras Medium hasil produksi di tingkat penggilingan',
+        today_price: 12200,
+        yesterday_price: 12150,
+        diff_hap: 200,
+        diff_hap_percentage: 1.7,
+        status: 'above',
+        diff_yesterday: 50,
+        diff_yesterday_percentage: 0.4,
+        change_type: 'up',
+    },
+    {
+        id: 5,
+        key: 'beras_premium_penggilingan',
+        name: 'Beras Premium Penggilingan',
+        short_name: 'Beras Premium Giling',
+        category: 'Beras',
+        unit: 'Kg',
+        order: 5,
+        hap: 13900,
+        hap_label: 'HAP Bapanas',
+        description: 'Beras Premium hasil produksi di tingkat penggilingan',
+        today_price: 14200,
+        yesterday_price: 14100,
+        diff_hap: 300,
+        diff_hap_percentage: 2.2,
+        status: 'above',
+        diff_yesterday: 100,
+        diff_yesterday_percentage: 0.7,
+        change_type: 'up',
+    },
+    {
+        id: 6,
+        key: 'sapi_hidup',
+        name: 'Sapi Hidup',
+        short_name: 'Sapi Hidup Farm Gate',
+        category: 'Peternakan',
+        unit: 'Kg',
+        order: 6,
+        hap: 56000,
+        hap_label: 'HAP Farm Gate',
+        description: 'Sapi potong hidup di tingkat peternak / produsen',
+        today_price: 58000,
+        yesterday_price: 58000,
+        diff_hap: 2000,
+        diff_hap_percentage: 3.6,
+        status: 'above',
+        diff_yesterday: 0,
+        diff_yesterday_percentage: 0,
+        change_type: 'stable',
+    },
+];
+
+const formatIndoDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        const dateObj = new Date(dateStr + 'T00:00:00');
+        return new Intl.DateTimeFormat('id-ID', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        }).format(dateObj);
+    } catch {
+        return dateStr;
+    }
+};
+
 export default function HargaProdusen({
     marketName = 'Kabupaten Indramayu',
     selectedDate,
@@ -118,6 +263,81 @@ export default function HargaProdusen({
     const [mobileHargaOpen, setMobileHargaOpen] = useState(true);
     const [filterDate, setFilterDate] = useState(selectedDate || latestDate || new Date().toISOString().split('T')[0]);
     const hargaMenuRef = useRef<HTMLDivElement>(null);
+
+    // Hero Banner carousel state & interactions
+    const [heroSlide, setHeroSlide] = useState(0);
+    const [isHeroPlaying, setIsHeroPlaying] = useState(true);
+    const [isHeroHovered, setIsHeroHovered] = useState(false);
+    const TOTAL_HERO_SLIDES = 3;
+
+    // Display commodities memoized
+    const displayCommodities = useMemo(() => {
+        return commodities && commodities.length > 0 ? commodities : DEFAULT_PRODUCER_COMMODITIES;
+    }, [commodities]);
+
+    // Hero metrics statistics
+    const heroStats = useMemo(() => {
+        const list = displayCommodities;
+        const countAboveHap = list.filter((c) => c.status === 'above').length;
+        const countBelowHap = list.filter((c) => c.status !== 'above').length;
+        const countUp = list.filter((c) => c.change_type === 'up').length;
+        const countDown = list.filter((c) => c.change_type === 'down').length;
+        const countStable = list.filter((c) => c.change_type === 'stable' || !c.change_type).length;
+        const hapComplianceRate = list.length > 0 ? Math.round((countBelowHap / list.length) * 100) : 100;
+
+        const gkp = list.find((c) => c.key === 'gkp_petani') || list[0];
+        const beras = list.find((c) => c.key === 'beras_medium_penggilingan') || list[3];
+
+        return {
+            total: list.length,
+            countAboveHap,
+            countBelowHap,
+            countUp,
+            countDown,
+            countStable,
+            hapComplianceRate,
+            gkp,
+            beras,
+        };
+    }, [displayCommodities]);
+
+    // List of commodities whose today_price > hap (Di atas HAP/HET)
+    const aboveHapCommodities = useMemo(() => {
+        return displayCommodities
+            .filter((item) => {
+                if (
+                    item.today_price === null ||
+                    item.today_price === undefined ||
+                    item.hap === null ||
+                    item.hap === undefined ||
+                    item.hap <= 0
+                ) {
+                    return false;
+                }
+                return item.today_price > item.hap;
+            })
+            .map((item) => {
+                const diff = (item.today_price ?? 0) - (item.hap ?? 0);
+                const pct = (item.hap ?? 0) > 0 ? (diff / (item.hap ?? 0)) * 100 : 0;
+                const isRed = pct > 10;
+                return {
+                    ...item,
+                    diff,
+                    pct,
+                    isRed,
+                };
+            })
+            .sort((a, b) => b.pct - a.pct);
+    }, [displayCommodities]);
+
+    // Auto rotate hero banner every 6 seconds
+    useEffect(() => {
+        if (!isHeroPlaying || isHeroHovered) return;
+        const timer = setInterval(() => {
+            setHeroSlide((prev) => (prev + 1) % TOTAL_HERO_SLIDES);
+        }, 6000);
+        return () => clearInterval(timer);
+    }, [isHeroPlaying, isHeroHovered]);
 
     const handleDateChange = (newDate: string) => {
         setFilterDate(newDate);
@@ -828,217 +1048,467 @@ export default function HargaProdusen({
                 </header>
 
                 {/* ============================================================== */}
-                {/* 2. MAIN HARGA PRODUSEN CONTENT                                 */}
+                {/* 2. HERO BANNER - MODERN & KEKINIAN (DKPP PRODUSEN PANGAN)       */}
                 {/* ============================================================== */}
-                <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
-                    {/* Header Banner */}
-                    <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                        <div>
-                            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3.5 py-1 text-xs font-bold tracking-wider text-amber-800 uppercase">
-                                <Wheat className="h-3.5 w-3.5 text-amber-600" />
-                                <span>Tingkat Produsen &amp; Sentra Tani</span>
-                            </div>
-                            <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
-                                Harga Produsen Pangan Strategis
-                            </h1>
-                            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-600 sm:text-base">
-                                Monitoring harga transaksi di tingkat petani sawah, penggilingan padi, dan peternak se-Kabupaten Indramayu sebagai barometer pendapatan produsen pangan dan pasokan awal.
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 self-start md:self-end">
-                            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-white px-3.5 py-2 text-xs font-semibold text-amber-900 shrink-0 shadow-xs">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                <section
+                    className="relative overflow-hidden bg-gradient-to-br from-[#022c22] via-[#064e3b] to-[#451a03] text-white border-b border-amber-950/40 shadow-xl"
+                    onMouseEnter={() => setIsHeroHovered(true)}
+                    onMouseLeave={() => setIsHeroHovered(false)}
+                    aria-label="Hero Banner Pusat Data Harga Produsen"
+                >
+                    {/* Glowing ambient orbs & mesh background effect */}
+                    <div className="pointer-events-none absolute -top-40 -left-20 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl" />
+                    <div className="pointer-events-none absolute top-1/2 -right-24 h-96 w-96 rounded-full bg-amber-400/20 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-orange-400/15 blur-3xl" />
+                    <div className="pointer-events-none absolute inset-0 opacity-15 [background-image:radial-gradient(rgba(255,255,255,0.4)_1px,transparent_1px)] [background-size:24px_24px]" />
+
+                    <div className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+                        {/* Top Context & Live Status Bar */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/20 px-3 py-1 text-[11px] font-bold tracking-wider text-amber-200 uppercase backdrop-blur-md">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+                                    </span>
+                                    <span>Barometer Produsen Real-Time</span>
                                 </span>
-                                <span>Integrasi Sentra Pertanian &amp; Bapanas</span>
+                                <span className="hidden sm:inline-flex text-xs font-semibold text-emerald-200/80">
+                                    DKPP Indramayu • Tingkat Petani &amp; Penggilingan
+                                </span>
                             </div>
-                            <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-xs">
-                                <Clock className="h-3.5 w-3.5 text-slate-500" />
-                                <span className="font-semibold text-slate-600">Pilih Tanggal:</span>
-                                <input
-                                    type="date"
-                                    value={filterDate}
-                                    min={minDate}
-                                    max={maxDate}
-                                    onChange={(e) => handleDateChange(e.target.value)}
-                                    className="text-xs font-bold text-slate-800 bg-slate-50 rounded-lg px-2 py-1 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                />
+
+                            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-emerald-100/90">
+                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                                    <MapPin className="h-3.5 w-3.5 text-amber-300" />
+                                    <span className="font-semibold text-white">
+                                        {marketName || 'Sentra Pertanian Indramayu'}
+                                    </span>
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                                    <Calendar className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span>{formatIndoDate(filterDate) || 'Hari Ini'}</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Main Grid: Left Slider Content & Right Radar Card */}
+                        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+                            {/* Left Column: Interactive Banner Slide */}
+                            <div className="lg:col-span-7 xl:col-span-8 flex flex-col justify-between">
+                                {/* Slide 0: Barometer Harga Produsen & Sentra Tani */}
+                                {heroSlide === 0 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/15 px-3.5 py-1 text-xs font-bold text-amber-200 backdrop-blur-md">
+                                            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                                            <span>PORTAL PEMANTAUAN HARGA PRODUSEN</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Barometer Harga Petani &amp;{' '}
+                                            <span className="bg-gradient-to-r from-amber-300 via-yellow-100 to-emerald-200 bg-clip-text text-transparent">
+                                                Sentra Pangan Hulu
+                                            </span>{' '}
+                                            Indramayu
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Monitoring transaksi riil Gabah Kering Panen (GKP), Gabah Kering Giling (GKG), Beras Penggilingan, dan komoditas pangan strategis di tingkat petani serta pelaku usaha penggilingan se-Kabupaten Indramayu.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('cards-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-amber-950/40 transition-all hover:scale-[1.02] hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <Wheat className="h-4 w-4" />
+                                                <span>Lihat 6 Komoditas Hari Ini</span>
+                                                <ArrowDown className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('grafik-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <LineChart className="h-4 w-4 text-amber-300" />
+                                                <span>Grafik Tren &amp; HAP</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('rekap-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
+                                                <span>Tabel Historis</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Dynamic Mini Metric Pills */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <Activity className="h-3.5 w-3.5 text-amber-400" />
+                                                <span>6 Komoditas Terpantau</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                                <span>{heroStats.countBelowHap} Sesuai/Bawah HAP</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                                                <span>{heroStats.countAboveHap} Di Atas HAP</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span className="h-2 w-2 rounded-full bg-teal-400" />
+                                                <span>{heroStats.countStable} Stabil</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-200">
+                                                <ShieldCheck className="h-3.5 w-3.5 text-amber-300" />
+                                                <span>{heroStats.hapComplianceRate}% Sesuai HAP</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Slide 1: Pengawalan HAP Bapanas & Lumbung Pangan */}
+                                {heroSlide === 1 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3.5 py-1 text-xs font-bold text-emerald-200 backdrop-blur-md">
+                                            <Scale className="h-3.5 w-3.5 text-emerald-300" />
+                                            <span>PENGENDALIAN HARGA ACUAN PENJUALAN (HAP)</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Kawal Batas HAP,{' '}
+                                            <span className="bg-gradient-to-r from-emerald-300 via-teal-100 to-amber-200 bg-clip-text text-transparent">
+                                                Lindungi Kesejahteraan
+                                            </span>{' '}
+                                            Petani &amp; Penggilingan
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Integrasi acuan Harga Acuan Pembelian/Penjualan (HAP) Badan Pangan Nasional guna memastikan kepatuhan regulasi, mencegah fluktuasi tajam di masa panen, dan menjaga rantai pasok pangan.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <Link
+                                                href="/harga-konsumen"
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-700 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-600 active:scale-[0.98]"
+                                            >
+                                                <Store className="h-4 w-4" />
+                                                <span>Cek Harga Konsumen Eceran</span>
+                                                <ArrowUpRight className="h-4 w-4" />
+                                            </Link>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('cards-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <Wheat className="h-4 w-4 text-emerald-300" />
+                                                <span>Kepatuhan HAP 6 Komoditas</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Value Badges */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                                                <span>🌾 Sentra Produksi Padi Terbesar</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <span>⚖️ HAP Bapanas Perbadan 6 &amp; 7/2024</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-100">
+                                                <span>🚜 Sinergi Kelompok Tani &amp; Penggilingan</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Slide 2: Satu Data & Laporan Resmi Siap Ekspor */}
+                                {heroSlide === 2 && (
+                                    <div className="animate-in fade-in zoom-in-95 duration-500">
+                                        <div className="inline-flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-500/15 px-3.5 py-1 text-xs font-bold text-teal-200 backdrop-blur-md">
+                                            <ShieldCheck className="h-3.5 w-3.5 text-teal-300" />
+                                            <span>SATU DATA PRODUSEN PANGAN INDRAMAYU</span>
+                                        </div>
+
+                                        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                            Transparansi Data Terbuka,{' '}
+                                            <span className="bg-gradient-to-r from-teal-200 via-cyan-100 to-amber-200 bg-clip-text text-transparent">
+                                                Laporan Resmi Siap Cetak
+                                            </span>
+                                        </h1>
+
+                                        <p className="mt-4 max-w-2xl text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed">
+                                            Unduh rekapitulasi data harga produsen dalam format spreadsheet Excel komprehensif atau cetak langsung format PDF lanskap resmi dinas lengkap dengan kop surat dan legalitas DKPP.
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        <div className="mt-6 flex flex-wrap items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('rekap-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                <span>Buka Tabel &amp; Ekspor Excel</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => scrollToSection('grafik-section')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                            >
+                                                <BarChart3 className="h-4 w-4 text-cyan-300" />
+                                                <span>Grafik Harian, Mingguan &amp; Bulanan</span>
+                                            </button>
+                                        </div>
+
+                                        {/* Value Badges */}
+                                        <div className="mt-7 flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-teal-400/20 bg-teal-500/10 px-2.5 py-1 text-xs font-semibold text-teal-100">
+                                                <FileSpreadsheet className="h-3.5 w-3.5 text-teal-300" />
+                                                <span>Ekspor Excel &amp; Cetak PDF Otomatis</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-100">
+                                                <LineChart className="h-3.5 w-3.5 text-amber-300" />
+                                                <span>Filter Rentang 31 Hari Fleksibel</span>
+                                            </div>
+                                            <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-100">
+                                                <Activity className="h-3.5 w-3.5 text-emerald-300" />
+                                                <span>Tracking Tren MoM Akurat</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Slider Pagination Controls & Play/Pause */}
+                                <div className="mt-8 flex items-center gap-3">
+                                    <div className="flex items-center gap-1.5">
+                                        {[0, 1, 2].map((idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => setHeroSlide(idx)}
+                                                aria-label={`Buka slide ${idx + 1}`}
+                                                className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                                                    heroSlide === idx
+                                                        ? 'w-8 bg-amber-400'
+                                                        : 'w-2 bg-white/30 hover:bg-white/60'
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsHeroPlaying(!isHeroPlaying)}
+                                        aria-label={isHeroPlaying ? 'Jeda rotasi otomatis' : 'Mulai rotasi otomatis'}
+                                        className="rounded-lg p-1 text-white/50 hover:text-white transition-colors cursor-pointer"
+                                        title={isHeroPlaying ? 'Jeda otomatis' : 'Putar otomatis'}
+                                    >
+                                        {isHeroPlaying ? (
+                                            <Pause className="h-3.5 w-3.5" />
+                                        ) : (
+                                            <Play className="h-3.5 w-3.5" />
+                                        )}
+                                    </button>
+                                    <span className="text-[11px] font-medium text-emerald-200/60">
+                                        {heroSlide + 1} / 3 Slide
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Right Column: Modern Glassmorphic "Radar Sentra Produsen Hari Ini" Card */}
+                            <div className="lg:col-span-5 xl:col-span-4">
+                                <div className="rounded-3xl border border-white/20 bg-white/10 p-5 sm:p-6 backdrop-blur-xl shadow-2xl ring-1 ring-white/10">
+                                    {/* Header Radar Card */}
+                                    <div className="flex items-center justify-between border-b border-white/15 pb-4">
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="relative flex h-2 w-2">
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+                                                </span>
+                                                <span className="text-[10px] font-extrabold tracking-wider text-amber-300 uppercase">
+                                                    Radar Produsen Terkini
+                                                </span>
+                                            </div>
+                                            <h3 className="mt-1 text-sm font-bold text-white line-clamp-1">
+                                                Sentra Pertanian Indramayu
+                                            </h3>
+                                        </div>
+
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/25 px-2.5 py-1 text-[11px] font-bold text-amber-200">
+                                            <Wheat className="h-3.5 w-3.5 text-amber-300" />
+                                            <span>6 Komoditas</span>
+                                        </span>
+                                    </div>
+
+                                    {/* Quick Date Switcher Inside Card */}
+                                    <div className="mt-4 flex items-center justify-between gap-2 rounded-2xl bg-white/10 p-2.5 border border-white/15 backdrop-blur-md">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <Clock className="h-4 w-4 text-amber-300 shrink-0" />
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] uppercase font-bold text-emerald-200/80">Tanggal Pantauan</p>
+                                                <p className="text-xs font-black text-white truncate">
+                                                    {formatIndoDate(filterDate)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="date"
+                                            value={filterDate}
+                                            min={minDate}
+                                            max={maxDate}
+                                            onChange={(e) => handleDateChange(e.target.value)}
+                                            className="text-xs font-bold text-slate-800 bg-white rounded-xl px-2.5 py-1.5 border border-white/40 focus:outline-none focus:ring-2 focus:ring-amber-400 shadow-xs cursor-pointer"
+                                        />
+                                    </div>
+
+                                    {/* Mini Highlight Metrics Grid */}
+                                    <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+                                        <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur-md">
+                                            <p className="text-[10px] font-bold uppercase text-amber-200/90">GKP Petani Hari Ini</p>
+                                            <p className="mt-1 text-base sm:text-lg font-black text-white">
+                                                {formatCurrency(heroStats.gkp?.today_price)}
+                                            </p>
+                                            <p className="mt-0.5 text-[10px] text-emerald-200/70 font-medium">
+                                                HAP: {formatCurrency(heroStats.gkp?.hap)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur-md">
+                                            <p className="text-[10px] font-bold uppercase text-amber-200/90">Beras Medium Giling</p>
+                                            <p className="mt-1 text-base sm:text-lg font-black text-white">
+                                                {formatCurrency(heroStats.beras?.today_price)}
+                                            </p>
+                                            <p className="mt-0.5 text-[10px] text-emerald-200/70 font-medium">
+                                                HAP: {formatCurrency(heroStats.beras?.hap)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Compact Mini Commodity Snapshot Ticker */}
+                                    <div className="mt-3.5 space-y-2">
+                                        <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-200/70">
+                                            Ringkasan Transaksi Produsen
+                                        </p>
+                                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                            {displayCommodities.slice(0, 4).map((comm) => (
+                                                <div
+                                                    key={comm.key}
+                                                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs transition-colors hover:bg-white/10"
+                                                >
+                                                    <div className="min-w-0 pr-2">
+                                                        <p className="font-bold text-white truncate text-[11px]">
+                                                            {comm.name}
+                                                        </p>
+                                                        <p className="text-[9px] text-emerald-200/70">
+                                                            {comm.category} • {comm.unit}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="font-black text-amber-300 text-xs">
+                                                            {formatCurrency(comm.today_price)}
+                                                        </p>
+                                                        <span
+                                                            className={`inline-block text-[9px] font-bold ${
+                                                                comm.status === 'above'
+                                                                    ? 'text-amber-300'
+                                                                    : 'text-emerald-300'
+                                                            }`}
+                                                        >
+                                                            {comm.status === 'above' ? '▲ Di Atas HAP' : '✓ Sesuai HAP'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Footer Card Jump Link */}
+                                    <div className="mt-4 border-t border-white/15 pt-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => scrollToSection('cards-section')}
+                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 py-2 text-center text-xs font-bold text-white hover:bg-white/25 transition-all cursor-pointer"
+                                        >
+                                            <span>Lihat Kartu Lengkap 6 Komoditas</span>
+                                            <ChevronRight className="h-3.5 w-3.5 text-amber-300" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </section>
 
-                    {/* Quick Section Navigation Pills */}
-                    <div className="mt-6 flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => scrollToSection('cards-section')}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-1.5 text-xs font-bold text-amber-900 shadow-2xs hover:bg-amber-50 transition-colors cursor-pointer"
-                        >
-                            <Wheat className="h-3.5 w-3.5 text-amber-600" />
-                            <span>Harga Hari Ini (6 Komoditas)</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => scrollToSection('grafik-section')}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:border-[#006565] hover:text-[#006565] transition-colors cursor-pointer"
-                        >
-                            <LineChart className="h-3.5 w-3.5 text-[#006565]" />
-                            <span>Grafik Perkembangan</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => scrollToSection('rekap-section')}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:border-[#006565] hover:text-[#006565] transition-colors cursor-pointer"
-                        >
-                            <FileSpreadsheet className="h-3.5 w-3.5 text-[#006565]" />
-                            <span>Tabel Historis &amp; Rekap</span>
-                        </button>
-                    </div>
-
-                    {/* Produsen 6 Commodity Cards (1 Baris 6 Kolom) */}
+                {/* ============================================================== */}
+                {/* 3. MAIN HARGA PRODUSEN CONTENT                                 */}
+                {/* ============================================================== */}
+                <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+                    {/* Section Header & Quick Jump Navigation */}
                     <div id="cards-section" className="scroll-mt-24">
-                        {(() => {
-                            const defaultCommodities: ProducerCommodity[] = [
-                                {
-                                    id: 1,
-                                    key: 'gkp_petani',
-                                    name: 'GKP Tingkat Petani',
-                                    short_name: 'GKP Petani',
-                                    category: 'Gabah',
-                                    unit: 'Kg',
-                                    order: 1,
-                                    hap: 6000,
-                                    hap_label: 'HAP Bapanas',
-                                    description: 'Gabah Kering Panen di tingkat petani sawah',
-                                    today_price: 6800,
-                                    yesterday_price: 6750,
-                                    diff_hap: 800,
-                                    diff_hap_percentage: 13.3,
-                                    status: 'above',
-                                    diff_yesterday: 50,
-                                    diff_yesterday_percentage: 0.7,
-                                    change_type: 'up',
-                                },
-                                {
-                                    id: 2,
-                                    key: 'gkp_penggilingan',
-                                    name: 'GKP Tingkat Penggilingan',
-                                    short_name: 'GKP Penggilingan',
-                                    category: 'Gabah',
-                                    unit: 'Kg',
-                                    order: 2,
-                                    hap: 6200,
-                                    hap_label: 'HAP Bapanas',
-                                    description: 'Gabah Kering Panen di tingkat usaha penggilingan padi',
-                                    today_price: 7000,
-                                    yesterday_price: 6950,
-                                    diff_hap: 800,
-                                    diff_hap_percentage: 12.9,
-                                    status: 'above',
-                                    diff_yesterday: 50,
-                                    diff_yesterday_percentage: 0.7,
-                                    change_type: 'up',
-                                },
-                                {
-                                    id: 3,
-                                    key: 'gkg_penggilingan',
-                                    name: 'GKG Tingkat Penggilingan',
-                                    short_name: 'GKG Penggilingan',
-                                    category: 'Gabah',
-                                    unit: 'Kg',
-                                    order: 3,
-                                    hap: 7400,
-                                    hap_label: 'HAP Bapanas',
-                                    description: 'Gabah Kering Giling di tingkat usaha penggilingan padi',
-                                    today_price: 7900,
-                                    yesterday_price: 7850,
-                                    diff_hap: 500,
-                                    diff_hap_percentage: 6.8,
-                                    status: 'above',
-                                    diff_yesterday: 50,
-                                    diff_yesterday_percentage: 0.6,
-                                    change_type: 'up',
-                                },
-                                {
-                                    id: 4,
-                                    key: 'beras_medium_penggilingan',
-                                    name: 'Beras Medium Penggilingan',
-                                    short_name: 'Beras Medium Giling',
-                                    category: 'Beras',
-                                    unit: 'Kg',
-                                    order: 4,
-                                    hap: 12000,
-                                    hap_label: 'HAP Bapanas',
-                                    description: 'Beras Medium hasil produksi di tingkat penggilingan',
-                                    today_price: 12200,
-                                    yesterday_price: 12150,
-                                    diff_hap: 200,
-                                    diff_hap_percentage: 1.7,
-                                    status: 'above',
-                                    diff_yesterday: 50,
-                                    diff_yesterday_percentage: 0.4,
-                                    change_type: 'up',
-                                },
-                                {
-                                    id: 5,
-                                    key: 'beras_premium_penggilingan',
-                                    name: 'Beras Premium Penggilingan',
-                                    short_name: 'Beras Premium Giling',
-                                    category: 'Beras',
-                                    unit: 'Kg',
-                                    order: 5,
-                                    hap: 13900,
-                                    hap_label: 'HAP Bapanas',
-                                    description: 'Beras Premium hasil produksi di tingkat penggilingan',
-                                    today_price: 14200,
-                                    yesterday_price: 14100,
-                                    diff_hap: 300,
-                                    diff_hap_percentage: 2.2,
-                                    status: 'above',
-                                    diff_yesterday: 100,
-                                    diff_yesterday_percentage: 0.7,
-                                    change_type: 'up',
-                                },
-                                {
-                                    id: 6,
-                                    key: 'sapi_hidup',
-                                    name: 'Sapi Hidup',
-                                    short_name: 'Sapi Hidup Farm Gate',
-                                    category: 'Peternakan',
-                                    unit: 'Kg',
-                                    order: 6,
-                                    hap: 56000,
-                                    hap_label: 'HAP Farm Gate',
-                                    description: 'Sapi potong hidup di tingkat peternak / produsen',
-                                    today_price: 58000,
-                                    yesterday_price: 58000,
-                                    diff_hap: 2000,
-                                    diff_hap_percentage: 3.6,
-                                    status: 'above',
-                                    diff_yesterday: 0,
-                                    diff_yesterday_percentage: 0,
-                                    change_type: 'stable',
-                                },
-                            ];
+                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-slate-200 pb-5">
+                            <div>
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3.5 py-1 text-xs font-bold tracking-wider text-amber-800 uppercase">
+                                    <Wheat className="h-3.5 w-3.5 text-amber-600" />
+                                    <span>Tingkat Produsen • 6 Komoditas Strategis</span>
+                                </div>
+                                <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                                    Daftar Harga Transaksi Tingkat Produsen
+                                </h2>
+                                <p className="mt-1 max-w-2xl text-xs sm:text-sm font-medium text-slate-600">
+                                    Data harga di tingkat petani sawah, penggilingan padi, dan peternak se-Kabupaten Indramayu per {formatIndoDate(filterDate)}.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('grafik-section')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:border-[#006565] hover:text-[#006565] transition-colors cursor-pointer"
+                                >
+                                    <LineChart className="h-3.5 w-3.5 text-[#006565]" />
+                                    <span>Grafik Tren</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('rekap-section')}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-2xs hover:border-[#006565] hover:text-[#006565] transition-colors cursor-pointer"
+                                >
+                                    <FileSpreadsheet className="h-3.5 w-3.5 text-[#006565]" />
+                                    <span>Tabel Historis</span>
+                                </button>
+                                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs shadow-xs">
+                                    <Clock className="h-3.5 w-3.5 text-slate-500" />
+                                    <span className="font-semibold text-slate-600">Pilih Tanggal:</span>
+                                    <input
+                                        type="date"
+                                        value={filterDate}
+                                        min={minDate}
+                                        max={maxDate}
+                                        onChange={(e) => handleDateChange(e.target.value)}
+                                        className="text-xs font-bold text-slate-800 bg-slate-50 rounded-lg px-2 py-1 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-                            const displayCommodities = commodities && commodities.length > 0 ? commodities : defaultCommodities;
-
-                            return (
-                                <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
-                                    {displayCommodities.map((comm) => (
+                        {/* Commodity Cards Grid */}
+                        <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
+                            {displayCommodities.map((comm) => (
                                         <div
                                             key={comm.key}
                                             className="group rounded-2xl border-2 border-slate-200 bg-white overflow-hidden shadow-xs hover:border-amber-400 hover:shadow-md transition-all flex flex-col justify-between"
                                         >
                                             <div>
-                                                {/* Photo Showcase (Aspect 4:3, Zoom In Image) */}
-                                                <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-b border-slate-100 flex items-center justify-center">
+                                                {/* Photo Showcase (Aspect 4:3, Zoom Out / Object Contain) */}
+                                                <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-amber-50/60 via-slate-50/40 to-orange-50/40 border-b border-slate-100 flex items-center justify-center p-3">
                                                     {comm.image || comm.image_url ? (
                                                         <img
                                                             src={comm.image || comm.image_url}
                                                             alt={comm.name}
-                                                            className="h-full w-full object-cover object-center scale-105 transition-transform duration-500 group-hover:scale-115"
+                                                            className="h-full w-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
                                                         />
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center text-amber-200">
@@ -1127,14 +1597,17 @@ export default function HargaProdusen({
                                         </div>
                                     ))}
                                 </div>
-                            );
-                        })()}
-                    </div>
+                            </div>
 
                     {/* ============================================================== */}
-                    {/* GRAFIK PERKEMBANGAN HARGA PRODUSEN (HARIAN, MINGGUAN, BULANAN) */}
+                    {/* 4. DUA KOLOM: 70% GRAFIK HARGA & 30% DAFTAR DI ATAS HAP/HET    */}
                     {/* ============================================================== */}
-                    <div id="grafik-section" className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs scroll-mt-20">
+                    <div id="grafik-section" className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-10 items-start scroll-mt-20">
+                        {/* ---------------------------------------------------------- */}
+                        {/* KOLOM KIRI (70% / 7 cols di grid 10)                        */}
+                        {/* ---------------------------------------------------------- */}
+                        <div className="lg:col-span-7 space-y-4">
+                            <div className="rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs">
                         {/* Header & Tab Buttons */}
                         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
                             <div>
@@ -1309,25 +1782,26 @@ export default function HargaProdusen({
                         </div>
 
                         {/* Area Canvas Grafik Recharts */}
-                        <div className="mt-6 h-[340px] w-full overflow-x-auto">
+                        <div className="mt-6 w-full overflow-x-auto overflow-y-hidden">
                             <div
-                                className="h-full w-full"
+                                className="w-full"
                                 style={{
                                     minWidth: chartTab === 'monthly' ? '540px' : chartTab === 'daily' ? '540px' : '100%',
+                                    height: 320,
                                 }}
                             >
                                 {chartLoading ? (
-                                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
+                                    <div className="flex h-[320px] w-full flex-col items-center justify-center gap-2 text-slate-400">
                                         <RefreshCw className="h-6 w-6 animate-spin text-amber-600" />
                                         <span className="text-xs">Memuat data grafik tren harga produsen...</span>
                                     </div>
                                 ) : chartPoints.length === 0 ? (
-                                    <div className="flex h-full w-full flex-col items-center justify-center text-slate-400">
+                                    <div className="flex h-[320px] w-full flex-col items-center justify-center text-slate-400">
                                         <BarChart3 className="h-8 w-8 stroke-1 text-slate-300" />
                                         <span className="mt-2 text-xs">Belum ada rekaman harga untuk parameter yang dipilih.</span>
                                     </div>
                                 ) : chartTab === 'daily' ? (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height={320} debounce={50}>
                                         <AreaChart
                                             data={chartPoints}
                                             margin={{ top: 10, right: 15, left: 10, bottom: 0 }}
@@ -1408,7 +1882,7 @@ export default function HargaProdusen({
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height={320} debounce={50}>
                                         <ComposedChart
                                             data={chartPoints}
                                             margin={{ top: 25, right: 15, left: 10, bottom: 0 }}
@@ -1520,6 +1994,141 @@ export default function HargaProdusen({
                                 </div>
                             );
                         })()}
+                            </div>
+                        </div>
+
+                        {/* ---------------------------------------------------------- */}
+                        {/* KOLOM KANAN (30% / 3 cols di grid 10)                       */}
+                        {/* STATUS LIST KOMODITAS DI ATAS HAP/HET                       */}
+                        {/* ---------------------------------------------------------- */}
+                        <div id="hap-warning-section" className="lg:col-span-3 scroll-mt-20">
+                            <div className="rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
+                                {/* Header Widget */}
+                                <div className="border-b border-slate-100 pb-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                                            <AlertCircle className="h-3.5 w-3.5" />
+                                            <span>Peringatan HAP</span>
+                                        </div>
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                            {aboveHapCommodities.length} Komoditas
+                                        </span>
+                                    </div>
+                                    <h4 className="mt-2 text-sm font-black text-slate-900 leading-tight">
+                                        Daftar Komoditas di Atas HAP/HET Hari Ini
+                                    </h4>
+                                    <p className="mt-1 text-[11px] text-slate-500">
+                                        Komoditas produsen yang melampaui batas HAP Bapanas pada tanggal terpilih.
+                                    </p>
+                                </div>
+
+                                {/* Legend Warna Kenaikan */}
+                                <div className="mt-3 flex items-center justify-between gap-1 rounded-xl bg-slate-50 px-2.5 py-2 text-[10px]">
+                                    <div className="flex items-center gap-1">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400 border border-amber-500" />
+                                        <span className="font-bold text-amber-900">Kuning:</span>
+                                        <span className="text-slate-600">1 - 10%</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-rose-600" />
+                                        <span className="font-bold text-rose-900">Merah:</span>
+                                        <span className="text-slate-600">&gt; 10%</span>
+                                    </div>
+                                </div>
+
+                                {/* List Komoditas di Atas HAP */}
+                                <div className="mt-3 divide-y divide-slate-100 max-h-[460px] overflow-y-auto pr-1">
+                                    {aboveHapCommodities.length === 0 ? (
+                                        <div className="py-8 text-center">
+                                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                                <CheckCircle2 className="h-5 w-5" />
+                                            </div>
+                                            <p className="mt-2 text-xs font-bold text-slate-800">
+                                                Semua Harga Aman!
+                                            </p>
+                                            <p className="mt-0.5 text-[11px] text-slate-500">
+                                                Tidak ada komoditas dengan harga di atas HAP pada tanggal ini.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        aboveHapCommodities.map((item) => (
+                                            <div
+                                                key={item.key || item.id}
+                                                className={`py-2.5 px-2.5 rounded-2xl transition-colors mb-2 border ${
+                                                    item.isRed
+                                                        ? 'bg-rose-50/60 border-rose-200 hover:bg-rose-50'
+                                                        : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="relative size-9 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs flex items-center justify-center p-0.5">
+                                                        {item.image || item.image_url ? (
+                                                            <img
+                                                                src={item.image || item.image_url!}
+                                                                alt={item.name}
+                                                                className="h-full w-full object-contain"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
+                                                                <Wheat className="size-4 stroke-[1.75]" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-1.5">
+                                                            <span className="text-xs font-extrabold text-slate-900 line-clamp-1" title={item.name}>
+                                                                {item.name}
+                                                            </span>
+                                                            <span
+                                                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black border ${
+                                                                    item.isRed
+                                                                        ? 'bg-rose-100 text-rose-800 border-rose-300'
+                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                                                                }`}
+                                                            >
+                                                                +{item.pct.toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500">{item.category} • {item.unit}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-1.5 flex items-baseline justify-between text-xs">
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Harga Produsen:
+                                                    </span>
+                                                    <span className="font-extrabold text-slate-900">
+                                                        {formatCurrency(item.today_price)}
+                                                        <span className="text-[10px] font-normal text-slate-500">/{item.unit}</span>
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-0.5 flex items-baseline justify-between text-xs">
+                                                    <span className="text-[11px] text-slate-500">
+                                                        Batas HAP:
+                                                    </span>
+                                                    <span className="font-semibold text-slate-600">
+                                                        {formatCurrency(item.hap)}
+                                                    </span>
+                                                </div>
+
+                                                <div className="mt-1 flex items-center justify-between border-t border-slate-200/50 pt-1 text-[11px]">
+                                                    <span className="text-slate-500 font-medium">Selisih Kenaikan:</span>
+                                                    <span
+                                                        className={`font-bold inline-flex items-center gap-0.5 ${
+                                                            item.isRed ? 'text-rose-700' : 'text-amber-800'
+                                                        }`}
+                                                    >
+                                                        <ArrowUp className="h-3 w-3 stroke-[2.5]" />
+                                                        +{formatCurrency(item.diff)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* ============================================================== */}
