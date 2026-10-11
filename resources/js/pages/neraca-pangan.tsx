@@ -1,11 +1,18 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertCircle,
+    AlertTriangle,
+    ArrowDown,
     BarChart3,
     Calendar,
     CheckCircle2,
+    Download,
+    FileSpreadsheet,
+    FileText,
     Layers,
+    Printer,
     Search,
+    ShieldCheck,
     ShoppingBag,
     TrendingDown,
     TrendingUp,
@@ -259,6 +266,340 @@ export default function NeracaPanganPublic({
         );
     };
 
+    const handleDownloadExcel = () => {
+        window.location.href = `/neraca-pangan/export-excel?year=${selectedYear}&month=${selectedMonth}`;
+    };
+
+    const handleDownloadPdf = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        const monthLabel = getMonthLabel(selectedMonth);
+        const currentDateFormatted = new Date().toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        });
+
+        const itemsToPrint = filteredItems.length > 0 ? filteredItems : items;
+
+        let tableRowsHtml = '';
+        itemsToPrint.forEach((item, idx) => {
+            const isSurplus = item.selisih !== null && item.selisih >= 0;
+            const statusBadge = !item.is_recorded
+                ? '<span style="color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:99px;font-size:7pt;">Belum Ada Data</span>'
+                : item.keterangan === 'Surplus'
+                ? '<span style="color:#065f46;background:#d1fae5;padding:2px 8px;border-radius:99px;font-weight:bold;font-size:7pt;">Surplus</span>'
+                : '<span style="color:#991b1b;background:#fee2e2;padding:2px 8px;border-radius:99px;font-weight:bold;font-size:7pt;">Defisit</span>';
+
+            const selisihText = item.is_recorded && item.selisih !== null
+                ? `<span style="font-weight:bold;color:${isSurplus ? '#059669' : '#dc2626'}">${item.selisih >= 0 ? '+' : ''}${formatNumber(item.selisih)}</span>`
+                : '-';
+
+            tableRowsHtml += `
+                <tr>
+                    <td style="text-align:center;color:#64748b;">${idx + 1}</td>
+                    <td style="font-weight:bold;color:#0f172a;">${item.name}</td>
+                    <td style="text-align:center;color:#475569;">${item.unit}</td>
+                    <td style="text-align:right;">${item.is_recorded ? formatNumber(item.produksi) : '-'}</td>
+                    <td style="text-align:right;font-weight:600;">${item.is_recorded ? formatNumber(item.ketersediaan) : '-'}</td>
+                    <td style="text-align:right;font-weight:600;">${item.is_recorded ? formatNumber(item.kebutuhan) : '-'}</td>
+                    <td style="text-align:right;">${selisihText}</td>
+                    <td style="text-align:center;">${statusBadge}</td>
+                    <td style="color:#64748b;font-size:7pt;">${item.notes || '-'}</td>
+                </tr>
+            `;
+        });
+
+        const html = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8"/>
+            <title>Neraca_Pangan_Indramayu_${monthLabel}_${selectedYear}</title>
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 10mm 10mm;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    margin: 0;
+                    padding: 15px;
+                    color: #0f172a;
+                    font-size: 8pt;
+                    background-color: #fff;
+                }
+                .no-print {
+                    margin-bottom: 16px;
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                    background: #f8fafc;
+                    padding: 10px 16px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                }
+                .btn {
+                    background: #047857;
+                    color: white;
+                    border: none;
+                    padding: 7px 16px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 9pt;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .btn-close {
+                    background: #64748b;
+                }
+                .kop-container {
+                    text-align: center;
+                    margin-bottom: 12px;
+                    border-bottom: 3px double #047857;
+                    padding-bottom: 8px;
+                }
+                .kop-sub {
+                    font-size: 9pt;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                    text-transform: uppercase;
+                    color: #334155;
+                    margin: 0;
+                }
+                .kop-main {
+                    font-size: 14pt;
+                    font-weight: 800;
+                    letter-spacing: 0.5px;
+                    text-transform: uppercase;
+                    color: #047857;
+                    margin: 2px 0;
+                }
+                .kop-address {
+                    font-size: 7.5pt;
+                    color: #64748b;
+                    margin: 0;
+                }
+                .title-section {
+                    text-align: center;
+                    margin: 12px 0 16px 0;
+                }
+                .title-section h1 {
+                    margin: 0;
+                    font-size: 12pt;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                }
+                .title-section p {
+                    margin: 3px 0 0 0;
+                    font-size: 9pt;
+                    font-weight: 600;
+                    color: #047857;
+                }
+                .summary-cards {
+                    display: flex;
+                    gap: 12px;
+                    margin-bottom: 14px;
+                }
+                .card {
+                    flex: 1;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                    background: #f8fafc;
+                }
+                .card-title {
+                    font-size: 7pt;
+                    text-transform: uppercase;
+                    font-weight: 700;
+                    color: #64748b;
+                }
+                .card-value {
+                    font-size: 11pt;
+                    font-weight: 800;
+                    margin-top: 2px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 16px;
+                }
+                th, td {
+                    border: 1px solid #cbd5e1;
+                    padding: 4.5px 6px;
+                    font-size: 7.5pt;
+                }
+                th {
+                    background-color: #047857;
+                    color: white;
+                    font-weight: 700;
+                    text-align: center;
+                    vertical-align: middle;
+                }
+                tbody tr:nth-child(even) {
+                    background-color: #f8fafc;
+                }
+                tfoot tr td {
+                    font-weight: bold;
+                    background-color: #f1f5f9;
+                    padding: 5px 6px;
+                }
+                .signatures {
+                    margin-top: 24px;
+                    display: flex;
+                    justify-content: flex-end;
+                    page-break-inside: avoid;
+                }
+                .sign-box {
+                    text-align: center;
+                    width: 250px;
+                    font-size: 8pt;
+                }
+                .sign-space {
+                    height: 55px;
+                }
+                .footer-info {
+                    margin-top: 16px;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 6px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 7pt;
+                    color: #94a3b8;
+                }
+                @media print {
+                    .no-print {
+                        display: none !important;
+                    }
+                    body {
+                        padding: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print">
+                <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                <span style="font-size: 8pt; color: #475569;">
+                    Tips: Pada dialog print browser, pilih printer <strong>Save as PDF (Simpan sebagai PDF)</strong> dan orientasi <strong>Landscape</strong>.
+                </span>
+            </div>
+
+            <div class="kop-container">
+                <p class="kop-sub">Pemerintah Kabupaten Indramayu</p>
+                <h2 class="kop-main">Dinas Ketahanan Pangan dan Pertanian</h2>
+                <p class="kop-address">Jl. Pasar Baru No.445, Kel. Karangmalang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45213 | Laman: dkpp.indramayukab.go.id</p>
+            </div>
+
+            <div class="title-section">
+                <h1>Laporan Neraca Pangan Bulanan</h1>
+                <p>Periode: Bulan ${monthLabel} ${selectedYear}</p>
+            </div>
+
+            <div class="summary-cards">
+                <div class="card">
+                    <div class="card-title">Komoditas Dipantau</div>
+                    <div class="card-value" style="color:#0f172a;">${statistics.total_commodities} Komoditas</div>
+                </div>
+                <div class="card" style="background:#ecfdf5;border-color:#a7f3d0;">
+                    <div class="card-title" style="color:#065f46;">Komoditas Surplus</div>
+                    <div class="card-value" style="color:#059669;">${statistics.surplus_count} Komoditas</div>
+                </div>
+                <div class="card" style="background:#fff1f2;border-color:#fecdd3;">
+                    <div class="card-title" style="color:#9f1239;">Komoditas Defisit</div>
+                    <div class="card-value" style="color:#e11d48;">${statistics.defisit_count} Komoditas</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Total Neraca Pangan</div>
+                    <div class="card-value" style="color:${statistics.total_selisih >= 0 ? '#059669' : '#dc2626'};">
+                        ${statistics.total_selisih >= 0 ? '+' : ''}${formatNumber(statistics.total_selisih)} Ton
+                    </div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px;">No</th>
+                        <th>Nama Komoditas</th>
+                        <th style="width: 60px;">Satuan</th>
+                        <th style="width: 90px; text-align: right;">Produksi</th>
+                        <th style="width: 100px; text-align: right;">Ketersediaan</th>
+                        <th style="width: 100px; text-align: right;">Kebutuhan</th>
+                        <th style="width: 100px; text-align: right;">Selisih</th>
+                        <th style="width: 85px; text-align: center;">Status</th>
+                        <th>Catatan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="text-align: center;">TOTAL KUMULATIF</td>
+                        <td style="text-align: right;">${formatNumber(statistics.total_produksi)}</td>
+                        <td style="text-align: right;">${formatNumber(statistics.total_ketersediaan)}</td>
+                        <td style="text-align: right;">${formatNumber(statistics.total_kebutuhan)}</td>
+                        <td style="text-align: right; color: ${statistics.total_selisih >= 0 ? '#059669' : '#dc2626'};">
+                            ${statistics.total_selisih >= 0 ? '+' : ''}${formatNumber(statistics.total_selisih)}
+                        </td>
+                        <td style="text-align: center;">
+                            ${statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
+                        </td>
+                        <td>-</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="signatures">
+                <div class="sign-box">
+                    <div>Indramayu, ${currentDateFormatted}</div>
+                    <div style="font-weight: 600; margin-top: 4px;">Kepala Dinas Ketahanan Pangan dan Pertanian<br/>Kabupaten Indramayu</div>
+                    <div class="sign-space"></div>
+                    <div style="font-weight: bold; text-decoration: underline;">( .................................................... )</div>
+                    <div style="color: #64748b; font-size: 7pt; margin-top: 2px;">NIP. ....................................................</div>
+                </div>
+            </div>
+
+            <div class="footer-info">
+                <span>Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
+                <span>Dicetak dari Sistem Informasi DKPP pada: ${new Date().toLocaleString('id-ID')}</span>
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+        }, 400);
+    };
+
+    const scrollToSection = (id: string) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
+    const deficitItems = useMemo(() => {
+        return items.filter((item) => item.is_recorded && item.selisih !== null && item.selisih < 0);
+    }, [items]);
+
+    const surplusItems = useMemo(() => {
+        return items.filter((item) => item.is_recorded && item.selisih !== null && item.selisih >= 0);
+    }, [items]);
+
     const filteredItems = useMemo(() => {
         return items.filter((item) => {
             const matchesSearch =
@@ -382,59 +723,198 @@ export default function NeracaPanganPublic({
 
             {/* Main Content Container */}
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-                {/* Hero Title & Period Selector */}
-                <div className="flex flex-col gap-4 rounded-2xl bg-gradient-to-r from-emerald-800 to-teal-900 p-6 sm:p-8 text-white shadow-lg lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-100 backdrop-blur-sm border border-white/10 mb-3">
-                            <Layers className="size-3.5" />
-                            Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu
+                {/* Modern & Kekinian Hero Banner */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-900 p-6 sm:p-8 lg:p-10 text-white shadow-2xl shadow-emerald-950/25 border border-white/10">
+                    {/* Background Decorative Mesh & Glow Orbs */}
+                    <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl" />
+                    <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-teal-400/20 blur-3xl" />
+                    <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-cyan-500/10 blur-2xl" />
+
+                    <div className="relative z-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+                        {/* Left Column: Heading, Description, Action Buttons & Value Badges */}
+                        <div className="lg:col-span-7 xl:col-span-7 space-y-4">
+                            {/* Live Badge with Ping Dot */}
+                            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-md shadow-inner">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                                </span>
+                                <span>SATU DATA KETAHANAN PANGAN KABUPATEN INDRAMAYU</span>
+                            </div>
+
+                            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                Neraca Pangan Strategis{' '}
+                                <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text text-transparent">
+                                    Kabupaten Indramayu
+                                </span>
+                            </h1>
+
+                            <p className="text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed max-w-2xl">
+                                Pantau ketersediaan pasokan, estimasi kebutuhan pangan masyarakat, dan deteksi dini status surplus/defisit pangan pokok secara akurat dan transparan setiap periode bulanan.
+                            </p>
+
+                            {/* Action Buttons */}
+                            <div className="flex flex-wrap items-center gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('tabel-neraca')}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] cursor-pointer"
+                                >
+                                    <Layers className="size-4" />
+                                    <span>Lihat Tabel Neraca</span>
+                                    <ArrowDown className="size-3.5 opacity-80" />
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('grafik-tren-tahunan')}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                >
+                                    <TrendingUp className="size-4 text-emerald-300" />
+                                    <span>Grafik Tren Bulanan (Jan - Des)</span>
+                                </button>
+                            </div>
+
+                            {/* Value Pillars */}
+                            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10 text-xs text-emerald-100/80">
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <ShieldCheck className="size-3.5 text-emerald-300" />
+                                    <span>11 Komoditas Utama</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <BarChart3 className="size-3.5 text-cyan-300" />
+                                    <span>Analisis Real-Time</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <FileSpreadsheet className="size-3.5 text-teal-300" />
+                                    <span>Ekspor PDF &amp; Excel Resmi</span>
+                                </div>
+                            </div>
                         </div>
-                        <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                            Neraca Pangan Bulanan
-                        </h1>
-                        <p className="mt-1.5 text-sm text-emerald-100/90 max-w-2xl leading-relaxed">
-                            Informasi ketersediaan, kebutuhan, dan status surplus/defisit pangan strategis bulanan Kabupaten Indramayu.
-                        </p>
-                    </div>
 
-                    {/* Period Picker in Hero */}
-                    <div className="flex flex-wrap items-center gap-2.5 rounded-xl bg-white/10 p-3 backdrop-blur-md border border-white/20">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-100">
-                            <Calendar className="size-4" />
-                            Periode:
+                        {/* Right Column: Modern Glassmorphic Period Radar Card */}
+                        <div className="lg:col-span-5 xl:col-span-5">
+                            <div className="rounded-2xl border border-white/20 bg-white/10 p-5 sm:p-6 backdrop-blur-xl shadow-2xl ring-1 ring-white/10 space-y-4">
+                                {/* Card Header */}
+                                <div className="flex items-center justify-between border-b border-white/15 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="size-4 text-emerald-300" />
+                                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                                            Panel Periode Pantau
+                                        </span>
+                                    </div>
+
+                                    {statistics.total_selisih >= 0 ? (
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/25 px-2.5 py-0.5 text-[11px] font-bold text-emerald-200">
+                                            <CheckCircle2 className="size-3 text-emerald-300" />
+                                            <span>Surplus Aman</span>
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-400/40 bg-rose-500/25 px-2.5 py-0.5 text-[11px] font-bold text-rose-200">
+                                            <AlertCircle className="size-3 text-rose-300" />
+                                            <span>Defisit Waspada</span>
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Modern Period Selector Inputs */}
+                                <div className="space-y-2">
+                                    <label className="text-[11px] font-medium text-emerald-100/75">
+                                        Pilih Periode Neraca:
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Select
+                                            value={String(selectedMonth)}
+                                            onValueChange={(val) => handlePeriodChange(selectedYear, parseInt(val, 10))}
+                                        >
+                                            <SelectTrigger className="w-full h-9 text-xs bg-white text-slate-900 border-none font-semibold shadow-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {MONTH_NAMES.map((m) => (
+                                                    <SelectItem key={m.value} value={String(m.value)}>
+                                                        {m.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select
+                                            value={String(selectedYear)}
+                                            onValueChange={(val) => handlePeriodChange(parseInt(val, 10), selectedMonth)}
+                                        >
+                                            <SelectTrigger className="w-full h-9 text-xs bg-white text-slate-900 border-none font-semibold shadow-sm">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {availableYears.map((yr) => (
+                                                    <SelectItem key={yr} value={String(yr)}>
+                                                        {yr}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                {/* Quick Gauges */}
+                                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                                    <div className="rounded-xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-emerald-200/80 uppercase">
+                                            Surplus
+                                        </div>
+                                        <div className="text-lg font-black text-emerald-300 mt-0.5">
+                                            {statistics.surplus_count}
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/60">komoditas</div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-rose-200/80 uppercase">
+                                            Defisit
+                                        </div>
+                                        <div className="text-lg font-black text-rose-300 mt-0.5">
+                                            {statistics.defisit_count}
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/60">komoditas</div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-teal-200/80 uppercase">
+                                            Net Neraca
+                                        </div>
+                                        <div className={`text-sm font-black mt-1 font-mono truncate ${
+                                            statistics.total_selisih >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                                        }`}>
+                                            {statistics.total_selisih >= 0 ? '+' : ''}
+                                            {formatCompactNumber(statistics.total_selisih)} Ton
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/60">kumulatif</div>
+                                    </div>
+                                </div>
+
+                                {/* Dynamic Status / Alert Bar */}
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs leading-relaxed">
+                                    {deficitItems.length > 0 ? (
+                                        <div className="flex items-start gap-2 text-rose-200">
+                                            <AlertTriangle className="size-4 shrink-0 text-rose-300 mt-0.5" />
+                                            <div>
+                                                <strong className="text-rose-100">Perhatian Defisit:</strong>{' '}
+                                                Terdapat {deficitItems.length} komoditas dengan kebutuhan melebihi ketersediaan ({deficitItems.map((d) => d.name).slice(0, 3).join(', ')}{deficitItems.length > 3 ? '...' : ''}).
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-start gap-2 text-emerald-200">
+                                            <CheckCircle2 className="size-4 shrink-0 text-emerald-300 mt-0.5" />
+                                            <div>
+                                                <strong className="text-emerald-100">Pasokan Aman:</strong>{' '}
+                                                Seluruh komoditas pangan pokok Kabupaten Indramayu berada dalam status surplus pada periode ini.
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
-
-                        <Select
-                            value={String(selectedMonth)}
-                            onValueChange={(val) => handlePeriodChange(selectedYear, parseInt(val, 10))}
-                        >
-                            <SelectTrigger className="w-32 h-8 text-xs bg-white text-slate-900 border-none font-semibold">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {MONTH_NAMES.map((m) => (
-                                    <SelectItem key={m.value} value={String(m.value)}>
-                                        {m.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <Select
-                            value={String(selectedYear)}
-                            onValueChange={(val) => handlePeriodChange(parseInt(val, 10), selectedMonth)}
-                        >
-                            <SelectTrigger className="w-24 h-8 text-xs bg-white text-slate-900 border-none font-semibold">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {availableYears.map((yr) => (
-                                    <SelectItem key={yr} value={String(yr)}>
-                                        {yr}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
                 </div>
 
@@ -590,7 +1070,7 @@ export default function NeracaPanganPublic({
                         />
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2.5">
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger className="w-36 h-9 border-slate-200 dark:border-slate-700">
                                 <SelectValue placeholder="Status" />
@@ -601,11 +1081,69 @@ export default function NeracaPanganPublic({
                                 <SelectItem value="defisit">Defisit</SelectItem>
                             </SelectContent>
                         </Select>
+
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadExcel}
+                            className="h-9 gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/80 font-medium text-xs shadow-sm"
+                            title="Download data neraca pangan format Microsoft Excel (.xlsx)"
+                        >
+                            <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
+                            <span>Download Excel</span>
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadPdf}
+                            className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm"
+                            title="Download atau cetak dokumen laporan neraca pangan resmi sebagai PDF"
+                        >
+                            <Printer className="size-4 text-rose-600 dark:text-rose-400" />
+                            <span>Download PDF</span>
+                        </Button>
                     </div>
                 </div>
 
                 {/* Food Balance Public Table */}
-                <Card className="border-slate-200/80 shadow-sm overflow-hidden dark:border-slate-800">
+                <Card id="tabel-neraca" className="border-slate-200/80 shadow-sm overflow-hidden dark:border-slate-800 scroll-mt-20">
+                    <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                    <Layers className="size-4 text-emerald-600" />
+                                    Tabel Neraca Pangan Bulanan ({getMonthLabel(selectedMonth)} {selectedYear})
+                                </CardTitle>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Informasi produksi, ketersediaan, kebutuhan, dan posisi neraca pangan komoditas strategis
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownloadExcel}
+                                    className="h-8 gap-1.5 border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-400 dark:hover:bg-emerald-950 text-xs font-semibold"
+                                >
+                                    <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Download Excel</span>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownloadPdf}
+                                    className="h-8 gap-1.5 border-rose-300 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950 text-xs font-semibold"
+                                >
+                                    <Printer className="size-3.5 text-rose-600 dark:text-rose-400" />
+                                    <span>Download PDF</span>
+                                </Button>
+                            </div>
+                        </div>
+                    </CardHeader>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
                             <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
@@ -697,12 +1235,39 @@ export default function NeracaPanganPublic({
                                     ))
                                 )}
                             </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
+                                <tr>
+                                    <td colSpan={3} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                        Total Kumulatif
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono">
+                                        {formatNumber(statistics.total_produksi)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                        {formatNumber(statistics.total_ketersediaan)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                        {formatNumber(statistics.total_kebutuhan)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold">
+                                        <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                            {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                                            {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-xs text-slate-400">-</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </Card>
 
                 {/* Yearly Trend Chart (January - December) */}
-                <Card className="border-slate-200/80 shadow-sm dark:border-slate-800">
+                <Card id="grafik-tren-tahunan" className="border-slate-200/80 shadow-sm dark:border-slate-800 scroll-mt-20">
                     <CardHeader className="border-b border-slate-100 pb-4 dark:border-slate-800">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="space-y-1">
