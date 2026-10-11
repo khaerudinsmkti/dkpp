@@ -92,6 +92,125 @@ export interface HargaKonsumenProps {
     latestDate?: string;
 }
 
+// ==============================================================================
+// LOCAL BROWSER CACHING SYSTEM (Images & Commodity Data)
+// Prevents image reloads across slide transitions & page navigation
+// ==============================================================================
+const CONSUMER_DATA_CACHE_KEY = 'dkpp_consumer_commodities_cache_v1';
+const IMAGE_CACHE_PREFIX = 'dkpp_img_cache_';
+const memoryImageCache = new Map<string, string>();
+
+/**
+ * Get cached image from RAM or browser localStorage
+ */
+function getLocalCachedImage(url?: string | null): string | null {
+    if (!url) return null;
+    if (memoryImageCache.has(url)) {
+        return memoryImageCache.get(url)!;
+    }
+    if (typeof window === 'undefined') return null;
+    try {
+        const cached = localStorage.getItem(IMAGE_CACHE_PREFIX + url);
+        if (cached) {
+            memoryImageCache.set(url, cached);
+            return cached;
+        }
+    } catch {
+        // Ignore localStorage error (private mode or quota)
+    }
+    return null;
+}
+
+/**
+ * Pre-cache image into RAM and localStorage as Base64 data URL
+ */
+async function cacheImageLocally(url?: string | null): Promise<string | null> {
+    if (!url) return null;
+    const existing = getLocalCachedImage(url);
+    if (existing) return existing;
+
+    if (typeof window === 'undefined') return url;
+
+    try {
+        const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error('Fetch failed');
+        const blob = await response.blob();
+        return await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64data = reader.result as string;
+                if (base64data && base64data.startsWith('data:image')) {
+                    memoryImageCache.set(url, base64data);
+                    try {
+                        localStorage.setItem(IMAGE_CACHE_PREFIX + url, base64data);
+                    } catch {
+                        // Ignore quota limit error gracefully
+                    }
+                    resolve(base64data);
+                } else {
+                    resolve(url);
+                }
+            };
+            reader.onerror = () => resolve(url);
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        // Fallback: preload into browser HTTP cache via standard Image constructor
+        try {
+            const img = new Image();
+            img.src = url;
+            memoryImageCache.set(url, url);
+        } catch {
+            // Ignore error
+        }
+        return url;
+    }
+}
+
+/**
+ * Fast cached image component that avoids reloading from server
+ */
+function CachedCommodityImage({
+    src,
+    alt,
+    className,
+}: {
+    src: string;
+    alt: string;
+    className?: string;
+}) {
+    const [imageSrc, setImageSrc] = useState<string>(() => {
+        return getLocalCachedImage(src) || src;
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+        const cached = getLocalCachedImage(src);
+        if (cached) {
+            setImageSrc(cached);
+        } else {
+            cacheImageLocally(src).then((cachedUrl) => {
+                if (isMounted && cachedUrl) {
+                    setImageSrc(cachedUrl);
+                }
+            });
+        }
+        return () => {
+            isMounted = false;
+        };
+    }, [src]);
+
+    return (
+        <img
+            src={imageSrc}
+            alt={alt}
+            className={className}
+            loading="eager"
+            decoding="async"
+        />
+    );
+}
+
 export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
     {
         id: 1,
@@ -410,12 +529,47 @@ export default function HargaKonsumen({
         }
     };
 
-    // 25 komoditas list from DB or fallback
+    // 25 komoditas list from DB, local browser cache, or fallback
     const commoditiesList = useMemo(() => {
-        return consumerCommodities && consumerCommodities.length > 0
-            ? consumerCommodities
-            : DEFAULT_CONSUMER_COMMODITIES;
+        if (consumerCommodities && consumerCommodities.length > 0) {
+            try {
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem(
+                        CONSUMER_DATA_CACHE_KEY,
+                        JSON.stringify(consumerCommodities),
+                    );
+                }
+            } catch {
+                // Ignore localStorage quota
+            }
+            return consumerCommodities;
+        }
+
+        try {
+            if (typeof window !== 'undefined') {
+                const cached = localStorage.getItem(CONSUMER_DATA_CACHE_KEY);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        return parsed;
+                    }
+                }
+            }
+        } catch {
+            // Ignore error
+        }
+
+        return DEFAULT_CONSUMER_COMMODITIES;
     }, [consumerCommodities]);
+
+    // Preload & store all commodity images into browser local cache (RAM & localStorage)
+    useEffect(() => {
+        commoditiesList.forEach((item) => {
+            if (item.image) {
+                cacheImageLocally(item.image);
+            }
+        });
+    }, [commoditiesList]);
 
     // Slider state for commodities (6 cols x 2 rows = 12 cards per slide)
     const [consumerSlide, setConsumerSlide] = useState(0);
@@ -1250,15 +1404,18 @@ export default function HargaKonsumen({
         return '#f59e0b'; // Kuning (1 - 10%)
     };
 
-    // Sliced commodities for the active slide (12 commodities per slide: 6 cols x 2 rows)
-    const currentSlideCommodities = useMemo(() => {
-        const start = consumerSlide * CONSUMER_ITEMS_PER_SLIDE;
-        return commoditiesList.slice(start, start + CONSUMER_ITEMS_PER_SLIDE);
-    }, [consumerSlide, commoditiesList]);
+    // Group all commodities into slides (12 commodities per slide: 6 cols x 2 rows).
+    // Pre-rendering and keeping slides mounted in the DOM avoids unmounting elements and reloading images from server.
+    const commoditySlides = useMemo(() => {
+        const slides: ConsumerCommodityItem[][] = [];
+        for (let i = 0; i < commoditiesList.length; i += CONSUMER_ITEMS_PER_SLIDE) {
+            slides.push(commoditiesList.slice(i, i + CONSUMER_ITEMS_PER_SLIDE));
+        }
+        return slides;
+    }, [commoditiesList]);
 
     // Card styling and HET status calculation based on user requirements:
-    // - Hijau: harga di bawah HET (today <= het)
-    // - Putih: tidak ada HET
+    // - Putih: harga di bawah HET / sesuai HET / tidak ada HET (default putih)
     // - Kuning: HET 1-10% (0% < diffPct <= 10%)
     // - Merah: di atas HET >10% (diffPct > 10%)
     const getCommodityHetInfo = (item: ConsumerCommodityItem) => {
@@ -1285,7 +1442,7 @@ export default function HargaKonsumen({
         const hetDiff = item.today_price - item.het_price;
         const hetDiffPct = (hetDiff / item.het_price) * 100;
 
-        // 2. Apabila harga di bawah HET: card berwarna hijau (diff <= 0)
+        // 2. Apabila harga di bawah atau sesuai HET: card berwarna default putih
         if (hetDiff <= 0) {
             return {
                 color: 'green' as const,
@@ -1296,7 +1453,7 @@ export default function HargaKonsumen({
                 badgeClass:
                     'bg-emerald-100 text-emerald-800 border-emerald-300',
                 cardBgClass:
-                    'bg-emerald-50/75 border-emerald-300 text-emerald-950 hover:border-emerald-400 hover:shadow-md',
+                    'bg-white border-slate-200/90 text-slate-900 hover:border-slate-300 hover:shadow-md',
                 statusText:
                     hetDiff === 0
                         ? 'Sesuai batas HET'
@@ -2336,14 +2493,9 @@ export default function HargaKonsumen({
                             </div>
                             <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs">
                                 <div className="flex items-center gap-1.5">
-                                    <span className="h-3.5 w-3.5 rounded-full bg-emerald-500 border border-emerald-600 shadow-xs" />
-                                    <span className="font-bold text-emerald-950">Hijau:</span>
-                                    <span className="text-slate-600">Di Bawah / Sesuai HET</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
                                     <span className="h-3.5 w-3.5 rounded-full bg-white border-2 border-slate-400 shadow-xs" />
                                     <span className="font-bold text-slate-800">Putih:</span>
-                                    <span className="text-slate-600">Tidak Ada HET</span>
+                                    <span className="text-slate-600">Sesuai / Di Bawah HET</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <span className="h-3.5 w-3.5 rounded-full bg-amber-400 border border-amber-500 shadow-xs" />
@@ -2458,139 +2610,151 @@ export default function HargaKonsumen({
                         onMouseEnter={() => setIsSliderHovered(true)}
                         onMouseLeave={() => setIsSliderHovered(false)}
                     >
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                            {currentSlideCommodities.map((item) => {
-                                const hetInfo = getCommodityHetInfo(item);
-                                const yestInfo = getYesterdayDiff(item);
+                        {commoditySlides.map((slideItems, slideIdx) => {
+                            const isActive = slideIdx === consumerSlide;
+                            return (
+                                <div
+                                    key={slideIdx}
+                                    className={
+                                        isActive
+                                            ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 animate-in fade-in duration-200'
+                                            : 'hidden'
+                                    }
+                                    aria-hidden={!isActive}
+                                >
+                                    {slideItems.map((item) => {
+                                        const hetInfo = getCommodityHetInfo(item);
+                                        const yestInfo = getYesterdayDiff(item);
 
-                                return (
-                                    <div
-                                        key={item.id}
-                                        className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 sm:p-3 transition-all duration-200 shadow-xs hover:shadow-md ${hetInfo.cardBgClass}`}
-                                    >
-                                        {/* Card Top: Image Showcase & Floating Badges */}
-                                        <div>
-                                            <div className="relative mb-2.5 aspect-[16/11] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 shadow-inner">
-                                                {item.image ? (
-                                                    <img
-                                                        src={item.image}
-                                                        alt={item.name}
-                                                        className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-105"
-                                                        loading="lazy"
-                                                    />
-                                                ) : (
-                                                    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-amber-50/60 via-slate-50 to-emerald-50/50 text-slate-400">
-                                                        <Wheat className="h-8 w-8 stroke-[1.5] text-amber-500/70 mb-0.5 transition-transform duration-300 group-hover:scale-110" />
-                                                        <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
-                                                            {item.category || 'Pangan'}
-                                                        </span>
-                                                    </div>
-                                                )}
-
-                                                {/* Floating Category Tag */}
-                                                <div className="absolute top-1.5 left-1.5">
-                                                    <span className="inline-block truncate max-w-[95px] rounded-md bg-white/95 dark:bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-slate-700 dark:text-slate-200 uppercase shadow-2xs backdrop-blur-xs">
-                                                        {item.category || `Komoditas #${item.id}`}
-                                                    </span>
-                                                </div>
-
-                                                {/* Floating HET Pill Badge */}
-                                                <div className="absolute top-1.5 right-1.5">
-                                                    <span
-                                                        className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs backdrop-blur-xs ${hetInfo.badgeClass}`}
-                                                    >
-                                                        {hetInfo.badgeText}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Commodity Name */}
-                                            <h4
-                                                className="line-clamp-1 text-sm font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-[#006565]"
-                                                title={item.name}
+                                        return (
+                                            <div
+                                                key={item.id}
+                                                className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 sm:p-3 transition-all duration-200 shadow-xs hover:shadow-md ${hetInfo.cardBgClass}`}
                                             >
-                                                {item.name}
-                                            </h4>
+                                                {/* Card Top: Image Showcase & Floating Badges */}
+                                                <div>
+                                                    <div className="relative mb-2.5 aspect-[16/11] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 shadow-inner">
+                                                        {item.image ? (
+                                                            <CachedCommodityImage
+                                                                src={item.image}
+                                                                alt={item.name}
+                                                                className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-105"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-amber-50/60 via-slate-50 to-emerald-50/50 text-slate-400">
+                                                                <Wheat className="h-8 w-8 stroke-[1.5] text-amber-500/70 mb-0.5 transition-transform duration-300 group-hover:scale-110" />
+                                                                <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
+                                                                    {item.category || 'Pangan'}
+                                                                </span>
+                                                            </div>
+                                                        )}
 
-                                            {/* Today's Price */}
-                                            <div className="mt-1.5 flex items-baseline gap-1">
-                                                <span className="text-lg font-black tracking-tight text-slate-900">
-                                                    {item.today_price !== null
-                                                        ? formatCurrency(item.today_price)
-                                                        : '-'}
-                                                </span>
-                                                <span className="text-xs font-semibold text-slate-500">
-                                                    /{item.unit}
-                                                </span>
-                                            </div>
-                                        </div>
+                                                        {/* Floating Category Tag */}
+                                                        <div className="absolute top-1.5 left-1.5">
+                                                            <span className="inline-block truncate max-w-[95px] rounded-md bg-white/95 dark:bg-slate-900/90 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-slate-700 dark:text-slate-200 uppercase shadow-2xs backdrop-blur-xs">
+                                                                {item.category || `Komoditas #${item.id}`}
+                                                            </span>
+                                                        </div>
 
-                                        {/* Card Bottom: Differences */}
-                                        <div className="mt-3.5 space-y-1.5 border-t border-slate-200/60 pt-2.5 text-xs">
-                                            {/* Kenaikan/penurunan terhadap hari kemarin */}
-                                            <div className="flex items-center justify-between text-[11px]">
-                                                <span className="font-medium text-slate-500">
-                                                    vs Kemarin:
-                                                </span>
-                                                <span
-                                                    className={`inline-flex items-center gap-0.5 font-bold ${
-                                                        yestInfo.type === 'up'
-                                                            ? 'text-rose-600'
-                                                            : yestInfo.type === 'down'
-                                                            ? 'text-emerald-700'
-                                                            : 'text-slate-600'
-                                                    }`}
-                                                >
-                                                    {yestInfo.type === 'up' && (
-                                                        <ArrowUp className="h-3 w-3 stroke-[2.5]" />
-                                                    )}
-                                                    {yestInfo.type === 'down' && (
-                                                        <ArrowDown className="h-3 w-3 stroke-[2.5]" />
-                                                    )}
-                                                    {yestInfo.type === 'stable' && (
-                                                        <Minus className="h-3 w-3 stroke-[2.5]" />
-                                                    )}
-                                                    <span>{yestInfo.label}</span>
-                                                </span>
-                                            </div>
-
-                                            {/* Kenaikan/penurunan terhadap HET */}
-                                            <div className="flex items-center justify-between text-[11px]">
-                                                <span className="font-medium text-slate-500">
-                                                    vs HET:
-                                                </span>
-                                                {hetInfo.hasHet && item.het_price !== null ? (
-                                                    <div className="text-right">
-                                                        <span
-                                                            className={`font-bold ${
-                                                                hetInfo.color === 'green'
-                                                                    ? 'text-emerald-700'
-                                                                    : hetInfo.color === 'yellow'
-                                                                    ? 'text-amber-700'
-                                                                    : 'text-rose-600'
-                                                            }`}
-                                                        >
-                                                            {hetInfo.hetDiff! > 0
-                                                                ? `+${formatCurrency(hetInfo.hetDiff!)} (+${hetInfo.hetDiffPct!.toFixed(1)}%)`
-                                                                : hetInfo.hetDiff! < 0
-                                                                ? `-${formatCurrency(Math.abs(hetInfo.hetDiff!))} (${hetInfo.hetDiffPct!.toFixed(1)}%)`
-                                                                : 'Sesuai HET'}
-                                                        </span>
-                                                        <div className="text-[10px] font-normal text-slate-400">
-                                                            HET: {formatCurrency(item.het_price)}
+                                                        {/* Floating HET Pill Badge */}
+                                                        <div className="absolute top-1.5 right-1.5">
+                                                            <span
+                                                                className={`inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold shadow-2xs backdrop-blur-xs ${hetInfo.badgeClass}`}
+                                                            >
+                                                                {hetInfo.badgeText}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                ) : (
-                                                    <span className="font-semibold text-slate-400 italic">
-                                                        Tidak ada HET
-                                                    </span>
-                                                )}
+
+                                                    {/* Commodity Name */}
+                                                    <h4
+                                                        className="line-clamp-1 text-sm font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-[#006565]"
+                                                        title={item.name}
+                                                    >
+                                                        {item.name}
+                                                    </h4>
+
+                                                    {/* Today's Price */}
+                                                    <div className="mt-1.5 flex items-baseline gap-1">
+                                                        <span className="text-lg font-black tracking-tight text-slate-900">
+                                                            {item.today_price !== null
+                                                                ? formatCurrency(item.today_price)
+                                                                : '-'}
+                                                        </span>
+                                                        <span className="text-xs font-semibold text-slate-500">
+                                                            /{item.unit}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Card Bottom: Differences */}
+                                                <div className="mt-3.5 space-y-1.5 border-t border-slate-200/60 pt-2.5 text-xs">
+                                                    {/* Kenaikan/penurunan terhadap hari kemarin */}
+                                                    <div className="flex items-center justify-between text-[11px]">
+                                                        <span className="font-medium text-slate-500">
+                                                            vs Kemarin:
+                                                        </span>
+                                                        <span
+                                                            className={`inline-flex items-center gap-0.5 font-bold ${
+                                                                yestInfo.type === 'up'
+                                                                    ? 'text-rose-600'
+                                                                    : yestInfo.type === 'down'
+                                                                    ? 'text-emerald-700'
+                                                                    : 'text-slate-600'
+                                                            }`}
+                                                        >
+                                                            {yestInfo.type === 'up' && (
+                                                                <ArrowUp className="h-3 w-3 stroke-[2.5]" />
+                                                            )}
+                                                            {yestInfo.type === 'down' && (
+                                                                <ArrowDown className="h-3 w-3 stroke-[2.5]" />
+                                                            )}
+                                                            {yestInfo.type === 'stable' && (
+                                                                <Minus className="h-3 w-3 stroke-[2.5]" />
+                                                            )}
+                                                            <span>{yestInfo.label}</span>
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Kenaikan/penurunan terhadap HET */}
+                                                    <div className="flex items-center justify-between text-[11px]">
+                                                        <span className="font-medium text-slate-500">
+                                                            vs HET:
+                                                        </span>
+                                                        {hetInfo.hasHet && item.het_price !== null ? (
+                                                            <div className="text-right">
+                                                                <span
+                                                                    className={`font-bold ${
+                                                                        hetInfo.color === 'green'
+                                                                            ? 'text-emerald-700'
+                                                                            : hetInfo.color === 'yellow'
+                                                                            ? 'text-amber-700'
+                                                                            : 'text-rose-600'
+                                                                    }`}
+                                                                >
+                                                                    {hetInfo.hetDiff! > 0
+                                                                        ? `+${formatCurrency(hetInfo.hetDiff!)} (+${hetInfo.hetDiffPct!.toFixed(1)}%)`
+                                                                        : hetInfo.hetDiff! < 0
+                                                                        ? `-${formatCurrency(Math.abs(hetInfo.hetDiff!))} (${hetInfo.hetDiffPct!.toFixed(1)}%)`
+                                                                        : 'Sesuai HET'}
+                                                                </span>
+                                                                <div className="text-[10px] font-normal text-slate-400">
+                                                                    HET: {formatCurrency(item.het_price)}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="font-semibold text-slate-400 italic">
+                                                                Tidak ada HET
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Slider Dots Indicator */}
@@ -3064,7 +3228,7 @@ export default function HargaKonsumen({
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-2xs">
                                                         {item.image ? (
-                                                            <img
+                                                            <CachedCommodityImage
                                                                 src={item.image}
                                                                 alt={item.name}
                                                                 className="h-full w-full object-cover"
