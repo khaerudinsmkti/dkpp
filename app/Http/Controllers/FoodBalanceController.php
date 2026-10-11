@@ -493,11 +493,76 @@ class FoodBalanceController extends Controller
         $availableYears = array_values(array_unique(array_merge([$currentYearInt - 1, $currentYearInt, $currentYearInt + 1], $dbYears)));
         sort($availableYears);
 
+        // Monthly trends for January - December of the selected year
+        $yearBalances = FoodBalance::where('year', $year)->get();
+        $groupedByMonth = $yearBalances->groupBy('month');
+
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        $monthlyTrendAll = [];
+        $monthlyTrendByCommodity = [];
+
+        foreach ($commodities as $commodity) {
+            $monthlyTrendByCommodity[$commodity->id] = [];
+        }
+
+        for ($m = 1; $m <= 12; $m++) {
+            $balancesInMonth = $groupedByMonth->get($m, collect());
+            $hasData = $balancesInMonth->isNotEmpty();
+
+            $totalKetersediaan = $hasData ? round((float) $balancesInMonth->sum('ketersediaan'), 2) : 0;
+            $totalKebutuhan = $hasData ? round((float) $balancesInMonth->sum('kebutuhan'), 2) : 0;
+            $totalProduksi = $hasData ? round((float) $balancesInMonth->sum('produksi'), 2) : 0;
+            $totalSelisih = $hasData ? round($totalKetersediaan - $totalKebutuhan, 2) : 0;
+
+            $monthlyTrendAll[] = [
+                'month' => $m,
+                'month_name' => $monthNames[$m],
+                'month_short' => mb_substr($monthNames[$m], 0, 3),
+                'produksi' => $totalProduksi,
+                'ketersediaan' => $totalKetersediaan,
+                'kebutuhan' => $totalKebutuhan,
+                'selisih' => $totalSelisih,
+                'keterangan' => $totalSelisih < 0 ? 'Defisit' : 'Surplus',
+                'has_data' => $hasData,
+            ];
+
+            $balancesByComm = $balancesInMonth->keyBy('food_balance_commodity_id');
+            foreach ($commodities as $commodity) {
+                $rec = $balancesByComm->get($commodity->id);
+                $commHasData = $rec !== null;
+                $commKetersediaan = $commHasData ? (float) $rec->ketersediaan : 0;
+                $commKebutuhan = $commHasData ? (float) $rec->kebutuhan : 0;
+                $commProduksi = $commHasData ? (float) $rec->produksi : 0;
+                $commSelisih = $commHasData ? round($commKetersediaan - $commKebutuhan, 2) : 0;
+
+                $monthlyTrendByCommodity[$commodity->id][] = [
+                    'month' => $m,
+                    'month_name' => $monthNames[$m],
+                    'month_short' => mb_substr($monthNames[$m], 0, 3),
+                    'produksi' => $commProduksi,
+                    'ketersediaan' => $commKetersediaan,
+                    'kebutuhan' => $commKebutuhan,
+                    'selisih' => $commSelisih,
+                    'keterangan' => $commSelisih < 0 ? 'Defisit' : 'Surplus',
+                    'has_data' => $commHasData,
+                ];
+            }
+        }
+
         return Inertia::render('neraca-pangan', [
             'items' => $items,
             'selectedYear' => $year,
             'selectedMonth' => $month,
             'availableYears' => $availableYears,
+            'monthlyTrends' => [
+                'all' => $monthlyTrendAll,
+                'by_commodity' => $monthlyTrendByCommodity,
+            ],
             'statistics' => [
                 'total_commodities' => $commodities->count(),
                 'recorded_count' => $recordedItems->count(),

@@ -16,7 +16,10 @@ import {
     Bar,
     BarChart,
     CartesianGrid,
+    ComposedChart,
     Legend,
+    Line,
+    ReferenceLine,
     ResponsiveContainer,
     Tooltip,
     XAxis,
@@ -51,11 +54,29 @@ interface NeracaItem {
     is_recorded: boolean;
 }
 
+export interface MonthlyTrendItem {
+    month: number;
+    month_name: string;
+    month_short: string;
+    produksi: number;
+    ketersediaan: number;
+    kebutuhan: number;
+    selisih: number;
+    keterangan: 'Surplus' | 'Defisit';
+    has_data: boolean;
+}
+
+export interface MonthlyTrendsData {
+    all: MonthlyTrendItem[];
+    by_commodity: Record<number, MonthlyTrendItem[]>;
+}
+
 interface PageProps {
     items: NeracaItem[];
     selectedYear: number;
     selectedMonth: number;
     availableYears: number[];
+    monthlyTrends?: MonthlyTrendsData;
     statistics: {
         total_commodities: number;
         recorded_count: number;
@@ -95,15 +116,140 @@ function formatNumber(num: number | null): string {
     });
 }
 
+function formatCompactNumber(num: number): string {
+    const abs = Math.abs(num);
+    if (abs >= 1_000_000) {
+        return `${(num / 1_000_000).toFixed(1)}M`;
+    }
+    if (abs >= 1_000) {
+        return `${(num / 1_000).toFixed(0)}k`;
+    }
+    return String(Math.round(num));
+}
+
+function CustomTrendTooltip({
+    active,
+    payload,
+    year,
+    unit,
+}: {
+    active?: boolean;
+    payload?: any[];
+    year: number;
+    unit: string;
+}) {
+    if (!active || !payload || !payload.length) return null;
+    const data = payload[0]?.payload as MonthlyTrendItem;
+    if (!data) return null;
+
+    const isSurplus = data.selisih >= 0;
+
+    return (
+        <div className="rounded-xl border border-slate-200/90 bg-white/95 p-3.5 shadow-xl backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 text-xs min-w-[230px]">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 dark:border-slate-800">
+                <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <Calendar className="size-3.5 text-emerald-600" />
+                    <span>
+                        {data.month_name} {year}
+                    </span>
+                </div>
+                {data.has_data ? (
+                    <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            isSurplus
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                        }`}
+                    >
+                        {isSurplus ? (
+                            <>
+                                <CheckCircle2 className="size-2.5" /> Surplus
+                            </>
+                        ) : (
+                            <>
+                                <AlertCircle className="size-2.5" /> Defisit
+                            </>
+                        )}
+                    </span>
+                ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                        Belum Ada Data
+                    </span>
+                )}
+            </div>
+
+            <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                        <span className="size-2.5 rounded-sm bg-emerald-600 inline-block" />
+                        Ketersediaan:
+                    </span>
+                    <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+                        {data.has_data ? `${formatNumber(data.ketersediaan)} ${unit}` : '-'}
+                    </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                        <span className="size-2.5 rounded-sm bg-blue-500 inline-block" />
+                        Kebutuhan:
+                    </span>
+                    <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+                        {data.has_data ? `${formatNumber(data.kebutuhan)} ${unit}` : '-'}
+                    </span>
+                </div>
+
+                {data.produksi > 0 && (
+                    <div className="flex items-center justify-between text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                            <span className="size-2.5 rounded-sm bg-slate-300 inline-block" />
+                            Produksi:
+                        </span>
+                        <span className="font-mono">
+                            {formatNumber(data.produksi)} {unit}
+                        </span>
+                    </div>
+                )}
+
+                <div className="border-t border-slate-100 pt-1.5 mt-1.5 dark:border-slate-800 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                        <span className="size-2.5 rounded-full bg-amber-500 inline-block" />
+                        Garis Neraca:
+                    </span>
+                    <span
+                        className={`font-mono font-bold ${
+                            isSurplus
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                    >
+                        {data.has_data ? (
+                            <>
+                                {data.selisih >= 0 ? '+' : ''}
+                                {formatNumber(data.selisih)} {unit}
+                            </>
+                        ) : (
+                            '-'
+                        )}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function NeracaPanganPublic({
     items,
     selectedYear,
     selectedMonth,
     availableYears,
+    monthlyTrends,
     statistics,
 }: PageProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [selectedTrendCommodity, setSelectedTrendCommodity] = useState<string>('all');
+    const [trendScaleMode, setTrendScaleMode] = useState<'dual' | 'single'>('dual');
 
     const handlePeriodChange = (yr: number, mo: number) => {
         router.get(
@@ -127,7 +273,7 @@ export default function NeracaPanganPublic({
         });
     }, [items, searchTerm, statusFilter]);
 
-    // Data for Recharts comparison
+    // Data for single-month Recharts comparison
     const chartData = useMemo(() => {
         return items
             .filter((item) => item.is_recorded)
@@ -138,6 +284,52 @@ export default function NeracaPanganPublic({
                 Selisih: item.selisih || 0,
             }));
     }, [items]);
+
+    // Trend commodity metadata
+    const activeTrendCommodity = useMemo(() => {
+        if (selectedTrendCommodity === 'all') {
+            return { id: 0, name: 'Semua Komoditas (Kumulatif)', unit: 'Ton' };
+        }
+        const found = items.find((i) => i.id === Number(selectedTrendCommodity));
+        return {
+            id: found?.id ?? 0,
+            name: found?.name ?? 'Komoditas',
+            unit: found?.unit ?? 'Ton',
+        };
+    }, [selectedTrendCommodity, items]);
+
+    // Monthly data from January to December
+    const activeTrendData = useMemo(() => {
+        if (!monthlyTrends) return [];
+        if (selectedTrendCommodity === 'all') {
+            return monthlyTrends.all || [];
+        }
+        return monthlyTrends.by_commodity?.[Number(selectedTrendCommodity)] || [];
+    }, [monthlyTrends, selectedTrendCommodity]);
+
+    // Annual cumulative metrics for the selected trend commodity
+    const trendStats = useMemo(() => {
+        const data = activeTrendData;
+        const validMonths = data.filter((d) => d.has_data);
+        const totalKet = validMonths.reduce((acc, curr) => acc + curr.ketersediaan, 0);
+        const totalKbt = validMonths.reduce((acc, curr) => acc + curr.kebutuhan, 0);
+        const totalDiff = totalKet - totalKbt;
+        const avgKet = validMonths.length > 0 ? totalKet / validMonths.length : 0;
+        const avgKbt = validMonths.length > 0 ? totalKbt / validMonths.length : 0;
+        const surplusMonthsCount = validMonths.filter((d) => d.selisih >= 0).length;
+        const defisitMonthsCount = validMonths.filter((d) => d.selisih < 0).length;
+
+        return {
+            totalKet,
+            totalKbt,
+            totalDiff,
+            avgKet,
+            avgKbt,
+            surplusMonthsCount,
+            defisitMonthsCount,
+            recordedMonthsCount: validMonths.length,
+        };
+    }, [activeTrendData]);
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-emerald-500 selection:text-white dark:bg-slate-950 dark:text-slate-100">
@@ -507,6 +699,298 @@ export default function NeracaPanganPublic({
                             </tbody>
                         </table>
                     </div>
+                </Card>
+
+                {/* Yearly Trend Chart (January - December) */}
+                <Card className="border-slate-200/80 shadow-sm dark:border-slate-800">
+                    <CardHeader className="border-b border-slate-100 pb-4 dark:border-slate-800">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                        <TrendingUp className="size-4" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-base font-bold text-slate-800 dark:text-slate-100">
+                                            Grafik Ketersediaan, Kebutuhan & Garis Neraca ({selectedYear})
+                                        </CardTitle>
+                                        <p className="text-xs text-slate-500">
+                                            Tren bulanan ketersediaan, kebutuhan, dan posisi surplus/defisit dari Januari sampai Desember
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Chart Controls: Commodity Selector & Scale Toggle */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-medium text-slate-500">Komoditas:</span>
+                                    <Select
+                                        value={selectedTrendCommodity}
+                                        onValueChange={setSelectedTrendCommodity}
+                                    >
+                                        <SelectTrigger className="w-56 h-8 text-xs border-slate-200 dark:border-slate-700">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">
+                                                Semua Komoditas (Kumulatif)
+                                            </SelectItem>
+                                            {items.map((item) => (
+                                                <SelectItem key={item.id} value={String(item.id)}>
+                                                    {item.name} ({item.unit})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50/80 p-0.5 text-xs dark:border-slate-700 dark:bg-slate-800/80">
+                                    <button
+                                        type="button"
+                                        onClick={() => setTrendScaleMode('dual')}
+                                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                                            trendScaleMode === 'dual'
+                                                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        title="Skala ganda: Volume bar di sumbu kiri, Garis Neraca di sumbu kanan"
+                                    >
+                                        Skala Ganda
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setTrendScaleMode('single')}
+                                        className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                                            trendScaleMode === 'single'
+                                                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100'
+                                                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                        title="Skala tunggal: Semua metrik dalam satu sumbu nilai"
+                                    >
+                                        Skala Tunggal
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardHeader>
+
+                    <CardContent className="pt-6">
+                        {activeTrendData.length === 0 || !activeTrendData.some((d) => d.has_data) ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+                                <AlertCircle className="size-8 text-slate-300 mb-2" />
+                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                    Belum ada data neraca pangan tercatat untuk tahun {selectedYear}.
+                                </p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Data akan otomatis muncul di grafik setelah data bulanan disimpan di sistem.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Visual badges indicating the series */}
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="size-3 rounded-sm bg-emerald-600" />
+                                            <span>Batang Hijau: Ketersediaan</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="size-3 rounded-sm bg-blue-500" />
+                                            <span>Batang Biru: Kebutuhan</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="h-0.5 w-4 bg-amber-500 rounded-full" />
+                                            <span>Garis Oranye: Neraca (Surplus/Defisit)</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-xs text-slate-400 font-medium">
+                                        Satuan: <span className="font-semibold text-slate-600 dark:text-slate-300">{activeTrendCommodity.unit}</span>
+                                    </div>
+                                </div>
+
+                                {/* Responsive Chart Canvas */}
+                                <div className="h-80 sm:h-96 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ComposedChart
+                                            data={activeTrendData}
+                                            margin={{
+                                                top: 15,
+                                                right: trendScaleMode === 'dual' ? 25 : 15,
+                                                left: 10,
+                                                bottom: 10,
+                                            }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.25} />
+                                            <XAxis
+                                                dataKey="month_short"
+                                                tick={{ fontSize: 12, fill: '#64748b' }}
+                                                axisLine={{ stroke: '#cbd5e1' }}
+                                                tickLine={false}
+                                            />
+                                            <YAxis
+                                                yAxisId="left"
+                                                orientation="left"
+                                                tickFormatter={(val) => formatCompactNumber(Number(val))}
+                                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                                axisLine={false}
+                                                tickLine={false}
+                                            />
+                                            {trendScaleMode === 'dual' && (
+                                                <YAxis
+                                                    yAxisId="right"
+                                                    orientation="right"
+                                                    tickFormatter={(val) =>
+                                                        val > 0
+                                                            ? `+${formatCompactNumber(Number(val))}`
+                                                            : formatCompactNumber(Number(val))
+                                                    }
+                                                    tick={{ fontSize: 11, fill: '#d97706' }}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                />
+                                            )}
+
+                                            {trendScaleMode === 'dual' ? (
+                                                <ReferenceLine
+                                                    yAxisId="right"
+                                                    y={0}
+                                                    stroke="#94a3b8"
+                                                    strokeDasharray="3 3"
+                                                />
+                                            ) : (
+                                                <ReferenceLine
+                                                    yAxisId="left"
+                                                    y={0}
+                                                    stroke="#94a3b8"
+                                                    strokeDasharray="3 3"
+                                                />
+                                            )}
+
+                                            <Tooltip
+                                                content={
+                                                    <CustomTrendTooltip
+                                                        year={selectedYear}
+                                                        unit={activeTrendCommodity.unit}
+                                                    />
+                                                }
+                                            />
+                                            <Legend
+                                                verticalAlign="top"
+                                                height={36}
+                                                iconType="circle"
+                                                wrapperStyle={{ fontSize: '12px', paddingBottom: '8px' }}
+                                            />
+
+                                            <Bar
+                                                yAxisId="left"
+                                                dataKey="ketersediaan"
+                                                name="Ketersediaan"
+                                                fill="#059669"
+                                                radius={[4, 4, 0, 0]}
+                                                maxBarSize={36}
+                                            />
+                                            <Bar
+                                                yAxisId="left"
+                                                dataKey="kebutuhan"
+                                                name="Kebutuhan"
+                                                fill="#3b82f6"
+                                                radius={[4, 4, 0, 0]}
+                                                maxBarSize={36}
+                                            />
+                                            <Line
+                                                yAxisId={trendScaleMode === 'dual' ? 'right' : 'left'}
+                                                type="monotone"
+                                                dataKey="selisih"
+                                                name="Garis Neraca (Surplus/Defisit)"
+                                                stroke="#f59e0b"
+                                                strokeWidth={3}
+                                                dot={{
+                                                    r: 4,
+                                                    fill: '#f59e0b',
+                                                    strokeWidth: 2,
+                                                    stroke: '#ffffff',
+                                                }}
+                                                activeDot={{
+                                                    r: 6,
+                                                    fill: '#d97706',
+                                                    strokeWidth: 2,
+                                                    stroke: '#ffffff',
+                                                }}
+                                            />
+                                        </ComposedChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Annual Cumulative Metrics Cards */}
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                                        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                                            Total Ketersediaan
+                                        </span>
+                                        <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1 font-mono">
+                                            {formatNumber(trendStats.totalKet)} {activeTrendCommodity.unit}
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">
+                                            Rata-rata: {formatNumber(trendStats.avgKet)} / bln
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                                        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                                            Total Kebutuhan
+                                        </span>
+                                        <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1 font-mono">
+                                            {formatNumber(trendStats.totalKbt)} {activeTrendCommodity.unit}
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">
+                                            Rata-rata: {formatNumber(trendStats.avgKbt)} / bln
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                                        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                                            Akumulasi Garis Neraca
+                                        </span>
+                                        <div
+                                            className={`text-base font-bold mt-1 font-mono ${
+                                                trendStats.totalDiff >= 0
+                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                    : 'text-rose-600 dark:text-rose-400'
+                                            }`}
+                                        >
+                                            {trendStats.totalDiff >= 0 ? '+' : ''}
+                                            {formatNumber(trendStats.totalDiff)} {activeTrendCommodity.unit}
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">
+                                            Kumulatif Jan - Des
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                                        <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                                            Status Periode Bulanan
+                                        </span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                                <TrendingUp className="size-3.5" />
+                                                {trendStats.surplusMonthsCount} Surplus
+                                            </span>
+                                            <span className="text-slate-300">/</span>
+                                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 dark:text-rose-400">
+                                                <TrendingDown className="size-3.5" />
+                                                {trendStats.defisitMonthsCount} Defisit
+                                            </span>
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">
+                                            Dari {trendStats.recordedMonthsCount} bulan tercatat
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
                 </Card>
 
                 {/* Explanatory Callout */}
