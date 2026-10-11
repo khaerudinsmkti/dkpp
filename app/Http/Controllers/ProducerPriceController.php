@@ -44,6 +44,7 @@ class ProducerPriceController extends Controller
             $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
                 $hap = $c->hapAt($selectedDate);
                 return [
+                    'id' => $c->id,
                     'key' => $c->key,
                     'name' => $c->name,
                     'short_name' => $c->name,
@@ -53,6 +54,8 @@ class ProducerPriceController extends Controller
                     'hap' => $hap ? (float) $hap->price : 0,
                     'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
                     'description' => $c->description ?? '',
+                    'image' => $c->image,
+                    'image_url' => $c->image_url,
                 ];
             })->toArray();
         } else {
@@ -98,6 +101,7 @@ class ProducerPriceController extends Controller
             }
 
             return [
+                'id' => $cfg['id'] ?? null,
                 'key' => $key,
                 'name' => $cfg['name'],
                 'short_name' => $cfg['short_name'],
@@ -107,6 +111,8 @@ class ProducerPriceController extends Controller
                 'hap' => $hapPrice,
                 'hap_label' => $cfg['hap_label'],
                 'description' => $cfg['description'],
+                'image' => $cfg['image'] ?? null,
+                'image_url' => $cfg['image_url'] ?? null,
                 'price' => $currentPrice,
                 'yesterday_price' => $prevPrice,
                 'diff_hap' => $diffHap,

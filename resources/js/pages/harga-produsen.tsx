@@ -16,6 +16,7 @@ import { router } from '@inertiajs/react';
 import { dashboard, login, register } from '@/routes';
 
 export interface ProducerCommodity {
+    id?: number | null;
     key: string;
     name: string;
     short_name: string;
@@ -25,6 +26,8 @@ export interface ProducerCommodity {
     hap: number;
     hap_label: string;
     description: string;
+    image?: string | null;
+    image_url?: string | null;
     today_price: number | null;
     yesterday_price: number | null;
     diff_hap: number | null;
@@ -482,20 +485,43 @@ export default function HargaProdusen({
                                 {displayCommodities.map((comm) => (
                                     <div
                                         key={comm.key}
-                                        className="rounded-2xl border-2 border-slate-200 bg-white p-5 shadow-xs hover:border-amber-400 hover:shadow-md transition-all flex flex-col justify-between"
+                                        className="group rounded-2xl border-2 border-slate-200 bg-white overflow-hidden shadow-xs hover:border-amber-400 hover:shadow-md transition-all flex flex-col justify-between"
                                     >
                                         <div>
-                                            <div className="flex items-center justify-between text-[11px] font-bold uppercase">
-                                                <span className="text-amber-800 font-extrabold">{comm.category}</span>
-                                                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-800 font-extrabold text-[10px]">
-                                                    {comm.short_name}
-                                                </span>
+                                            {/* Photo Showcase */}
+                                            <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border-b border-slate-100 flex items-center justify-center">
+                                                {comm.image || comm.image_url ? (
+                                                    <img
+                                                        src={comm.image || comm.image_url}
+                                                        alt={comm.name}
+                                                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                    />
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center text-amber-200">
+                                                        <Wheat className="size-14 stroke-[1.2]" />
+                                                    </div>
+                                                )}
+                                                <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                                                    <span className="rounded-md bg-white/90 backdrop-blur-sm px-2.5 py-0.5 text-[10px] font-extrabold text-amber-900 uppercase shadow-xs">
+                                                        {comm.category}
+                                                    </span>
+                                                    <span className="rounded-md bg-amber-600/90 backdrop-blur-sm px-2.5 py-0.5 text-[10px] font-extrabold text-white shadow-xs">
+                                                        {comm.short_name}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <h4 className="mt-2 text-base font-black text-slate-900">{comm.name}</h4>
-                                            <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{comm.description}</p>
+
+                                            <div className="p-5 pb-0">
+                                                <h4 className="text-base font-black text-slate-900 group-hover:text-amber-900 transition-colors">
+                                                    {comm.name}
+                                                </h4>
+                                                <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
+                                                    {comm.description}
+                                                </p>
+                                            </div>
                                         </div>
 
-                                        <div className="mt-4">
+                                        <div className="p-5 pt-4">
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-2xl font-black text-slate-900">
                                                     {comm.today_price ? `Rp ${comm.today_price.toLocaleString('id-ID')}` : 'Belum Terdata'}

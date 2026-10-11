@@ -117,24 +117,27 @@ Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
         ->orderBy('order')
         ->get();
 
-    if ($dbCommodities->isNotEmpty()) {
-        $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
-            $hap = $c->hapAt($selectedDate);
-            return [
-                'key' => $c->key,
-                'name' => $c->name,
-                'short_name' => $c->name,
-                'category' => $c->category,
-                'unit' => $c->unit,
-                'order' => $c->order,
-                'hap' => $hap ? (float) $hap->price : 0,
-                'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
-                'description' => $c->description ?? '',
-            ];
-        })->toArray();
-    } else {
-        $commoditiesConfig = ProducerPrice::COMMODITIES;
-    }
+        if ($dbCommodities->isNotEmpty()) {
+            $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
+                $hap = $c->hapAt($selectedDate);
+                return [
+                    'id' => $c->id,
+                    'key' => $c->key,
+                    'name' => $c->name,
+                    'short_name' => $c->name,
+                    'category' => $c->category,
+                    'unit' => $c->unit,
+                    'order' => $c->order,
+                    'hap' => $hap ? (float) $hap->price : 0,
+                    'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
+                    'description' => $c->description ?? '',
+                    'image' => $c->image_url,
+                    'image_url' => $c->image_url,
+                ];
+            })->toArray();
+        } else {
+            $commoditiesConfig = ProducerPrice::COMMODITIES;
+        }
 
     $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
         $key = $cfg['key'];
@@ -175,6 +178,7 @@ Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
         }
 
         return [
+            'id' => $cfg['id'] ?? null,
             'key' => $key,
             'name' => $cfg['name'],
             'short_name' => $cfg['short_name'],
@@ -184,6 +188,8 @@ Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
             'hap' => $hapPrice,
             'hap_label' => $cfg['hap_label'],
             'description' => $cfg['description'],
+            'image' => $cfg['image'] ?? null,
+            'image_url' => $cfg['image_url'] ?? null,
             'today_price' => $currentPrice,
             'yesterday_price' => $prevPrice,
             'diff_hap' => $diffHap,
@@ -253,6 +259,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/producer-commodities', [ProducerCommodityController::class, 'index'])->name('producer-commodities.index');
     Route::post('/producer-commodities', [ProducerCommodityController::class, 'store'])->name('producer-commodities.store');
     Route::put('/producer-commodities/{producerCommodity}', [ProducerCommodityController::class, 'update'])->name('producer-commodities.update');
+    Route::post('/producer-commodities/{producerCommodity}/photo', [ProducerCommodityController::class, 'updatePhoto'])->name('producer-commodities.photo');
     Route::delete('/producer-commodities/{producerCommodity}', [ProducerCommodityController::class, 'destroy'])->name('producer-commodities.destroy');
 
     // Modul Pengelolaan HAP Produsen (Dinamis)

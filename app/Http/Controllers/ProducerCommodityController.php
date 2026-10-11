@@ -236,5 +236,38 @@ class ProducerCommodityController extends Controller
 
         return back()->with('success', "Komoditas produsen '{$name}' berhasil dihapus.");
     }
+
+    /**
+     * Upload or update photo for a specific producer commodity.
+     */
+    public function updatePhoto(Request $request, ProducerCommodity $producerCommodity): RedirectResponse
+    {
+        $request->validate([
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
+            'remove_image' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->boolean('remove_image')) {
+            if ($producerCommodity->image && Storage::disk('public')->exists($producerCommodity->image)) {
+                Storage::disk('public')->delete($producerCommodity->image);
+            }
+            $producerCommodity->image = null;
+            $producerCommodity->save();
+
+            return back()->with('success', "Foto komoditas '{$producerCommodity->name}' berhasil dihapus.");
+        }
+
+        if ($request->hasFile('image')) {
+            if ($producerCommodity->image && Storage::disk('public')->exists($producerCommodity->image)) {
+                Storage::disk('public')->delete($producerCommodity->image);
+            }
+            $producerCommodity->image = $request->file('image')->store('producer-commodities', 'public');
+            $producerCommodity->save();
+
+            return back()->with('success', "Foto komoditas '{$producerCommodity->name}' berhasil diunggah.");
+        }
+
+        return back()->with('info', 'Tidak ada berkas foto yang dipilih.');
+    }
 }
 

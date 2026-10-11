@@ -4,6 +4,7 @@ import {
     ArrowDownRight,
     ArrowUpRight,
     Calendar,
+    Camera,
     CheckCheck,
     CheckCircle2,
     ClipboardPaste,
@@ -13,6 +14,7 @@ import {
     FileSpreadsheet,
     FileText,
     History,
+    Image as ImageIcon,
     Layers,
     Plus,
     RefreshCw,
@@ -21,6 +23,7 @@ import {
     Trash2,
     Upload,
     Wheat,
+    X,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -58,7 +61,8 @@ import {
 import type { BreadcrumbItem } from '@/types';
 
 export interface ProducerCommodityItem {
-    key: 'gkp_petani' | 'gkp_penggilingan' | 'gkg_penggilingan' | 'beras_medium_penggilingan' | 'beras_premium_penggilingan' | 'sapi_hidup';
+    id?: number | null;
+    key: 'gkp_petani' | 'gkp_penggilingan' | 'gkg_penggilingan' | 'beras_medium_penggilingan' | 'beras_premium_penggilingan' | 'sapi_hidup' | string;
     name: string;
     short_name: string;
     category: string;
@@ -67,6 +71,8 @@ export interface ProducerCommodityItem {
     hap: number;
     hap_label: string;
     description: string;
+    image?: string | null;
+    image_url?: string | null;
     price: number | null;
     yesterday_price: number | null;
     diff_hap: number | null;
@@ -107,6 +113,7 @@ export interface PageProps {
     } | null;
     items: ProducerCommodityItem[];
     commoditiesConfig: {
+        id?: number;
         key: string;
         name: string;
         short_name: string;
@@ -116,6 +123,8 @@ export interface PageProps {
         hap: number;
         hap_label: string;
         description: string;
+        image?: string | null;
+        image_url?: string | null;
     }[];
     historyRecords: HistoryRecord[];
     statistics: {
@@ -360,10 +369,21 @@ export default function ProducerPricesIndex({
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
+    // Photo Upload Modal State
+    const [photoModalOpen, setPhotoModalOpen] = useState(false);
+    const [photoCommodity, setPhotoCommodity] = useState<ProducerCommodityItem | null>(null);
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [removePhoto, setRemovePhoto] = useState(false);
+    const [isSubmittingPhoto, setIsSubmittingPhoto] = useState(false);
+
     // Single Edit State
     const [editingItem, setEditingItem] = useState<ProducerCommodityItem | null>(null);
     const [singlePrice, setSinglePrice] = useState('');
     const [singleNotes, setSingleNotes] = useState('');
+    const [singlePhotoFile, setSinglePhotoFile] = useState<File | null>(null);
+    const [singlePhotoPreview, setSinglePhotoPreview] = useState<string | null>(null);
+    const [singleRemovePhoto, setSingleRemovePhoto] = useState(false);
     const [isSubmittingSingle, setIsSubmittingSingle] = useState(false);
 
     // Full Form / Quick Input State
@@ -401,11 +421,85 @@ export default function ProducerPricesIndex({
         );
     };
 
+    // Open Quick Photo Modal
+    const handleOpenPhotoModal = (item: ProducerCommodityItem) => {
+        setPhotoCommodity(item);
+        setPhotoFile(null);
+        setPhotoPreview(item.image_url || null);
+        setRemovePhoto(false);
+        setPhotoModalOpen(true);
+    };
+
+    const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 3 * 1024 * 1024) {
+                toast.error('Ukuran berkas foto maksimal 3 MB.');
+                return;
+            }
+            setPhotoFile(file);
+            setPhotoPreview(URL.createObjectURL(file));
+            setRemovePhoto(false);
+        }
+    };
+
+    const handleRemoveCurrentPhoto = () => {
+        setPhotoFile(null);
+        setPhotoPreview(null);
+        setRemovePhoto(true);
+    };
+
+    const handleSubmitPhoto = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!photoCommodity || !photoCommodity.id) {
+            toast.error('Data ID komoditas tidak ditemukan.');
+            return;
+        }
+
+        if (!photoFile && !removePhoto) {
+            toast.info('Tidak ada perubahan foto yang dipilih.');
+            setPhotoModalOpen(false);
+            return;
+        }
+
+        setIsSubmittingPhoto(true);
+        const formData = new FormData();
+        if (removePhoto) {
+            formData.append('remove_image', '1');
+        } else if (photoFile) {
+            formData.append('image', photoFile);
+        }
+
+        router.post(`/producer-commodities/${photoCommodity.id}/photo`, formData, {
+            forceFormData: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success(
+                    removePhoto
+                        ? `Foto komoditas '${photoCommodity.name}' berhasil dihapus.`
+                        : `Foto komoditas '${photoCommodity.name}' berhasil diperbarui.`
+                );
+                setPhotoModalOpen(false);
+                setPhotoFile(null);
+                setPhotoPreview(null);
+                setRemovePhoto(false);
+                setIsSubmittingPhoto(false);
+            },
+            onError: (err) => {
+                toast.error('Gagal memperbarui foto: ' + (Object.values(err)[0] || 'Terjadi kesalahan.'));
+                setIsSubmittingPhoto(false);
+            },
+        });
+    };
+
     // Open Single Edit
     const handleOpenSingleEdit = (item: ProducerCommodityItem) => {
         setEditingItem(item);
         setSinglePrice(item.price !== null ? String(item.price) : '');
         setSingleNotes(currentRecord?.notes || '');
+        setSinglePhotoFile(null);
+        setSinglePhotoPreview(item.image_url || null);
+        setSingleRemovePhoto(false);
         setEditSingleModalOpen(true);
     };
 
@@ -428,10 +522,24 @@ export default function ProducerPricesIndex({
             }
         });
 
+        // If photo was also updated in Single Edit dialog
+        if (editingItem.id && (singlePhotoFile || singleRemovePhoto)) {
+            const photoData = new FormData();
+            if (singleRemovePhoto) {
+                photoData.append('remove_image', '1');
+            } else if (singlePhotoFile) {
+                photoData.append('image', singlePhotoFile);
+            }
+            router.post(`/producer-commodities/${editingItem.id}/photo`, photoData, {
+                forceFormData: true,
+                preserveScroll: true,
+            });
+        }
+
         router.post(storeProducerAction.url(), payload, {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success(`Harga ${editingItem.name} berhasil diperbarui.`);
+                toast.success(`Data harga ${editingItem.name} berhasil diperbarui.`);
                 setEditSingleModalOpen(false);
                 setIsSubmittingSingle(false);
             },
@@ -907,13 +1015,14 @@ export default function ProducerPricesIndex({
                                 <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60">
                                     <tr>
                                         <th className="px-4 py-3.5 text-center w-12">No</th>
+                                        <th className="px-3 py-3.5 text-center w-16">Foto</th>
                                         <th className="px-4 py-3.5">Nama Komoditas Produsen</th>
                                         <th className="px-4 py-3.5">Kategori / Satuan</th>
                                         <th className="px-4 py-3.5 text-right">HAP Acuan (Bapanas)</th>
                                         <th className="px-4 py-3.5 text-right">Harga Terdata</th>
                                         <th className="px-4 py-3.5 text-center">vs Kemarin</th>
                                         <th className="px-4 py-3.5 text-center">Status HAP</th>
-                                        <th className="px-4 py-3.5 text-center w-28">Aksi</th>
+                                        <th className="px-4 py-3.5 text-center w-36">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -925,6 +1034,31 @@ export default function ProducerPricesIndex({
                                             >
                                                 <td className="px-4 py-3.5 text-center font-bold text-slate-400">
                                                     {idx + 1}
+                                                </td>
+                                                <td className="px-3 py-3.5 text-center">
+                                                    <div
+                                                        onClick={() => handleOpenPhotoModal(item)}
+                                                        className="group relative mx-auto size-11 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center cursor-pointer transition-all hover:ring-2 hover:ring-amber-500 hover:shadow-md"
+                                                        title="Klik untuk lihat / unggah foto komoditas"
+                                                    >
+                                                        {item.image_url ? (
+                                                            <>
+                                                                <img
+                                                                    src={item.image_url}
+                                                                    alt={item.name}
+                                                                    className="size-full object-cover transition-transform group-hover:scale-110"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <Camera className="size-4 text-white drop-shadow" />
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center text-slate-400 group-hover:text-amber-600 transition-colors">
+                                                                <Camera className="size-4" />
+                                                                <span className="text-[9px] font-bold mt-0.5 leading-none">+ Foto</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="font-bold text-slate-900 dark:text-white">
@@ -1022,15 +1156,26 @@ export default function ProducerPricesIndex({
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3.5 text-center">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleOpenSingleEdit(item)}
-                                                        className="h-8 gap-1 text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50"
-                                                    >
-                                                        <Edit3 className="size-3.5" />
-                                                        <span>Edit</span>
-                                                    </Button>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleOpenPhotoModal(item)}
+                                                            className="h-8 w-8 p-0 text-slate-500 hover:text-amber-700 hover:bg-amber-50"
+                                                            title="Kelola Foto Komoditas"
+                                                        >
+                                                            <Camera className="size-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleOpenSingleEdit(item)}
+                                                            className="h-8 gap-1 text-xs font-bold text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                                                        >
+                                                            <Edit3 className="size-3.5" />
+                                                            <span>Edit</span>
+                                                        </Button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -1182,9 +1327,9 @@ export default function ProducerPricesIndex({
                 <Dialog open={editSingleModalOpen} onOpenChange={setEditSingleModalOpen}>
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-base">
+                            <DialogTitle className="flex items-center gap-2 text-base font-bold">
                                 <Wheat className="size-5 text-amber-600" />
-                                <span>Edit Harga: {editingItem?.name}</span>
+                                <span>Edit Data: {editingItem?.name}</span>
                             </DialogTitle>
                             <DialogDescription className="text-xs">
                                 Tanggal: <strong>{currentDate}</strong> | Acuan HAP: <strong>{formatCurrency(editingItem?.hap ?? 0)} / {editingItem?.unit}</strong>
@@ -1192,6 +1337,73 @@ export default function ProducerPricesIndex({
                         </DialogHeader>
 
                         <form onSubmit={handleSaveSingleEdit} className="space-y-4 pt-2">
+                            {/* Foto Komoditas */}
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 bg-slate-50/70 dark:bg-slate-900/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                        Foto Komoditas
+                                    </Label>
+                                    {singlePhotoPreview && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setSinglePhotoFile(null);
+                                                setSinglePhotoPreview(null);
+                                                setSingleRemovePhoto(true);
+                                            }}
+                                            className="h-6 px-2 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                        >
+                                            Hapus Foto
+                                        </Button>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative size-14 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0 shadow-xs">
+                                        {singlePhotoPreview ? (
+                                            <img
+                                                src={singlePhotoPreview}
+                                                alt={editingItem?.name}
+                                                className="size-full object-cover"
+                                            />
+                                        ) : (
+                                            <ImageIcon className="size-6 text-slate-300" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <label
+                                            htmlFor="single-photo-input"
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 cursor-pointer shadow-xs transition-colors"
+                                        >
+                                            <Camera className="size-3.5 text-amber-600" />
+                                            <span>{singlePhotoPreview ? 'Ganti Foto' : 'Unggah Foto'}</span>
+                                        </label>
+                                        <input
+                                            id="single-photo-input"
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    if (file.size > 3 * 1024 * 1024) {
+                                                        toast.error('Ukuran berkas maksimal 3 MB.');
+                                                        return;
+                                                    }
+                                                    setSinglePhotoFile(file);
+                                                    setSinglePhotoPreview(URL.createObjectURL(file));
+                                                    setSingleRemovePhoto(false);
+                                                }
+                                            }}
+                                        />
+                                        <p className="text-[10px] text-slate-500 mt-1">
+                                            Format PNG, JPG, atau WebP (maks 3 MB).
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div>
                                 <Label htmlFor="single-price" className="text-xs font-bold">
                                     Harga Transaksi (Rp / {editingItem?.unit})
@@ -1243,7 +1455,122 @@ export default function ProducerPricesIndex({
                                     disabled={isSubmittingSingle}
                                     className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
                                 >
-                                    {isSubmittingSingle ? 'Menyimpan...' : 'Simpan Harga'}
+                                    {isSubmittingSingle ? 'Menyimpan...' : 'Simpan Perubahan'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* ============================================================== */}
+                {/* MODAL KHUSUS: QUICK PHOTO UPLOAD DIALOG                        */}
+                {/* ============================================================== */}
+                <Dialog open={photoModalOpen} onOpenChange={setPhotoModalOpen}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                                <Camera className="size-5 text-amber-600" />
+                                <span>Upload Foto Komoditas</span>
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-slate-500">
+                                {photoCommodity?.name} &bull; {photoCommodity?.category} (Per {photoCommodity?.unit})
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={handleSubmitPhoto} className="space-y-4 pt-2">
+                            <div className="flex flex-col items-center justify-center">
+                                {photoPreview ? (
+                                    <div className="relative group w-full max-w-[280px] h-48 rounded-2xl overflow-hidden border-2 border-amber-300 dark:border-amber-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shadow-md">
+                                        <img
+                                            src={photoPreview}
+                                            alt={photoCommodity?.name}
+                                            className="size-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <label
+                                                htmlFor="quick-photo-replace"
+                                                className="px-3 py-1.5 rounded-lg bg-white/95 hover:bg-white text-slate-900 text-xs font-bold cursor-pointer shadow-md transition-all flex items-center gap-1.5"
+                                            >
+                                                <Camera className="size-3.5 text-amber-600" />
+                                                <span>Ganti</span>
+                                            </label>
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={handleRemoveCurrentPhoto}
+                                                className="h-8 px-3 text-xs font-bold gap-1"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                                <span>Hapus</span>
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="quick-photo-upload"
+                                        className="w-full h-44 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 hover:bg-amber-50/50 hover:border-amber-400 dark:hover:border-amber-500 flex flex-col items-center justify-center cursor-pointer transition-all p-4 text-center group"
+                                    >
+                                        <div className="size-12 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                            <Upload className="size-6" />
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            Pilih Berkas Foto Komoditas
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-1">
+                                            PNG, JPG, WebP, SVG (Maks. 3 MB)
+                                        </div>
+                                    </label>
+                                )}
+
+                                <input
+                                    id="quick-photo-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handlePhotoFileChange}
+                                />
+                                <input
+                                    id="quick-photo-replace"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handlePhotoFileChange}
+                                />
+                            </div>
+
+                            {removePhoto && (
+                                <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700 flex items-center gap-2">
+                                    <AlertCircle className="size-4 shrink-0 text-rose-600" />
+                                    <span>Foto komoditas akan dihapus saat disimpan.</span>
+                                </div>
+                            )}
+
+                            <DialogFooter className="pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setPhotoModalOpen(false)}
+                                    className="text-xs"
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSubmittingPhoto || (!photoFile && !removePhoto)}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold gap-1.5"
+                                >
+                                    {isSubmittingPhoto ? (
+                                        <>
+                                            <RefreshCw className="size-3.5 animate-spin" />
+                                            <span>Menyimpan...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCheck className="size-3.5" />
+                                            <span>Simpan Foto</span>
+                                        </>
+                                    )}
                                 </Button>
                             </DialogFooter>
                         </form>
