@@ -57,6 +57,7 @@ export interface FoodBalanceRow {
     food_balance_commodity_id: number;
     commodity_name: string;
     commodity_slug: string;
+    commodity_image_url?: string | null;
     unit: string;
     order: number;
     food_balance_id: number | null;
@@ -904,7 +905,19 @@ export default function FoodBalancesIndex({
                                                     {idx + 1}
                                                 </td>
                                                 <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
-                                                    {row.commodity_name}
+                                                    <div className="flex items-center gap-2.5">
+                                                        {row.commodity_image_url ? (
+                                                            <div className="size-8 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100 shadow-2xs dark:border-slate-700 dark:bg-slate-800">
+                                                                <img
+                                                                    src={row.commodity_image_url}
+                                                                    alt={row.commodity_name}
+                                                                    className="h-full w-full object-cover"
+                                                                    loading="lazy"
+                                                                />
+                                                            </div>
+                                                        ) : null}
+                                                        <span>{row.commodity_name}</span>
+                                                    </div>
                                                 </td>
                                                 <td className="py-3.5 px-4 text-center">
                                                     <Badge

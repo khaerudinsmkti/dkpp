@@ -2,11 +2,14 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     CheckCircle2,
     Edit3,
+    Image as ImageIcon,
     Layers,
     Plus,
     Search,
     Trash2,
+    Upload,
     Wheat,
+    X,
     XCircle,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
@@ -51,6 +54,8 @@ interface CommodityItem {
     order: number;
     is_active: boolean;
     description: string | null;
+    image?: string | null;
+    image_url?: string | null;
     balances_count: number;
 }
 
@@ -81,6 +86,8 @@ export default function FoodBalanceCommoditiesIndex({
     const [createUnit, setCreateUnit] = useState('Ton');
     const [createOrder, setCreateOrder] = useState('');
     const [createDescription, setCreateDescription] = useState('');
+    const [createImage, setCreateImage] = useState<File | null>(null);
+    const [createImagePreview, setCreateImagePreview] = useState<string | null>(null);
     const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
 
     // Edit Modal state
@@ -91,6 +98,9 @@ export default function FoodBalanceCommoditiesIndex({
     const [editOrder, setEditOrder] = useState('');
     const [editIsActive, setEditIsActive] = useState(true);
     const [editDescription, setEditDescription] = useState('');
+    const [editImage, setEditImage] = useState<File | null>(null);
+    const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+    const [editRemoveImage, setEditRemoveImage] = useState(false);
     const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
 
     // Delete Modal state
@@ -113,12 +123,55 @@ export default function FoodBalanceCommoditiesIndex({
         });
     }, [commodities, searchTerm, selectedStatus]);
 
+    // Handle Image Selection for Create
+    const handleCreateImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+            toast.error('Ukuran gambar maksimal 3MB.');
+            return;
+        }
+        setCreateImage(file);
+        setCreateImagePreview(URL.createObjectURL(file));
+    };
+
+    const handleRemoveCreateImage = () => {
+        setCreateImage(null);
+        setCreateImagePreview(null);
+    };
+
+    // Handle Image Selection for Edit
+    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+            toast.error('Ukuran gambar maksimal 3MB.');
+            return;
+        }
+        setEditImage(file);
+        setEditImagePreview(URL.createObjectURL(file));
+        setEditRemoveImage(false);
+    };
+
+    const handleRemoveEditImage = () => {
+        setEditImage(null);
+        setEditImagePreview(null);
+        setEditRemoveImage(true);
+    };
+
+    const handleCancelRemoveEditImage = () => {
+        setEditRemoveImage(false);
+        setEditImagePreview(editingItem?.image_url || null);
+    };
+
     // Handle Create
     const handleOpenCreate = () => {
         setCreateName('');
         setCreateUnit('Ton');
         setCreateOrder(String(commodities.length + 1));
         setCreateDescription('');
+        setCreateImage(null);
+        setCreateImagePreview(null);
         setCreateModalOpen(true);
     };
 
@@ -130,16 +183,19 @@ export default function FoodBalanceCommoditiesIndex({
         }
 
         setIsSubmittingCreate(true);
+        const formData = new FormData();
+        formData.append('name', createName.trim());
+        formData.append('unit', createUnit.trim() || 'Ton');
+        if (createOrder) formData.append('order', createOrder);
+        if (createDescription.trim()) formData.append('description', createDescription.trim());
+        formData.append('is_active', '1');
+        if (createImage) formData.append('image', createImage);
+
         router.post(
             storeCommodityAction.url(),
+            formData,
             {
-                name: createName.trim(),
-                unit: createUnit.trim() || 'Ton',
-                order: createOrder ? parseInt(createOrder, 10) : undefined,
-                description: createDescription.trim() || undefined,
-                is_active: true,
-            },
-            {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(`Komoditas '${createName}' berhasil ditambahkan.`);
@@ -162,6 +218,9 @@ export default function FoodBalanceCommoditiesIndex({
         setEditOrder(String(item.order));
         setEditIsActive(item.is_active);
         setEditDescription(item.description || '');
+        setEditImage(null);
+        setEditImagePreview(item.image_url || null);
+        setEditRemoveImage(false);
         setEditModalOpen(true);
     };
 
@@ -173,16 +232,24 @@ export default function FoodBalanceCommoditiesIndex({
         }
 
         setIsSubmittingEdit(true);
-        router.put(
+        const formData = new FormData();
+        formData.append('_method', 'put');
+        formData.append('name', editName.trim());
+        formData.append('unit', editUnit.trim() || 'Ton');
+        formData.append('order', editOrder ? editOrder : String(editingItem.order));
+        formData.append('is_active', editIsActive ? '1' : '0');
+        if (editDescription.trim()) formData.append('description', editDescription.trim());
+        if (editImage) {
+            formData.append('image', editImage);
+        } else if (editRemoveImage) {
+            formData.append('remove_image', '1');
+        }
+
+        router.post(
             updateCommodityAction.url(editingItem.id),
+            formData,
             {
-                name: editName.trim(),
-                unit: editUnit.trim() || 'Ton',
-                order: editOrder ? parseInt(editOrder, 10) : editingItem.order,
-                is_active: editIsActive,
-                description: editDescription.trim() || undefined,
-            },
-            {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(`Komoditas '${editName}' berhasil diperbarui.`);
@@ -366,6 +433,7 @@ export default function FoodBalanceCommoditiesIndex({
                             <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
                                 <tr>
                                     <th className="py-3.5 px-4 w-12 text-center">No</th>
+                                    <th className="py-3.5 px-3 w-16 text-center">Foto</th>
                                     <th className="py-3.5 px-4">Nama Komoditas</th>
                                     <th className="py-3.5 px-4 w-28 text-center">Satuan</th>
                                     <th className="py-3.5 px-4 w-24 text-center">Urutan</th>
@@ -378,7 +446,7 @@ export default function FoodBalanceCommoditiesIndex({
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filteredCommodities.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                                        <td colSpan={9} className="py-8 text-center text-slate-400">
                                             Tidak ada komoditas ditemukan.
                                         </td>
                                     </tr>
@@ -390,6 +458,25 @@ export default function FoodBalanceCommoditiesIndex({
                                         >
                                             <td className="py-3 px-4 text-center text-slate-400 font-medium text-xs">
                                                 {idx + 1}
+                                            </td>
+                                            <td className="py-3 px-3 text-center">
+                                                {item.image_url ? (
+                                                    <div className="relative mx-auto size-11 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-2xs hover:scale-105 transition-transform dark:border-slate-700 dark:bg-slate-800">
+                                                        <img
+                                                            src={item.image_url}
+                                                            alt={item.name}
+                                                            className="h-full w-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="mx-auto flex size-11 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40"
+                                                        title="Belum ada foto komoditas"
+                                                    >
+                                                        <ImageIcon className="size-4 opacity-40" />
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-100">
                                                 {item.name}
@@ -462,7 +549,7 @@ export default function FoodBalanceCommoditiesIndex({
 
                 {/* Create Modal */}
                 <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Tambah Komoditas Neraca</DialogTitle>
                             <DialogDescription>
@@ -518,6 +605,60 @@ export default function FoodBalanceCommoditiesIndex({
                                 />
                             </div>
 
+                            {/* Foto Komoditas */}
+                            <div className="space-y-1.5">
+                                <Label>Foto Komoditas (Opsional)</Label>
+                                {createImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={createImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {createImage?.name || 'Gambar terpilih'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {createImage ? `${(createImage.size / 1024).toFixed(0)} KB` : 'Siap diunggah'}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleRemoveCreateImage}
+                                            className="h-8 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                                        >
+                                            <X className="size-4 mr-1" />
+                                            Hapus
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="create-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-emerald-600 font-semibold dark:text-emerald-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="create-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleCreateImageChange}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+
                             <DialogFooter className="gap-2 sm:gap-0 pt-2">
                                 <Button
                                     type="button"
@@ -541,7 +682,7 @@ export default function FoodBalanceCommoditiesIndex({
 
                 {/* Edit Modal */}
                 <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Ubah Komoditas Neraca</DialogTitle>
                             <DialogDescription>
@@ -606,6 +747,90 @@ export default function FoodBalanceCommoditiesIndex({
                                     value={editDescription}
                                     onChange={(e) => setEditDescription(e.target.value)}
                                 />
+                            </div>
+
+                            {/* Foto / Gambar Komoditas */}
+                            <div className="space-y-1.5">
+                                <Label>Foto Komoditas</Label>
+                                {editRemoveImage ? (
+                                    <div className="flex items-center justify-between rounded-lg border border-dashed border-red-200 bg-red-50/50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+                                        <span>Foto komoditas akan dihapus saat disimpan.</span>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCancelRemoveEditImage}
+                                            className="h-7 text-xs"
+                                        >
+                                            Batalkan
+                                        </Button>
+                                    </div>
+                                ) : editImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={editImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {editImage ? editImage.name : 'Foto komoditas saat ini'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {editImage
+                                                    ? `${(editImage.size / 1024).toFixed(0)} KB (Baru)`
+                                                    : 'Tersimpan di sistem'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <label
+                                                htmlFor="edit-image-replace"
+                                                className="cursor-pointer inline-flex items-center justify-center rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium shadow-2xs hover:bg-accent hover:text-accent-foreground"
+                                            >
+                                                Ganti
+                                                <input
+                                                    id="edit-image-replace"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="sr-only"
+                                                    onChange={handleEditImageChange}
+                                                />
+                                            </label>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleRemoveEditImage}
+                                                className="h-7 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50"
+                                                title="Hapus Foto"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="edit-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-emerald-600 font-semibold dark:text-emerald-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="edit-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleEditImageChange}
+                                        />
+                                    </label>
+                                )}
                             </div>
 
                             <DialogFooter className="gap-2 sm:gap-0 pt-2">

@@ -66,6 +66,7 @@ class FoodBalanceController extends Controller
                 'food_balance_commodity_id' => $commodity->id,
                 'commodity_name' => $commodity->name,
                 'commodity_slug' => $commodity->slug,
+                'commodity_image_url' => $commodity->image_url,
                 'unit' => $commodity->unit,
                 'order' => $commodity->order,
                 'food_balance_id' => $record?->id,

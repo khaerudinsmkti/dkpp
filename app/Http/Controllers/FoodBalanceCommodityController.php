@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\FoodBalanceCommodity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -44,6 +45,8 @@ class FoodBalanceCommodityController extends Controller
                 'order' => $item->order,
                 'is_active' => $item->is_active,
                 'description' => $item->description,
+                'image' => $item->image,
+                'image_url' => $item->image_url,
                 'balances_count' => $item->balances_count,
             ];
         });
@@ -75,6 +78,7 @@ class FoodBalanceCommodityController extends Controller
             'order' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
         ]);
 
         $baseSlug = Str::slug($validated['name']);
@@ -88,6 +92,11 @@ class FoodBalanceCommodityController extends Controller
             ? (int) $validated['order'] 
             : (FoodBalanceCommodity::max('order') ?? 0) + 1;
 
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('food-balance-commodities', 'public');
+        }
+
         FoodBalanceCommodity::create([
             'name' => $validated['name'],
             'slug' => $slug,
@@ -95,6 +104,7 @@ class FoodBalanceCommodityController extends Controller
             'order' => $order,
             'is_active' => $validated['is_active'] ?? true,
             'description' => $validated['description'] ?? null,
+            'image' => $imagePath,
         ]);
 
         return back()->with('success', "Komoditas '{$validated['name']}' berhasil ditambahkan.");
@@ -111,6 +121,8 @@ class FoodBalanceCommodityController extends Controller
             'order' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['nullable', 'boolean'],
             'description' => ['nullable', 'string', 'max:1000'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
+            'remove_image' => ['nullable', 'boolean'],
         ]);
 
         if ($foodBalanceCommodity->name !== $validated['name']) {
@@ -123,13 +135,24 @@ class FoodBalanceCommodityController extends Controller
             $foodBalanceCommodity->slug = $slug;
         }
 
-        $foodBalanceCommodity->update([
-            'name' => $validated['name'],
-            'unit' => $validated['unit'],
-            'order' => isset($validated['order']) ? (int) $validated['order'] : $foodBalanceCommodity->order,
-            'is_active' => $validated['is_active'] ?? $foodBalanceCommodity->is_active,
-            'description' => $validated['description'] ?? null,
-        ]);
+        if ($request->boolean('remove_image')) {
+            if ($foodBalanceCommodity->image && Storage::disk('public')->exists($foodBalanceCommodity->image)) {
+                Storage::disk('public')->delete($foodBalanceCommodity->image);
+            }
+            $foodBalanceCommodity->image = null;
+        } elseif ($request->hasFile('image')) {
+            if ($foodBalanceCommodity->image && Storage::disk('public')->exists($foodBalanceCommodity->image)) {
+                Storage::disk('public')->delete($foodBalanceCommodity->image);
+            }
+            $foodBalanceCommodity->image = $request->file('image')->store('food-balance-commodities', 'public');
+        }
+
+        $foodBalanceCommodity->name = $validated['name'];
+        $foodBalanceCommodity->unit = $validated['unit'];
+        $foodBalanceCommodity->order = isset($validated['order']) ? (int) $validated['order'] : $foodBalanceCommodity->order;
+        $foodBalanceCommodity->is_active = $validated['is_active'] ?? $foodBalanceCommodity->is_active;
+        $foodBalanceCommodity->description = $validated['description'] ?? null;
+        $foodBalanceCommodity->save();
 
         return back()->with('success', "Komoditas '{$foodBalanceCommodity->name}' berhasil diperbarui.");
     }
@@ -154,6 +177,11 @@ class FoodBalanceCommodityController extends Controller
     public function destroy(FoodBalanceCommodity $foodBalanceCommodity): RedirectResponse
     {
         $name = $foodBalanceCommodity->name;
+
+        if ($foodBalanceCommodity->image && Storage::disk('public')->exists($foodBalanceCommodity->image)) {
+            Storage::disk('public')->delete($foodBalanceCommodity->image);
+        }
+
         $foodBalanceCommodity->delete();
 
         return back()->with('success', "Komoditas '{$name}' berhasil dihapus.");
