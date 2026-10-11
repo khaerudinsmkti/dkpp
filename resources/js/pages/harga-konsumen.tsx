@@ -1664,6 +1664,27 @@ export default function HargaKonsumen({
                                                     </p>
                                                 </div>
                                             </Link>
+
+                                            {/* Option: Neraca Pangan */}
+                                            <Link
+                                                href="/neraca-pangan"
+                                                onClick={() =>
+                                                    setHargaMenuOpen(false)
+                                                }
+                                                className="group mt-1 flex items-start gap-3 rounded-xl p-2.5 transition-all hover:bg-emerald-50/80 border border-transparent hover:border-emerald-200/60"
+                                            >
+                                                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
+                                                    <Layers className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-800 transition-colors">
+                                                        Neraca Pangan Bulanan
+                                                    </div>
+                                                    <p className="mt-0.5 text-[11px] text-slate-500 leading-tight">
+                                                        11 Komoditas strategis &amp; surplus/defisit
+                                                    </p>
+                                                </div>
+                                            </Link>
                                         </div>
                                     )}
                                 </div>

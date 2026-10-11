@@ -5,12 +5,16 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
+use App\Http\Controllers\FoodBalanceCommodityController;
+use App\Http\Controllers\FoodBalanceController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\ProducerCommodityController;
 use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
+use App\Models\FoodBalance;
+use App\Models\FoodBalanceCommodity;
 use App\Models\Market;
 use App\Models\ProducerCommodity;
 use App\Models\ProducerPrice;
@@ -221,8 +225,26 @@ Route::get('/api/public-producer-history-data', [ProducerPriceController::class,
 Route::get('/api/public-producer-history-excel', [ProducerPriceController::class, 'historyExcel'])->name('public.producer-history-excel');
 
 
+Route::get('/neraca-pangan', [FoodBalanceController::class, 'publicIndex'])->name('neraca-pangan');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul Neraca Pangan Bulanan
+    Route::get('/food-balances', [FoodBalanceController::class, 'index'])->name('food-balances.index');
+    Route::get('/food-balances/template', [FoodBalanceController::class, 'downloadTemplate'])->name('food-balances.template');
+    Route::get('/food-balances/export', [FoodBalanceController::class, 'exportExcel'])->name('food-balances.export');
+    Route::post('/food-balances/import', [FoodBalanceController::class, 'import'])->name('food-balances.import');
+    Route::post('/food-balances', [FoodBalanceController::class, 'store'])->name('food-balances.store');
+    Route::post('/food-balances/bulk', [FoodBalanceController::class, 'bulkStore'])->name('food-balances.bulk-store');
+    Route::delete('/food-balances/{foodBalance}', [FoodBalanceController::class, 'destroy'])->name('food-balances.destroy');
+
+    // Modul Kelola Komoditas Neraca Pangan
+    Route::get('/food-balance-commodities', [FoodBalanceCommodityController::class, 'index'])->name('food-balance-commodities.index');
+    Route::post('/food-balance-commodities', [FoodBalanceCommodityController::class, 'store'])->name('food-balance-commodities.store');
+    Route::put('/food-balance-commodities/{foodBalanceCommodity}', [FoodBalanceCommodityController::class, 'update'])->name('food-balance-commodities.update');
+    Route::post('/food-balance-commodities/{foodBalanceCommodity}/toggle', [FoodBalanceCommodityController::class, 'toggleStatus'])->name('food-balance-commodities.toggle');
+    Route::delete('/food-balance-commodities/{foodBalanceCommodity}', [FoodBalanceCommodityController::class, 'destroy'])->name('food-balance-commodities.destroy');
 
     // Modul Kelola Pasar
     Route::get('/markets', [MarketController::class, 'index'])->name('markets.index');
@@ -274,3 +296,4 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 require __DIR__.'/settings.php';
+

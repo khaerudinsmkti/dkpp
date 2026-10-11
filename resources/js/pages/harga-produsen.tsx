@@ -914,6 +914,25 @@ export default function HargaProdusen({
                                                 </div>
                                             </div>
                                         </Link>
+                                        <Link
+                                            href="/neraca-pangan"
+                                            onClick={() =>
+                                                setHargaMenuOpen(false)
+                                            }
+                                            className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-emerald-50/70 group"
+                                        >
+                                            <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 group-hover:bg-[#006565] group-hover:text-white transition-colors">
+                                                <Layers className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-bold text-slate-900 group-hover:text-[#006565]">
+                                                    Neraca Pangan Bulanan
+                                                </div>
+                                                <div className="text-[11px] text-slate-500">
+                                                    11 Komoditas &amp; surplus/defisit
+                                                </div>
+                                            </div>
+                                        </Link>
                                     </div>
                                 )}
                             </div>

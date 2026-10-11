@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Scale, Store, TrendingUp, Wheat } from 'lucide-react';
+import { LayoutGrid, Layers, Scale, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -15,6 +15,8 @@ import {
 import { dashboard } from '@/routes';
 import { index as commoditiesIndex } from '@/routes/commodities';
 import { index as consumerPricesIndex } from '@/routes/consumer-prices';
+import { index as foodBalanceCommoditiesIndex } from '@/routes/food-balance-commodities';
+import { index as foodBalancesIndex } from '@/routes/food-balances';
 import { index as hetsIndex } from '@/routes/hets';
 import { index as marketsIndex } from '@/routes/markets';
 import { index as producerCommoditiesIndex } from '@/routes/producer-commodities';
@@ -49,6 +51,12 @@ const navGroups: NavGroup[] = [
                 badge: '6 Komoditas',
             },
             {
+                title: 'Neraca Pangan',
+                href: foodBalancesIndex(),
+                icon: Layers,
+                badge: '11 Komoditas',
+            },
+            {
                 title: 'Kelola HET Konsumen',
                 href: hetsIndex(),
                 icon: Scale,
@@ -71,6 +79,11 @@ const navGroups: NavGroup[] = [
             {
                 title: 'Komoditas Produsen',
                 href: producerCommoditiesIndex(),
+                icon: Wheat,
+            },
+            {
+                title: 'Komoditas Neraca',
+                href: foodBalanceCommoditiesIndex(),
                 icon: Wheat,
             },
             {

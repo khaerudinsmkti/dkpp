@@ -1543,5 +1543,566 @@ class SimpleExcelService
             'total_detected' => $totalDetected,
         ];
     }
+
+    /**
+     * Get Indonesian month name.
+     */
+    public function getIndonesianMonth(int $month): string
+    {
+        $months = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        return $months[$month] ?? "Bulan {$month}";
+    }
+
+    /**
+     * Generate an Excel .xlsx binary string for Neraca Pangan Bulanan template.
+     *
+     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     */
+    public function generateFoodBalanceXlsxTemplate(Collection $commodities, int $year, int $month): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_neraca_tmpl_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk template Excel.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Neraca Pangan" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="4">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF047857"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF991B1B"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="4">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF047857"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="5">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $monthName = $this->getIndonesianMonth($month);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="28" customWidth="1"/>'
+            .'<col min="3" max="3" width="12" customWidth="1"/>'
+            .'<col min="4" max="4" width="18" customWidth="1"/>'
+            .'<col min="5" max="5" width="18" customWidth="1"/>'
+            .'<col min="6" max="6" width="18" customWidth="1"/>'
+            .'<col min="7" max="7" width="18" customWidth="1"/>'
+            .'<col min="8" max="8" width="16" customWidth="1"/>'
+            .'<col min="9" max="9" width="25" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>'
+            .'<row r="1" ht="26" customHeight="1">'
+            .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B1" s="1" t="inlineStr"><is><t>Nama Komoditas</t></is></c>'
+            .'<c r="C1" s="1" t="inlineStr"><is><t>Satuan</t></is></c>'
+            .'<c r="D1" s="1" t="inlineStr"><is><t>Produksi</t></is></c>'
+            .'<c r="E1" s="1" t="inlineStr"><is><t>Ketersediaan</t></is></c>'
+            .'<c r="F1" s="1" t="inlineStr"><is><t>Kebutuhan</t></is></c>'
+            .'<c r="G1" s="1" t="inlineStr"><is><t>Selisih</t></is></c>'
+            .'<c r="H1" s="1" t="inlineStr"><is><t>Keterangan</t></is></c>'
+            .'<c r="I1" s="1" t="inlineStr"><is><t>Catatan</t></is></c>'
+            .'</row>';
+
+        $rowIdx = 2;
+        foreach ($commodities as $idx => $comm) {
+            $orderNo = $comm->order ?: ($idx + 1);
+            $nameEsc = htmlspecialchars($comm->name, ENT_XML1, 'UTF-8');
+            $unitEsc = htmlspecialchars($comm->unit, ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$orderNo.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$nameEsc.'</t></is></c>'
+                .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$unitEsc.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2"><v>0</v></c>'
+                .'<c r="E'.$rowIdx.'" s="2"><v>0</v></c>'
+                .'<c r="F'.$rowIdx.'" s="2"><v>0</v></c>'
+                .'<c r="G'.$rowIdx.'" s="2"><f>E'.$rowIdx.'-F'.$rowIdx.'</f><v>0</v></c>'
+                .'<c r="H'.$rowIdx.'" s="2"><f>IF(G'.$rowIdx.'&lt;0,"Defisit","Surplus")</f><v>Surplus</v></c>'
+                .'<c r="I'.$rowIdx.'" s="2"/>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file template XLSX neraca yang dibuat.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Generate a CSV string for Neraca Pangan template.
+     *
+     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     */
+    public function generateFoodBalanceCsvTemplate(Collection $commodities, int $year, int $month): string
+    {
+        $output = "\xEF\xBB\xBF";
+        $output .= "No;Nama Komoditas;Satuan;Produksi;Ketersediaan;Kebutuhan;Catatan\r\n";
+
+        foreach ($commodities as $idx => $comm) {
+            $orderNo = $comm->order ?: ($idx + 1);
+            $line = [
+                $orderNo,
+                '"'.str_replace('"', '""', $comm->name).'"',
+                $comm->unit,
+                '0',
+                '0',
+                '0',
+                '',
+            ];
+            $output .= implode(';', $line)."\r\n";
+        }
+
+        return $output;
+    }
+
+    /**
+     * Export completed monthly food balance to Excel.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    public function exportFoodBalanceXlsx(array $rows, int $year, int $month): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_neraca_exp_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file export.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Neraca Pangan '.$month.'-'.$year.'" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="5">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="12"/><color rgb="FF047857"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FFDC2626"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF059669"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="5">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF047857"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFD1FAE5"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="6">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $monthName = $this->getIndonesianMonth($month);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="28" customWidth="1"/>'
+            .'<col min="3" max="3" width="12" customWidth="1"/>'
+            .'<col min="4" max="4" width="18" customWidth="1"/>'
+            .'<col min="5" max="5" width="18" customWidth="1"/>'
+            .'<col min="6" max="6" width="18" customWidth="1"/>'
+            .'<col min="7" max="7" width="18" customWidth="1"/>'
+            .'<col min="8" max="8" width="16" customWidth="1"/>'
+            .'<col min="9" max="9" width="25" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>'
+            .'<row r="1" ht="26" customHeight="1">'
+            .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B1" s="1" t="inlineStr"><is><t>Nama Komoditas</t></is></c>'
+            .'<c r="C1" s="1" t="inlineStr"><is><t>Satuan</t></is></c>'
+            .'<c r="D1" s="1" t="inlineStr"><is><t>Produksi</t></is></c>'
+            .'<c r="E1" s="1" t="inlineStr"><is><t>Ketersediaan</t></is></c>'
+            .'<c r="F1" s="1" t="inlineStr"><is><t>Kebutuhan</t></is></c>'
+            .'<c r="G1" s="1" t="inlineStr"><is><t>Selisih</t></is></c>'
+            .'<c r="H1" s="1" t="inlineStr"><is><t>Keterangan</t></is></c>'
+            .'<c r="I1" s="1" t="inlineStr"><is><t>Catatan</t></is></c>'
+            .'</row>';
+
+        $rowIdx = 2;
+        foreach ($rows as $idx => $r) {
+            $no = $idx + 1;
+            $name = htmlspecialchars((string) ($r['commodity_name'] ?? ''), ENT_XML1, 'UTF-8');
+            $unit = htmlspecialchars((string) ($r['unit'] ?? 'Ton'), ENT_XML1, 'UTF-8');
+            $prod = (float) ($r['produksi'] ?? 0);
+            $ket = (float) ($r['ketersediaan'] ?? 0);
+            $keb = (float) ($r['kebutuhan'] ?? 0);
+            $sel = round($ket - $keb, 2);
+            $status = $sel < 0 ? 'Defisit' : 'Surplus';
+            $statusStyle = $status === 'Defisit' ? 4 : 5;
+            $notes = htmlspecialchars((string) ($r['notes'] ?? ''), ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$no.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$name.'</t></is></c>'
+                .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$unit.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2"><v>'.$prod.'</v></c>'
+                .'<c r="E'.$rowIdx.'" s="2"><v>'.$ket.'</v></c>'
+                .'<c r="F'.$rowIdx.'" s="2"><v>'.$keb.'</v></c>'
+                .'<c r="G'.$rowIdx.'" s="2"><v>'.$sel.'</v></c>'
+                .'<c r="H'.$rowIdx.'" s="'.$statusStyle.'" t="inlineStr"><is><t>'.$status.'</t></is></c>'
+                .'<c r="I'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$notes.'</t></is></c>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file export XLSX neraca.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Match raw imported tabular rows to Food Balance Commodities.
+     * Supports:
+     * - Full table with headers (No, Nama, Satuan, Produksi, Ketersediaan, Kebutuhan, ...)
+     * - Pure matrix with 3 columns (Produksi, Ketersediaan, Kebutuhan)
+     * - Row matching by commodity name or order index
+     *
+     * @param  array<int, array<int, string>>  $rawRows
+     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     * @return array{
+     *     matched: array<int, array{food_balance_commodity_id: int, commodity_name: string, produksi: float, ketersediaan: float, kebutuhan: float, selisih: float, keterangan: string, notes: ?string}>,
+     *     skipped_count: int,
+     *     total_detected: int
+     * }
+     */
+    public function matchFoodBalanceRows(array $rawRows, Collection $commodities): array
+    {
+        if (empty($rawRows)) {
+            return [
+                'matched' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        // Clean commodities map for quick matching
+        $normalizedCommodities = [];
+        foreach ($commodities as $c) {
+            $cleanName = strtolower(trim(preg_replace('/[^a-z0-9]/', '', $c->name)));
+            $normalizedCommodities[$cleanName] = $c;
+        }
+
+        // Check if row 0 is header
+        $firstRowText = strtolower(implode(' ', $rawRows[0] ?? []));
+        $hasHeader = str_contains($firstRowText, 'komoditas')
+            || str_contains($firstRowText, 'produksi')
+            || str_contains($firstRowText, 'ketersediaan')
+            || str_contains($firstRowText, 'kebutuhan')
+            || str_contains($firstRowText, 'selisih')
+            || str_contains($firstRowText, 'nama');
+
+        $dataRows = $hasHeader ? array_slice($rawRows, 1) : $rawRows;
+        // Filter empty rows
+        $dataRows = array_values(array_filter($dataRows, function ($r) {
+            foreach ($r as $val) {
+                if (trim((string) $val) !== '') {
+                    return true;
+                }
+            }
+            return false;
+        }));
+
+        if (empty($dataRows)) {
+            return [
+                'matched' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        // Check if rows are pure numeric matrix (e.g. copied directly from 3 numbers columns: Produksi, Ketersediaan, Kebutuhan)
+        $hasText = false;
+        foreach ($dataRows as $r) {
+            foreach ($r as $cVal) {
+                $stripped = trim((string) $cVal);
+                // If contains alphabets, it's not a pure number
+                if (preg_match('/[a-zA-Z]/', $stripped)) {
+                    $hasText = true;
+                    break 2;
+                }
+            }
+        }
+
+        $matched = [];
+        $skippedCount = 0;
+
+        if (! $hasText) {
+            // Pure numbers matrix: row 0..N mapped to commodity 0..N
+            foreach ($dataRows as $idx => $row) {
+                $commodity = $commodities->values()->get($idx);
+                if (! $commodity) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $cVals = array_values(array_filter($row, fn ($v) => trim((string) $v) !== ''));
+                $prod = isset($cVals[0]) ? (float) $this->parsePriceValue($cVals[0]) : 0;
+                $ket = isset($cVals[1]) ? (float) $this->parsePriceValue($cVals[1]) : 0;
+                $keb = isset($cVals[2]) ? (float) $this->parsePriceValue($cVals[2]) : 0;
+                $sel = round($ket - $keb, 2);
+                $status = $sel < 0 ? 'Defisit' : 'Surplus';
+
+                $matched[] = [
+                    'food_balance_commodity_id' => $commodity->id,
+                    'commodity_name' => $commodity->name,
+                    'produksi' => $prod,
+                    'ketersediaan' => $ket,
+                    'kebutuhan' => $keb,
+                    'selisih' => $sel,
+                    'keterangan' => $status,
+                    'notes' => null,
+                ];
+            }
+
+            return [
+                'matched' => $matched,
+                'skipped_count' => $skippedCount,
+                'total_detected' => count($matched),
+            ];
+        }
+
+        // Rows with commodity names
+        foreach ($dataRows as $idx => $row) {
+            $matchedCommodity = null;
+
+            // Search for commodity name in cells
+            foreach ($row as $cell) {
+                $cleanCell = strtolower(trim(preg_replace('/[^a-z0-9]/', '', (string) $cell)));
+                if (empty($cleanCell)) continue;
+
+                if (isset($normalizedCommodities[$cleanCell])) {
+                    $matchedCommodity = $normalizedCommodities[$cleanCell];
+                    break;
+                }
+
+                // Partial match
+                foreach ($normalizedCommodities as $nName => $cObj) {
+                    if (str_contains($cleanCell, $nName) || str_contains($nName, $cleanCell)) {
+                        $matchedCommodity = $cObj;
+                        break 2;
+                    }
+                }
+            }
+
+            // Fallback by order number in column 0 or row index
+            if (! $matchedCommodity && isset($row[0]) && is_numeric(trim($row[0]))) {
+                $orderNum = (int) trim($row[0]);
+                $matchedCommodity = $commodities->firstWhere('order', $orderNum);
+            }
+
+            if (! $matchedCommodity) {
+                $matchedCommodity = $commodities->values()->get($idx);
+            }
+
+            if (! $matchedCommodity) {
+                $skippedCount++;
+                continue;
+            }
+
+            // Extract numeric values from the row
+            $numbers = [];
+            $notes = null;
+
+            foreach ($row as $cIdx => $cell) {
+                $pVal = $this->parsePriceValue((string) $cell);
+                if ($pVal !== null) {
+                    $numbers[] = $pVal;
+                } elseif (strlen(trim((string) $cell)) > 1 && ! is_numeric(trim((string) $cell))) {
+                    // Possible note if far to the right
+                    if ($cIdx >= 6) {
+                        $notes = trim((string) $cell);
+                    }
+                }
+            }
+
+            // If header was present, typically Produksi = col 3, Ketersediaan = col 4, Kebutuhan = col 5
+            // Or from collected numbers:
+            $prod = 0;
+            $ket = 0;
+            $keb = 0;
+
+            if (isset($row[3], $row[4], $row[5]) && is_numeric($this->parsePriceValue($row[3])) && is_numeric($this->parsePriceValue($row[4]))) {
+                $prod = (float) $this->parsePriceValue($row[3]);
+                $ket = (float) $this->parsePriceValue($row[4]);
+                $keb = (float) $this->parsePriceValue($row[5]);
+            } elseif (count($numbers) >= 3) {
+                // If there's an order number at index 0
+                if (isset($row[0]) && is_numeric(trim($row[0])) && count($numbers) >= 4) {
+                    $prod = (float) $numbers[1];
+                    $ket = (float) $numbers[2];
+                    $keb = (float) $numbers[3];
+                } else {
+                    $prod = (float) $numbers[0];
+                    $ket = (float) $numbers[1];
+                    $keb = (float) $numbers[2];
+                }
+            } elseif (count($numbers) == 2) {
+                $ket = (float) $numbers[0];
+                $keb = (float) $numbers[1];
+            } elseif (count($numbers) == 1) {
+                $ket = (float) $numbers[0];
+            }
+
+            $sel = round($ket - $keb, 2);
+            $status = $sel < 0 ? 'Defisit' : 'Surplus';
+
+            $matched[] = [
+                'food_balance_commodity_id' => $matchedCommodity->id,
+                'commodity_name' => $matchedCommodity->name,
+                'produksi' => $prod,
+                'ketersediaan' => $ket,
+                'kebutuhan' => $keb,
+                'selisih' => $sel,
+                'keterangan' => $status,
+                'notes' => $notes,
+            ];
+        }
+
+        return [
+            'matched' => $matched,
+            'skipped_count' => $skippedCount,
+            'total_detected' => count($matched),
+        ];
+    }
 }
+
 
