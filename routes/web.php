@@ -216,6 +216,10 @@ Route::get('/api/public-chart-data', [ConsumerPriceController::class, 'chartData
 Route::get('/api/public-history-data', [ConsumerPriceController::class, 'historyData'])->name('public.history-data');
 Route::get('/api/public-history-excel', [ConsumerPriceController::class, 'historyExcel'])->name('public.history-excel');
 
+Route::get('/api/public-producer-chart-data', [ProducerPriceController::class, 'chartData'])->name('public.producer-chart-data');
+Route::get('/api/public-producer-history-data', [ProducerPriceController::class, 'historyData'])->name('public.producer-history-data');
+Route::get('/api/public-producer-history-excel', [ProducerPriceController::class, 'historyExcel'])->name('public.producer-history-excel');
+
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
