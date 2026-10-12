@@ -44,6 +44,7 @@ import {
     YAxis,
 } from 'recharts';
 
+import PortalFooter from '@/components/portal-footer';
 import PortalNavbar from '@/components/portal-navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1294,6 +1295,9 @@ export default function PphPublic({
                     </Card>
                 </section>
             </main>
+
+            {/* Public Portal Footer */}
+            <PortalFooter />
 
             {/* MODAL: Penjelasan & Rumus Perhitungan PPH */}
             {showInfoModal && (

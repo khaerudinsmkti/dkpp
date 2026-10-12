@@ -33,6 +33,7 @@ import {
     YAxis,
 } from 'recharts';
 
+import PortalFooter from '@/components/portal-footer';
 import PortalNavbar from '@/components/portal-navbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1528,12 +1529,8 @@ export default function NeracaPanganPublic({
                 </div>
             </main>
 
-            {/* Footer */}
-            <footer className="mt-12 border-t border-slate-200/80 bg-white py-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-                <div className="mx-auto max-w-7xl px-4">
-                    &copy; {new Date().getFullYear()} Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu. Seluruh Hak Cipta Dilindungi.
-                </div>
-            </footer>
+            {/* Public Portal Footer */}
+            <PortalFooter />
         </div>
     );
 }
