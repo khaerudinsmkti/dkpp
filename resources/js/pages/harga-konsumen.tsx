@@ -2407,14 +2407,13 @@ export default function HargaKonsumen({
                     </div>
 
                     {/* ============================================================== */}
-                    {/* 4. DUA KOLOM: 80% GRAFIK HARGA & 20% DAFTAR DI ATAS HET        */}
+                    {/* 4. DUA KOLOM: 70% GRAFIK HARGA & 30% DAFTAR DI ATAS HET        */}
                     {/* ============================================================== */}
-                    <div id="grafik-section" className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-12 items-start scroll-mt-20">
+                    <div id="grafik-section" className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-10 items-start scroll-mt-20">
                         {/* ---------------------------------------------------------- */}
-                        {/* KOLOM KIRI (80% / 9.6 cols -> lg:col-span-9 or lg:col-span-12 xl:col-span-10 / 2) */}
-                        {/* Layout: lg:col-span-9 xl:col-span-9 / lg:col-span-3 (atau fleksibel 80%:20% di desktop besar) */}
+                        {/* KOLOM KIRI (70%): GRAFIK PERKEMBANGAN HARGA PANGAN          */}
                         {/* ---------------------------------------------------------- */}
-                        <div className="lg:col-span-8 xl:col-span-9 space-y-4">
+                        <div className="lg:col-span-7 space-y-4">
                             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
                                 {/* Header Grafik & Tabulasi */}
                                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
@@ -2795,10 +2794,9 @@ export default function HargaKonsumen({
                         </div>
 
                         {/* ---------------------------------------------------------- */}
-                        {/* KOLOM KANAN (20% / ~3 cols di grid 12)                      */}
-                        {/* FITUR DAFTAR KOMODITAS HARI INI DI ATAS HET               */}
+                        {/* KOLOM KANAN (30%): DAFTAR KOMODITAS DI ATAS HET HARI INI   */}
                         {/* ---------------------------------------------------------- */}
-                        <div id="het-warning-section" className="lg:col-span-4 xl:col-span-3 scroll-mt-20">
+                        <div id="het-warning-section" className="lg:col-span-3 scroll-mt-20">
                             <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
                                 {/* Header Widget */}
                                 <div className="border-b border-slate-100 pb-3">
