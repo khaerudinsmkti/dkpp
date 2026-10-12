@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Layers, Scale, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Apple, FileSpreadsheet, LayoutGrid, Layers, PieChart, Scale, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -19,6 +19,9 @@ import { index as foodBalanceCommoditiesIndex } from '@/routes/food-balance-comm
 import { index as foodBalancesIndex } from '@/routes/food-balances';
 import { index as hetsIndex } from '@/routes/hets';
 import { index as marketsIndex } from '@/routes/markets';
+import { index as pphFoodGroupsIndex } from '@/routes/pph-food-groups';
+import { index as pphScoreDetailsIndex } from '@/routes/pph-score-details';
+import { index as pphScoresIndex } from '@/routes/pph-scores';
 import { index as producerCommoditiesIndex } from '@/routes/producer-commodities';
 import { index as producerHapsIndex } from '@/routes/producer-haps';
 import { index as producerPricesIndex } from '@/routes/producer-prices';
@@ -57,6 +60,17 @@ const navGroups: NavGroup[] = [
                 badge: '11 Komoditas',
             },
             {
+                title: 'Skor PPH',
+                href: pphScoresIndex(),
+                icon: PieChart,
+            },
+            {
+                title: 'Detail Skor PPH',
+                href: pphScoreDetailsIndex(),
+                icon: FileSpreadsheet,
+                badge: '9 Kelompok',
+            },
+            {
                 title: 'Kelola HET Konsumen',
                 href: hetsIndex(),
                 icon: Scale,
@@ -85,6 +99,11 @@ const navGroups: NavGroup[] = [
                 title: 'Komoditas Neraca',
                 href: foodBalanceCommoditiesIndex(),
                 icon: Wheat,
+            },
+            {
+                title: 'Kelompok Pangan PPH',
+                href: pphFoodGroupsIndex(),
+                icon: Apple,
             },
             {
                 title: 'Kelola Pasar',

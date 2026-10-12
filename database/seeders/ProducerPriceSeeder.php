@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ProducerPrice;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -68,7 +69,7 @@ class ProducerPriceSeeder extends Seeder
             ],
         ];
 
-        $firstUser = \App\Models\User::first();
+        $firstUser = User::first();
         $userId = $firstUser?->id;
 
         foreach ($samples as $sample) {

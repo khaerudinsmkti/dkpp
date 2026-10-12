@@ -8,9 +8,11 @@ use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
 use App\Services\SimpleExcelService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -365,7 +367,7 @@ class ConsumerPriceController extends Controller
     /**
      * Provide price trend data for public charts (daily, weekly, monthly).
      */
-    public function chartData(Request $request): \Illuminate\Http\JsonResponse
+    public function chartData(Request $request): JsonResponse
     {
         $type = (string) $request->query('type', 'daily'); // 'daily', 'weekly', 'monthly'
         $commodityId = (int) $request->query('commodity_id');
@@ -473,6 +475,7 @@ class ConsumerPriceController extends Controller
 
                 $wPrices = $prices->filter(function ($item) use ($wStart, $wEnd) {
                     $d = Carbon::parse($item->recorded_date);
+
                     return $d->betweenIncluded($wStart, $wEnd);
                 });
 
@@ -521,6 +524,7 @@ class ConsumerPriceController extends Controller
 
                 $mPrices = $prices->filter(function ($item) use ($mStart, $mEnd) {
                     $d = Carbon::parse($item->recorded_date);
+
                     return $d->betweenIncluded($mStart, $mEnd);
                 });
 
@@ -551,7 +555,7 @@ class ConsumerPriceController extends Controller
     /**
      * Resolve historical price data for the specified market and date range.
      *
-     * @return array{market: ?Market, start_date: string, end_date: string, commodities: \Illuminate\Support\Collection<int, Commodity>, rows: array<int, array{date: string, formatted_date: string, day_name: string, prices: array<int, float|null>}>}
+     * @return array{market: ?Market, start_date: string, end_date: string, commodities: Collection<int, Commodity>, rows: array<int, array{date: string, formatted_date: string, day_name: string, prices: array<int, float|null>}>}
      */
     protected function getHistoryPricePayload(Request $request): array
     {
@@ -737,7 +741,7 @@ class ConsumerPriceController extends Controller
     /**
      * Get historical price data in JSON format for the interactive table.
      */
-    public function historyData(Request $request): \Illuminate\Http\JsonResponse
+    public function historyData(Request $request): JsonResponse
     {
         $payload = $this->getHistoryPricePayload($request);
 

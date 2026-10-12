@@ -59,7 +59,7 @@ class FoodBalanceCommodity extends Model
                 $slug = $baseSlug;
                 $counter = 1;
                 while (static::where('slug', $slug)->exists()) {
-                    $slug = $baseSlug . '-' . $counter++;
+                    $slug = $baseSlug.'-'.$counter++;
                 }
                 $commodity->slug = $slug;
             }
@@ -79,4 +79,3 @@ class FoodBalanceCommodity extends Model
             ->first();
     }
 }
-

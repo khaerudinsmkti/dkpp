@@ -270,4 +270,3 @@ class ProducerCommodityController extends Controller
         return back()->with('info', 'Tidak ada berkas foto yang dipilih.');
     }
 }
-

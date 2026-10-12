@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ProducerCommodity;
 use App\Models\ProducerPrice;
 use App\Services\SimpleExcelService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -43,6 +44,7 @@ class ProducerPriceController extends Controller
         if ($dbCommodities->isNotEmpty()) {
             $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
                 $hap = $c->hapAt($selectedDate);
+
                 return [
                     'id' => $c->id,
                     'key' => $c->key,
@@ -417,7 +419,7 @@ class ProducerPriceController extends Controller
     /**
      * Provide chart data for daily, weekly, or monthly intervals of producer prices.
      */
-    public function chartData(Request $request): \Illuminate\Http\JsonResponse
+    public function chartData(Request $request): JsonResponse
     {
         $type = (string) $request->query('type', 'daily');
 
@@ -519,6 +521,7 @@ class ProducerPriceController extends Controller
 
                 $wPrices = $prices->filter(function ($item) use ($wStart, $wEnd) {
                     $d = Carbon::parse($item->recorded_date);
+
                     return $d->betweenIncluded($wStart, $wEnd);
                 })->pluck($key)->filter(fn ($v) => $v !== null);
 
@@ -566,6 +569,7 @@ class ProducerPriceController extends Controller
 
                 $mPrices = $prices->filter(function ($item) use ($mStart, $mEnd) {
                     $d = Carbon::parse($item->recorded_date);
+
                     return $d->betweenIncluded($mStart, $mEnd);
                 })->pluck($key)->filter(fn ($v) => $v !== null);
 
@@ -765,7 +769,7 @@ class ProducerPriceController extends Controller
     /**
      * Get historical producer price data in JSON format for the interactive table.
      */
-    public function historyData(Request $request): \Illuminate\Http\JsonResponse
+    public function historyData(Request $request): JsonResponse
     {
         $payload = $this->getHistoryPricePayload($request);
 
@@ -810,5 +814,3 @@ class ProducerPriceController extends Controller
         ]);
     }
 }
-
-

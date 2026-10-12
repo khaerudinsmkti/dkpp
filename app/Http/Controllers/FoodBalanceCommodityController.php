@@ -85,11 +85,11 @@ class FoodBalanceCommodityController extends Controller
         $slug = $baseSlug;
         $counter = 1;
         while (FoodBalanceCommodity::where('slug', $slug)->exists()) {
-            $slug = $baseSlug . '-' . $counter++;
+            $slug = $baseSlug.'-'.$counter++;
         }
 
-        $order = isset($validated['order']) && $validated['order'] !== '' 
-            ? (int) $validated['order'] 
+        $order = isset($validated['order']) && $validated['order'] !== ''
+            ? (int) $validated['order']
             : (FoodBalanceCommodity::max('order') ?? 0) + 1;
 
         $imagePath = null;
@@ -130,7 +130,7 @@ class FoodBalanceCommodityController extends Controller
             $slug = $baseSlug;
             $counter = 1;
             while (FoodBalanceCommodity::where('slug', $slug)->where('id', '!=', $foodBalanceCommodity->id)->exists()) {
-                $slug = $baseSlug . '-' . $counter++;
+                $slug = $baseSlug.'-'.$counter++;
             }
             $foodBalanceCommodity->slug = $slug;
         }
@@ -187,4 +187,3 @@ class FoodBalanceCommodityController extends Controller
         return back()->with('success', "Komoditas '{$name}' berhasil dihapus.");
     }
 }
-

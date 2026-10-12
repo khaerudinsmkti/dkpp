@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\Commodity;
+use App\Models\FoodBalanceCommodity;
+use App\Models\ProducerPrice;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use ZipArchive;
@@ -852,9 +854,6 @@ class SimpleExcelService
      * Columns: No, Tanggal, Commodity 1..25
      * Rows: Date 1..N
      *
-     * @param  string  $marketName
-     * @param  string  $startDate
-     * @param  string  $endDate
      * @param  Collection<int, Commodity>  $commodities
      * @param  array<int, array{date: string, formatted_date?: string, prices: array<int|string, float|int|null>}>  $rows
      */
@@ -1022,8 +1021,6 @@ class SimpleExcelService
      * Columns: No, Tanggal, 6 Producer Commodities
      * Rows: Date 1..N
      *
-     * @param  string  $startDate
-     * @param  string  $endDate
      * @param  Collection<int, mixed>  $commodities
      * @param  array<int, array{date: string, formatted_date?: string, prices: array<int|string, float|int|null>, is_above_hap?: array<int|string, bool>}>  $rows
      */
@@ -1270,7 +1267,7 @@ class SimpleExcelService
             .'</styleSheet>';
         $zip->addFromString('xl/styles.xml', $styles);
 
-        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+        $commodities = ProducerPrice::COMMODITIES;
 
         $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
@@ -1372,7 +1369,7 @@ class SimpleExcelService
             $output .= 'No;Nama Komoditas Produsen;Satuan;HAP Acuan (Rp);'.implode(';', $dateHeaders).";Catatan\r\n";
         }
 
-        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+        $commodities = ProducerPrice::COMMODITIES;
 
         foreach ($commodities as $comm) {
             $line = [
@@ -1405,7 +1402,7 @@ class SimpleExcelService
      */
     public function matchProducerPrices(array $rawRows, string $defaultDate, int $maxDays = 31): array
     {
-        $commodities = \App\Models\ProducerPrice::COMMODITIES;
+        $commodities = ProducerPrice::COMMODITIES;
         $fieldKeyByOrder = [];
         foreach ($commodities as $c) {
             $fieldKeyByOrder[$c['order']] = $c['key'];
@@ -1431,6 +1428,7 @@ class SimpleExcelService
             if (str_contains($t, 'sapi')) {
                 return 'sapi_hidup';
             }
+
             return null;
         };
 
@@ -1499,6 +1497,7 @@ class SimpleExcelService
                         $totalDetected++;
                     }
                 }
+
                 continue;
             }
 
@@ -1561,7 +1560,7 @@ class SimpleExcelService
     /**
      * Generate an Excel .xlsx binary string for Neraca Pangan Bulanan template.
      *
-     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     * @param  Collection<int, FoodBalanceCommodity>  $commodities
      */
     public function generateFoodBalanceXlsxTemplate(Collection $commodities, int $year, int $month): string
     {
@@ -1708,7 +1707,7 @@ class SimpleExcelService
     /**
      * Generate a CSV string for Neraca Pangan template.
      *
-     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     * @param  Collection<int, FoodBalanceCommodity>  $commodities
      */
     public function generateFoodBalanceCsvTemplate(Collection $commodities, int $year, int $month): string
     {
@@ -1897,7 +1896,7 @@ class SimpleExcelService
      * - Row matching by commodity name or order index
      *
      * @param  array<int, array<int, string>>  $rawRows
-     * @param  Collection<int, \App\Models\FoodBalanceCommodity>  $commodities
+     * @param  Collection<int, FoodBalanceCommodity>  $commodities
      * @return array{
      *     matched: array<int, array{food_balance_commodity_id: int, commodity_name: string, produksi: float, ketersediaan: float, kebutuhan: float, selisih: float, keterangan: string, notes: ?string}>,
      *     skipped_count: int,
@@ -1938,6 +1937,7 @@ class SimpleExcelService
                     return true;
                 }
             }
+
             return false;
         }));
 
@@ -1971,6 +1971,7 @@ class SimpleExcelService
                 $commodity = $commodities->values()->get($idx);
                 if (! $commodity) {
                     $skippedCount++;
+
                     continue;
                 }
 
@@ -2007,7 +2008,9 @@ class SimpleExcelService
             // Search for commodity name in cells
             foreach ($row as $cell) {
                 $cleanCell = strtolower(trim(preg_replace('/[^a-z0-9]/', '', (string) $cell)));
-                if (empty($cleanCell)) continue;
+                if (empty($cleanCell)) {
+                    continue;
+                }
 
                 if (isset($normalizedCommodities[$cleanCell])) {
                     $matchedCommodity = $normalizedCommodities[$cleanCell];
@@ -2035,6 +2038,7 @@ class SimpleExcelService
 
             if (! $matchedCommodity) {
                 $skippedCount++;
+
                 continue;
             }
 
@@ -2104,5 +2108,3 @@ class SimpleExcelService
         ];
     }
 }
-
-

@@ -141,4 +141,3 @@ class ProducerHapController extends Controller
         return back()->with('success', 'Riwayat HAP produsen berhasil dihapus.');
     }
 }
-

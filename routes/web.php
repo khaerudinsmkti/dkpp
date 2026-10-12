@@ -1,30 +1,32 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
 use App\Http\Controllers\FoodBalanceCommodityController;
 use App\Http\Controllers\FoodBalanceController;
 use App\Http\Controllers\MarketController;
+use App\Http\Controllers\PphFoodGroupController;
+use App\Http\Controllers\PphScoreController;
+use App\Http\Controllers\PphScoreDetailController;
 use App\Http\Controllers\ProducerCommodityController;
 use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
-use App\Models\FoodBalance;
-use App\Models\FoodBalanceCommodity;
 use App\Models\Market;
 use App\Models\ProducerCommodity;
 use App\Models\ProducerPrice;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
     return redirect()->route('harga-konsumen');
 })->name('home');
 
-Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
+Route::get('/harga-konsumen', function (Request $request) {
     // Hanya tampilkan pasar yang statusnya aktif (is_active = true)
     $markets = Market::where('is_active', true)->orderBy('order')->get();
 
@@ -48,7 +50,7 @@ Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
         ->max('recorded_date');
 
     if (! $prevDate) {
-        $prevDate = \Illuminate\Support\Carbon::parse($selectedDate)->subDay()->format('Y-m-d');
+        $prevDate = Carbon::parse($selectedDate)->subDay()->format('Y-m-d');
     }
 
     $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
@@ -103,7 +105,7 @@ Route::get('/harga-konsumen', function (\Illuminate\Http\Request $request) {
     ]);
 })->name('harga-konsumen');
 
-Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
+Route::get('/harga-produsen', function (Request $request) {
     $maxRecordedDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
     $minRecordedDate = ProducerPrice::min('recorded_date') ?? '2026-01-01';
 
@@ -121,27 +123,28 @@ Route::get('/harga-produsen', function (\Illuminate\Http\Request $request) {
         ->orderBy('order')
         ->get();
 
-        if ($dbCommodities->isNotEmpty()) {
-            $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
-                $hap = $c->hapAt($selectedDate);
-                return [
-                    'id' => $c->id,
-                    'key' => $c->key,
-                    'name' => $c->name,
-                    'short_name' => $c->name,
-                    'category' => $c->category,
-                    'unit' => $c->unit,
-                    'order' => $c->order,
-                    'hap' => $hap ? (float) $hap->price : 0,
-                    'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
-                    'description' => $c->description ?? '',
-                    'image' => $c->image_url,
-                    'image_url' => $c->image_url,
-                ];
-            })->toArray();
-        } else {
-            $commoditiesConfig = ProducerPrice::COMMODITIES;
-        }
+    if ($dbCommodities->isNotEmpty()) {
+        $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
+            $hap = $c->hapAt($selectedDate);
+
+            return [
+                'id' => $c->id,
+                'key' => $c->key,
+                'name' => $c->name,
+                'short_name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+                'order' => $c->order,
+                'hap' => $hap ? (float) $hap->price : 0,
+                'hap_label' => $hap?->source_regulation ?? 'HAP Bapanas',
+                'description' => $c->description ?? '',
+                'image' => $c->image_url,
+                'image_url' => $c->image_url,
+            ];
+        })->toArray();
+    } else {
+        $commoditiesConfig = ProducerPrice::COMMODITIES;
+    }
 
     $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
         $key = $cfg['key'];
@@ -224,7 +227,6 @@ Route::get('/api/public-producer-chart-data', [ProducerPriceController::class, '
 Route::get('/api/public-producer-history-data', [ProducerPriceController::class, 'historyData'])->name('public.producer-history-data');
 Route::get('/api/public-producer-history-excel', [ProducerPriceController::class, 'historyExcel'])->name('public.producer-history-excel');
 
-
 Route::get('/neraca-pangan', [FoodBalanceController::class, 'publicIndex'])->name('neraca-pangan');
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -293,7 +295,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/producer-haps', [ProducerHapController::class, 'store'])->name('producer-haps.store');
     Route::put('/producer-haps/{hap}', [ProducerHapController::class, 'update'])->name('producer-haps.update');
     Route::delete('/producer-haps/{hap}', [ProducerHapController::class, 'destroy'])->name('producer-haps.destroy');
+
+    // Modul Skor PPH
+    Route::get('/pph-scores', [PphScoreController::class, 'index'])->name('pph-scores.index');
+    Route::post('/pph-scores', [PphScoreController::class, 'store'])->name('pph-scores.store');
+    Route::put('/pph-scores/{pphScore}', [PphScoreController::class, 'update'])->name('pph-scores.update');
+    Route::post('/pph-scores/{pphScore}/recalculate', [PphScoreController::class, 'recalculate'])->name('pph-scores.recalculate');
+    Route::delete('/pph-scores/{pphScore}', [PphScoreController::class, 'destroy'])->name('pph-scores.destroy');
+
+    // Modul Detail Skor PPH
+    Route::get('/pph-score-details', [PphScoreDetailController::class, 'index'])->name('pph-score-details.index');
+    Route::post('/pph-score-details', [PphScoreDetailController::class, 'store'])->name('pph-score-details.store');
+    Route::post('/pph-score-details/bulk', [PphScoreDetailController::class, 'bulkStore'])->name('pph-score-details.bulk-store');
+    Route::put('/pph-score-details/{pphScoreDetail}', [PphScoreDetailController::class, 'update'])->name('pph-score-details.update');
+    Route::delete('/pph-score-details/{pphScoreDetail}', [PphScoreDetailController::class, 'destroy'])->name('pph-score-details.destroy');
+
+    // Modul Kelola Kelompok Bahan Pangan PPH (Dinamis)
+    Route::get('/pph-food-groups', [PphFoodGroupController::class, 'index'])->name('pph-food-groups.index');
+    Route::post('/pph-food-groups', [PphFoodGroupController::class, 'store'])->name('pph-food-groups.store');
+    Route::put('/pph-food-groups/{pphFoodGroup}', [PphFoodGroupController::class, 'update'])->name('pph-food-groups.update');
+    Route::post('/pph-food-groups/{pphFoodGroup}/toggle', [PphFoodGroupController::class, 'toggleStatus'])->name('pph-food-groups.toggle');
+    Route::delete('/pph-food-groups/{pphFoodGroup}', [PphFoodGroupController::class, 'destroy'])->name('pph-food-groups.destroy');
 });
 
 require __DIR__.'/settings.php';
-

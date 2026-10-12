@@ -116,4 +116,3 @@ class ProducerCommodity extends Model
             ->first();
     }
 }
-

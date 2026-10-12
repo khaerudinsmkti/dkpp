@@ -7,7 +7,6 @@ use App\Models\FoodBalanceCommodity;
 use App\Services\SimpleExcelService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -367,7 +366,7 @@ class FoodBalanceController extends Controller
         try {
             $rawRows = $excelService->parseFile($file->getRealPath(), $extension);
         } catch (\Throwable $e) {
-            return back()->withErrors(['file' => 'Gagal membaca berkas: ' . $e->getMessage()]);
+            return back()->withErrors(['file' => 'Gagal membaca berkas: '.$e->getMessage()]);
         }
 
         $commodities = FoodBalanceCommodity::where('is_active', true)
@@ -446,7 +445,7 @@ class FoodBalanceController extends Controller
             ->get()
             ->keyBy('food_balance_commodity_id');
 
-        $items = $commodities->map(function (FoodBalanceCommodity $commodity) use ($existingBalances, $year, $month): array {
+        $items = $commodities->map(function (FoodBalanceCommodity $commodity) use ($existingBalances): array {
             $record = $existingBalances->get($commodity->id);
             $hasRecord = $record !== null;
 
@@ -576,4 +575,3 @@ class FoodBalanceController extends Controller
         ]);
     }
 }
-

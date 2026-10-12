@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\FoodBalance;
 use App\Models\FoodBalanceCommodity;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class FoodBalanceSeeder extends Seeder
@@ -36,7 +37,7 @@ class FoodBalanceSeeder extends Seeder
             'Cabai Rawit' => ['prod' => 480, 'ket' => 510, 'kbt' => 490, 'seasonal' => 0.25],
         ];
 
-        $userId = \App\Models\User::first()?->id;
+        $userId = User::first()?->id;
 
         foreach ($years as $year) {
             for ($month = 1; $month <= 12; $month++) {

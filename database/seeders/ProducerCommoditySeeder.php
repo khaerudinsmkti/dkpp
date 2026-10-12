@@ -112,4 +112,3 @@ class ProducerCommoditySeeder extends Seeder
         }
     }
 }
-
