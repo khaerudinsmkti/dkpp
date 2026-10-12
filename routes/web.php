@@ -229,6 +229,9 @@ Route::get('/api/public-producer-history-excel', [ProducerPriceController::class
 
 Route::get('/neraca-pangan', [FoodBalanceController::class, 'publicIndex'])->name('neraca-pangan');
 
+Route::get('/pph', [PphScoreController::class, 'publicIndex'])->name('pph');
+Route::redirect('/skor-pph', '/pph');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
 

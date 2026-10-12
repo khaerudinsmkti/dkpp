@@ -195,3 +195,34 @@ test('authenticated user can manage dynamic food groups', function () {
         ->assertSessionHas('success');
     expect(PphFoodGroup::where('id', $group->id)->exists())->toBeFalse();
 });
+
+test('public users can view pph page with hero banner data, multi-year scores, and commodity details', function () {
+    $this->seed(PphSeeder::class);
+
+    $response = $this->get('/pph');
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('pph')
+        ->has('yearlyScores')
+        ->has('selectedYear')
+        ->has('availableYears')
+        ->has('commodityDetails')
+        ->has('totals')
+        ->has('statistics')
+    );
+});
+
+test('public users can filter pph page by specific year', function () {
+    $this->seed(PphSeeder::class);
+
+    $response = $this->get('/pph?year=2024');
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('pph')
+        ->where('selectedYear', 2024)
+        ->has('commodityDetails')
+    );
+});
+
