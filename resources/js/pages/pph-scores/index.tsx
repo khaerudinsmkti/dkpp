@@ -44,6 +44,7 @@ export interface PphScoreRow {
     id: number;
     tahun: number;
     skor_pph: number;
+    target_renstra: number;
     keterangan: string | null;
     details_count: number;
     creator_name?: string | null;
@@ -62,6 +63,7 @@ interface PageProps {
         max_score: number;
         min_score: number;
         latest_year: number;
+        latest_target_renstra?: number;
         total_food_groups: number;
     };
 }
@@ -107,6 +109,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
     // Form fields
     const [formYear, setFormYear] = useState<string>(new Date().getFullYear().toString());
     const [formScore, setFormScore] = useState<string>('0');
+    const [formTargetRenstra, setFormTargetRenstra] = useState<string>('94.00');
     const [formKeterangan, setFormKeterangan] = useState<string>('');
 
     // Filtered scores list
@@ -125,6 +128,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
         const nextYear = scores.length > 0 ? Math.max(...scores.map((s) => s.tahun)) + 1 : new Date().getFullYear();
         setFormYear(nextYear.toString());
         setFormScore('0');
+        setFormTargetRenstra('94.00');
         setFormKeterangan('');
         setIsCreateModalOpen(true);
     };
@@ -134,6 +138,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
         setSelectedScore(item);
         setFormYear(item.tahun.toString());
         setFormScore(item.skor_pph.toString());
+        setFormTargetRenstra((item.target_renstra ?? 94.0).toString());
         setFormKeterangan(item.keterangan || '');
         setIsEditModalOpen(true);
     };
@@ -149,6 +154,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
         e.preventDefault();
         const parsedYear = parseInt(formYear, 10);
         const parsedScore = parseFloat(formScore);
+        const parsedRenstra = parseFloat(formTargetRenstra);
 
         if (isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
             toast.error('Masukkan tahun yang valid (2000 - 2100).');
@@ -160,12 +166,18 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
             return;
         }
 
+        if (isNaN(parsedRenstra) || parsedRenstra < 0 || parsedRenstra > 100) {
+            toast.error('Target RENSTRA harus di antara 0 dan 100.');
+            return;
+        }
+
         setIsSubmitting(true);
         router.post(
             storeScoreAction.url(),
             {
                 tahun: parsedYear,
                 skor_pph: parsedScore,
+                target_renstra: parsedRenstra,
                 keterangan: formKeterangan.trim() || null,
             },
             {
@@ -191,6 +203,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
 
         const parsedYear = parseInt(formYear, 10);
         const parsedScore = parseFloat(formScore);
+        const parsedRenstra = parseFloat(formTargetRenstra);
 
         if (isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
             toast.error('Masukkan tahun yang valid (2000 - 2100).');
@@ -202,12 +215,18 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
             return;
         }
 
+        if (isNaN(parsedRenstra) || parsedRenstra < 0 || parsedRenstra > 100) {
+            toast.error('Target RENSTRA harus di antara 0 dan 100.');
+            return;
+        }
+
         setIsSubmitting(true);
         router.put(
             updateScoreAction.url({ pphScore: selectedScore.id }),
             {
                 tahun: parsedYear,
                 skor_pph: parsedScore,
+                target_renstra: parsedRenstra,
                 keterangan: formKeterangan.trim() || null,
             },
             {
@@ -358,7 +377,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                 {statistics.avg_score.toFixed(2)}
                             </div>
                             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                Target Nasional: 100.00
+                                Target RENSTRA {statistics.latest_year}: {statistics.latest_target_renstra?.toFixed(2) ?? '94.00'}
                             </p>
                         </CardContent>
                     </Card>
@@ -419,6 +438,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                 <tr>
                                     <th className="px-4 py-3.5 text-center">Tahun</th>
                                     <th className="px-4 py-3.5">Skor PPH</th>
+                                    <th className="px-4 py-3.5">Target RENSTRA</th>
                                     <th className="px-4 py-3.5">Status Kategori</th>
                                     <th className="px-4 py-3.5">Kelompok Terisi</th>
                                     <th className="px-4 py-3.5">Keterangan</th>
@@ -428,7 +448,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
                                 {filteredScores.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-12 text-center text-slate-500">
+                                        <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
                                             <div className="flex flex-col items-center justify-center gap-2">
                                                 <AlertCircle className="size-8 text-slate-400" />
                                                 <p className="font-medium">Tidak ada data Skor PPH ditemukan.</p>
@@ -442,6 +462,8 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                     filteredScores.map((row) => {
                                         const cat = getScoreCategory(row.skor_pph);
                                         const percentageOfMax = Math.min(100, Math.max(0, (row.skor_pph / 100) * 100));
+                                        const targetRenstra = row.target_renstra ?? 94.0;
+                                        const isAchieved = row.skor_pph >= targetRenstra;
 
                                         return (
                                             <tr
@@ -468,6 +490,25 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                                                 style={{ width: `${percentageOfMax}%` }}
                                                             />
                                                         </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="flex flex-col gap-1 min-w-[120px]">
+                                                        <div className="flex items-baseline gap-1">
+                                                            <span className="text-base font-bold tracking-tight text-amber-600 dark:text-amber-400">
+                                                                {targetRenstra.toFixed(2)}
+                                                            </span>
+                                                            <span className="text-xs text-slate-400">/ 100.00</span>
+                                                        </div>
+                                                        {isAchieved ? (
+                                                            <span className="inline-flex items-center text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                ✓ Melampaui (+{(row.skor_pph - targetRenstra).toFixed(2)})
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                                                Selisih {(row.skor_pph - targetRenstra).toFixed(2)}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-4">
@@ -555,7 +596,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                         <DialogHeader>
                             <DialogTitle>Tambah Data Skor PPH</DialogTitle>
                             <DialogDescription>
-                                Masukkan tahun dan nilai capaian skor PPH tahunan.
+                                Masukkan tahun, nilai capaian skor PPH, dan target RENSTRA tahunan.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -589,6 +630,24 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                 />
                                 <p className="text-[11px] text-slate-500">
                                     Tips: Anda juga dapat mengisi rincian di menu <strong>Detail Skor PPH</strong>, yang akan otomatis menghitung skor ini.
+                                </p>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="formTargetRenstra">Target RENSTRA (0 - 100) *</Label>
+                                <Input
+                                    id="formTargetRenstra"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    max={100}
+                                    value={formTargetRenstra}
+                                    onChange={(e) => setFormTargetRenstra(e.target.value)}
+                                    placeholder="Contoh: 94.00"
+                                    required
+                                />
+                                <p className="text-[11px] text-slate-500">
+                                    Target indikator sasaran mutu konsumsi pangan RENSTRA DKPP untuk tahun ini (default: 94.00).
                                 </p>
                             </div>
 
@@ -630,7 +689,7 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                         <DialogHeader>
                             <DialogTitle>Edit Skor PPH</DialogTitle>
                             <DialogDescription>
-                                Perbarui informasi tahun dan skor PPH.
+                                Perbarui informasi tahun, capaian skor PPH, dan target RENSTRA.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -660,6 +719,23 @@ export default function PphScoresIndex({ scores, filters, statistics }: PageProp
                                     onChange={(e) => setFormScore(e.target.value)}
                                     required
                                 />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="editTargetRenstra">Target RENSTRA *</Label>
+                                <Input
+                                    id="editTargetRenstra"
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    max={100}
+                                    value={formTargetRenstra}
+                                    onChange={(e) => setFormTargetRenstra(e.target.value)}
+                                    required
+                                />
+                                <p className="text-[11px] text-slate-500">
+                                    Target indikator sasaran RENSTRA untuk tahun ini.
+                                </p>
                             </div>
 
                             <div className="space-y-1.5">

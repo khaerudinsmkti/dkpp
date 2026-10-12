@@ -22,6 +22,7 @@ class PphSeeder extends Seeder
 
         $yearsData = [
             2022 => [
+                'target_renstra' => 90.0,
                 'keterangan' => 'Pola Pangan Harapan Kabupaten Indramayu Tahun 2022',
                 'details' => [
                     'padi-padian' => ['energi' => 1310.0, 'ake' => 62.38, 'keterangan' => 'Konsumsi padi dominan'],
@@ -36,6 +37,7 @@ class PphSeeder extends Seeder
                 ],
             ],
             2023 => [
+                'target_renstra' => 91.5,
                 'keterangan' => 'Pola Pangan Harapan Kabupaten Indramayu Tahun 2023',
                 'details' => [
                     'padi-padian' => ['energi' => 1290.0, 'ake' => 61.43, 'keterangan' => 'Padi-padian masih mendominasi'],
@@ -50,6 +52,7 @@ class PphSeeder extends Seeder
                 ],
             ],
             2024 => [
+                'target_renstra' => 92.5,
                 'keterangan' => 'Pola Pangan Harapan Kabupaten Indramayu Tahun 2024',
                 'details' => [
                     'padi-padian' => ['energi' => 1270.0, 'ake' => 60.48, 'keterangan' => 'Tren diversifikasi mulai terasa'],
@@ -64,6 +67,7 @@ class PphSeeder extends Seeder
                 ],
             ],
             2025 => [
+                'target_renstra' => 93.5,
                 'keterangan' => 'Pola Pangan Harapan Kabupaten Indramayu Tahun 2025',
                 'details' => [
                     'padi-padian' => ['energi' => 1250.0, 'ake' => 59.52, 'keterangan' => 'Konsumsi padi-padian terkendali'],
@@ -78,6 +82,7 @@ class PphSeeder extends Seeder
                 ],
             ],
             2026 => [
+                'target_renstra' => 94.0,
                 'keterangan' => 'Pola Pangan Harapan Kabupaten Indramayu Tahun 2026 (Proyeksi Berjalan)',
                 'details' => [
                     'padi-padian' => ['energi' => 1235.0, 'ake' => 58.81, 'keterangan' => 'Pola konsumsi semakin seimbang'],
@@ -96,7 +101,10 @@ class PphSeeder extends Seeder
         foreach ($yearsData as $year => $data) {
             $scoreRecord = PphScore::updateOrCreate(
                 ['tahun' => $year],
-                ['keterangan' => $data['keterangan']]
+                [
+                    'target_renstra' => $data['target_renstra'] ?? 94.0,
+                    'keterangan' => $data['keterangan'],
+                ]
             );
 
             $totalScoreYear = 0;

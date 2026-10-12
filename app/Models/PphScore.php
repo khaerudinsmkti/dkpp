@@ -21,6 +21,7 @@ class PphScore extends Model
     protected $fillable = [
         'tahun',
         'skor_pph',
+        'target_renstra',
         'keterangan',
         'created_by',
     ];
@@ -35,6 +36,7 @@ class PphScore extends Model
         return [
             'tahun' => 'integer',
             'skor_pph' => 'float',
+            'target_renstra' => 'float',
         ];
     }
 

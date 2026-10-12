@@ -35,6 +35,7 @@ class PphScoreController extends Controller
                 'id' => $score->id,
                 'tahun' => (int) $score->tahun,
                 'skor_pph' => (float) $score->skor_pph,
+                'target_renstra' => (float) ($score->target_renstra ?? 94.0),
                 'keterangan' => $score->keterangan,
                 'details_count' => (int) $score->details_count,
                 'creator_name' => $score->creator?->name,
@@ -52,6 +53,7 @@ class PphScoreController extends Controller
             'max_score' => $allScores->isNotEmpty() ? round((float) $allScores->max('skor_pph'), 2) : 0,
             'min_score' => $allScores->isNotEmpty() ? round((float) $allScores->min('skor_pph'), 2) : 0,
             'latest_year' => $allScores->max('tahun') ?? now()->year,
+            'latest_target_renstra' => $allScores->isNotEmpty() ? (float) ($allScores->sortByDesc('tahun')->first()->target_renstra ?? 94.0) : 94.0,
             'total_food_groups' => $totalFoodGroups,
         ];
 
@@ -72,12 +74,16 @@ class PphScoreController extends Controller
         $validated = $request->validate([
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100', 'unique:pph_scores,tahun'],
             'skor_pph' => ['required', 'numeric', 'min:0', 'max:100'],
+            'target_renstra' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
         $score = PphScore::create([
             'tahun' => (int) $validated['tahun'],
             'skor_pph' => round((float) $validated['skor_pph'], 2),
+            'target_renstra' => isset($validated['target_renstra']) && $validated['target_renstra'] !== ''
+                ? round((float) $validated['target_renstra'], 2)
+                : 94.00,
             'keterangan' => $validated['keterangan'] ?? null,
             'created_by' => $request->user()?->id,
         ]);
@@ -93,6 +99,7 @@ class PphScoreController extends Controller
         $validated = $request->validate([
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100', 'unique:pph_scores,tahun,'.$pphScore->id],
             'skor_pph' => ['required', 'numeric', 'min:0', 'max:100'],
+            'target_renstra' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
@@ -102,6 +109,9 @@ class PphScoreController extends Controller
         $pphScore->update([
             'tahun' => $newYear,
             'skor_pph' => round((float) $validated['skor_pph'], 2),
+            'target_renstra' => isset($validated['target_renstra']) && $validated['target_renstra'] !== ''
+                ? round((float) $validated['target_renstra'], 2)
+                : 94.00,
             'keterangan' => $validated['keterangan'] ?? null,
         ]);
 
@@ -171,7 +181,7 @@ class PphScoreController extends Controller
                 'tahun' => (int) $s->tahun,
                 'skor_pph' => $scoreVal,
                 'target_ideal' => 100.0,
-                'target_nasional' => 94.0,
+                'target_renstra' => (float) ($s->target_renstra ?? 94.0),
                 'keterangan' => $s->keterangan,
                 'status' => $status,
                 'diff_previous' => $diff,
@@ -181,72 +191,94 @@ class PphScoreController extends Controller
             $prevScoreVal = $scoreVal;
         }
 
-        // 3. Commodity details for selected year
+        // 3. Commodity details for all available years (enables instant client comparison)
         $foodGroups = PphFoodGroup::where('is_active', true)->orderBy('order')->get();
-        $details = PphScoreDetail::where('tahun', $selectedYear)->get()->keyBy('pph_food_group_id');
+        $allDetailsByYear = PphScoreDetail::all()->groupBy('tahun');
 
-        $commodityDetails = $foodGroups->map(function (PphFoodGroup $group) use ($details): array {
-            $detail = $details->get($group->id);
-            $bobot = $detail ? (float) $detail->bobot : (float) $group->bobot;
-            $skorMaksimal = $detail ? (float) $detail->skor_maksimal : (float) $group->skor_maksimal;
-            $energi = $detail ? (float) $detail->energi : 0;
-            $akePercentage = $detail ? (float) $detail->ake_percentage : 0;
-            $skorRiil = $detail ? (float) $detail->skor_riil : 0;
-            $skorPph = $detail ? (float) $detail->skor_pph : 0;
-            $capaianPercentage = $skorMaksimal > 0 ? round(($skorPph / $skorMaksimal) * 100, 1) : 0;
+        $allYearCommodities = [];
+        $allYearTotals = [];
 
-            return [
-                'id' => $detail?->id,
-                'pph_food_group_id' => $group->id,
-                'food_group_name' => $group->name,
-                'food_group_slug' => $group->slug,
-                'food_group_order' => (int) $group->order,
-                'food_group_description' => $group->description,
-                'energi' => $energi,
-                'ake_percentage' => $akePercentage,
-                'bobot' => $bobot,
-                'skor_riil' => $skorRiil,
-                'skor_pph' => $skorPph,
-                'skor_maksimal' => $skorMaksimal,
-                'capaian_percentage' => $capaianPercentage,
-                'keterangan' => $detail?->keterangan,
-                'is_recorded' => $detail !== null,
+        foreach ($availableYears as $yr) {
+            $yrDetails = $allDetailsByYear->get($yr, collect())->keyBy('pph_food_group_id');
+            $yrCommodityDetails = $foodGroups->map(function (PphFoodGroup $group) use ($yrDetails): array {
+                $detail = $yrDetails->get($group->id);
+                $bobot = $detail ? (float) $detail->bobot : (float) $group->bobot;
+                $skorMaksimal = $detail ? (float) $detail->skor_maksimal : (float) $group->skor_maksimal;
+                $energi = $detail ? (float) $detail->energi : 0;
+                $akePercentage = $detail ? (float) $detail->ake_percentage : 0;
+                $skorRiil = $detail ? (float) $detail->skor_riil : 0;
+                $skorPph = $detail ? (float) $detail->skor_pph : 0;
+                $capaianPercentage = $skorMaksimal > 0 ? round(($skorPph / $skorMaksimal) * 100, 1) : 0;
+
+                return [
+                    'id' => $detail?->id,
+                    'pph_food_group_id' => $group->id,
+                    'food_group_name' => $group->name,
+                    'food_group_slug' => $group->slug,
+                    'food_group_order' => (int) $group->order,
+                    'food_group_description' => $group->description,
+                    'energi' => $energi,
+                    'ake_percentage' => $akePercentage,
+                    'bobot' => $bobot,
+                    'skor_riil' => $skorRiil,
+                    'skor_pph' => $skorPph,
+                    'skor_maksimal' => $skorMaksimal,
+                    'capaian_percentage' => $capaianPercentage,
+                    'keterangan' => $detail?->keterangan,
+                    'is_recorded' => $detail !== null,
+                ];
+            });
+
+            $recordedCommodities = $yrCommodityDetails->filter(fn (array $i) => $i['is_recorded']);
+            $totSkor = round($recordedCommodities->sum('skor_pph'), 2);
+            $parent = PphScore::where('tahun', $yr)->first();
+            if ($parent && $parent->skor_pph > 0 && $totSkor === 0.0) {
+                $totSkor = (float) $parent->skor_pph;
+            }
+
+            $allYearCommodities[$yr] = $yrCommodityDetails->values()->all();
+            $allYearTotals[$yr] = [
+                'total_energi' => round($recordedCommodities->sum('energi'), 2),
+                'total_ake' => round($recordedCommodities->sum('ake_percentage'), 2),
+                'total_bobot' => round($yrCommodityDetails->sum('bobot'), 2),
+                'total_skor_riil' => round($recordedCommodities->sum('skor_riil'), 2),
+                'total_skor_maksimal' => round($yrCommodityDetails->sum('skor_maksimal'), 2),
+                'total_skor_pph' => $totSkor,
             ];
-        });
+        }
 
         // 4. Totals for selected year
-        $recordedCommodities = $commodityDetails->filter(fn (array $i) => $i['is_recorded']);
-        $totalEnergi = round($recordedCommodities->sum('energi'), 2);
-        $totalAke = round($recordedCommodities->sum('ake_percentage'), 2);
-        $totalBobot = round($commodityDetails->sum('bobot'), 2);
-        $totalSkorRiil = round($recordedCommodities->sum('skor_riil'), 2);
-        $totalSkorMaksimal = round($commodityDetails->sum('skor_maksimal'), 2);
-        $totalSkorPph = round($recordedCommodities->sum('skor_pph'), 2);
-
-        $parentScore = PphScore::where('tahun', $selectedYear)->first();
-        if ($parentScore && $parentScore->skor_pph > 0 && $totalSkorPph === 0.0) {
-            $totalSkorPph = (float) $parentScore->skor_pph;
-        }
+        $commodityDetails = collect($allYearCommodities[$selectedYear] ?? []);
+        $totals = $allYearTotals[$selectedYear] ?? [
+            'total_energi' => 0,
+            'total_ake' => 0,
+            'total_bobot' => 0,
+            'total_skor_riil' => 0,
+            'total_skor_maksimal' => 0,
+            'total_skor_pph' => 0,
+        ];
 
         // Previous year score for comparison
         $prevYearScore = PphScore::where('tahun', '<', $selectedYear)->orderByDesc('tahun')->first();
-        $diffFromPrevYear = $prevYearScore ? round($totalSkorPph - (float) $prevYearScore->skor_pph, 2) : 0;
+        $diffFromPrevYear = $prevYearScore ? round($totals['total_skor_pph'] - (float) $prevYearScore->skor_pph, 2) : 0;
         $diffPercentageFromPrevYear = ($prevYearScore && $prevYearScore->skor_pph > 0)
             ? round(($diffFromPrevYear / (float) $prevYearScore->skor_pph) * 100, 2)
             : 0;
 
         $scoreStatus = 'Kurang';
-        if ($totalSkorPph >= 90) {
+        if ($totals['total_skor_pph'] >= 90) {
             $scoreStatus = 'Sangat Baik (Mutu Gizi Prima)';
-        } elseif ($totalSkorPph >= 80) {
+        } elseif ($totals['total_skor_pph'] >= 80) {
             $scoreStatus = 'Baik (Pangan Beragam & Bergizi)';
-        } elseif ($totalSkorPph >= 70) {
+        } elseif ($totals['total_skor_pph'] >= 70) {
             $scoreStatus = 'Sedang (Perlu Peningkatan Diversifikasi)';
         }
 
+        $parentScore = PphScore::where('tahun', $selectedYear)->first();
+
         $statistics = [
             'selected_year' => $selectedYear,
-            'current_score' => $totalSkorPph,
+            'current_score' => $totals['total_skor_pph'],
             'prev_score' => $prevYearScore ? (float) $prevYearScore->skor_pph : null,
             'prev_year' => $prevYearScore ? (int) $prevYearScore->tahun : null,
             'diff_score' => $diffFromPrevYear,
@@ -256,21 +288,23 @@ class PphScoreController extends Controller
             'total_groups' => $foodGroups->count(),
             'standard_ake' => 2100,
             'ideal_score' => 100.0,
+            'target_renstra' => $parentScore ? (float) ($parentScore->target_renstra ?? 94.0) : 94.0,
         ];
+
+        $reqCompare = (int) $request->query('compare');
+        $initialCompareYear = ($reqCompare && in_array($reqCompare, $availableYears, true) && $reqCompare !== $selectedYear)
+            ? $reqCompare
+            : null;
 
         return Inertia::render('pph', [
             'yearlyScores' => $yearlyScores,
             'selectedYear' => $selectedYear,
             'availableYears' => $availableYears,
             'commodityDetails' => $commodityDetails->values(),
-            'totals' => [
-                'total_energi' => $totalEnergi,
-                'total_ake' => $totalAke,
-                'total_bobot' => $totalBobot,
-                'total_skor_riil' => $totalSkorRiil,
-                'total_skor_maksimal' => $totalSkorMaksimal,
-                'total_skor_pph' => $totalSkorPph,
-            ],
+            'totals' => $totals,
+            'allYearCommodities' => $allYearCommodities,
+            'allYearTotals' => $allYearTotals,
+            'initialCompareYear' => $initialCompareYear,
             'statistics' => $statistics,
         ]);
     }

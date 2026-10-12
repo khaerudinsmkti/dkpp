@@ -18,6 +18,7 @@ import {
     LineChart as LineChartIcon,
     PieChart as PieChartIcon,
     Printer,
+    Scale,
     Search,
     ShieldCheck,
     Sparkles,
@@ -63,7 +64,7 @@ export interface YearlyScoreItem {
     tahun: number;
     skor_pph: number;
     target_ideal: number;
-    target_nasional: number;
+    target_renstra: number;
     keterangan: string | null;
     status: 'Sangat Baik' | 'Baik' | 'Sedang' | 'Kurang';
     diff_previous: number;
@@ -101,6 +102,19 @@ export interface PphPageProps {
         total_skor_maksimal: number;
         total_skor_pph: number;
     };
+    allYearCommodities?: Record<number, CommodityDetailItem[]>;
+    allYearTotals?: Record<
+        number,
+        {
+            total_energi: number;
+            total_ake: number;
+            total_bobot: number;
+            total_skor_riil: number;
+            total_skor_maksimal: number;
+            total_skor_pph: number;
+        }
+    >;
+    initialCompareYear?: number | null;
     statistics: {
         selected_year: number;
         current_score: number;
@@ -113,6 +127,7 @@ export interface PphPageProps {
         total_groups: number;
         standard_ake: number;
         ideal_score: number;
+        target_renstra?: number;
     };
 }
 
@@ -199,9 +214,24 @@ function CustomYearTooltip({
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <span className="text-slate-600 dark:text-slate-400">Target Bapanas:</span>
-                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
-                        94.00
+                    <span className="text-slate-600 dark:text-slate-400">Target RENSTRA:</span>
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                        {formatNumber(data.target_renstra ?? 94.0)}
+                    </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 dark:text-slate-400">Status vs Renstra:</span>
+                    <span
+                        className={`font-mono font-bold ${
+                            data.skor_pph >= (data.target_renstra ?? 94.0)
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-amber-600 dark:text-amber-400'
+                        }`}
+                    >
+                        {data.skor_pph >= (data.target_renstra ?? 94.0)
+                            ? `✓ Melampaui (+${formatNumber(data.skor_pph - (data.target_renstra ?? 94.0))})`
+                            : `Selisih ${formatNumber(data.skor_pph - (data.target_renstra ?? 94.0))}`}
                     </span>
                 </div>
 
@@ -237,15 +267,24 @@ export default function PphPublic({
     commodityDetails,
     totals,
     statistics,
+    allYearCommodities,
+    allYearTotals,
+    initialCompareYear,
 }: PphPageProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [chartMode, setChartMode] = useState<'composed' | 'line' | 'area'>('composed');
     const [showInfoModal, setShowInfoModal] = useState(false);
+    const [compareYear, setCompareYear] = useState<number | null>(
+        initialCompareYear && initialCompareYear !== selectedYear ? initialCompareYear : null
+    );
 
     const handleYearChange = (year: number) => {
         router.get(
             '/pph',
-            { year },
+            {
+                year,
+                ...(compareYear && compareYear !== year ? { compare: compareYear } : {}),
+            },
             { preserveState: true, preserveScroll: true }
         );
     };
@@ -256,6 +295,53 @@ export default function PphPublic({
             el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     };
+
+    // Data for comparison year
+    const compCommodities = useMemo(() => {
+        if (!compareYear || !allYearCommodities) return null;
+        return allYearCommodities[compareYear] ?? null;
+    }, [compareYear, allYearCommodities]);
+
+    const compTotals = useMemo(() => {
+        if (!compareYear || !allYearTotals) return null;
+        return allYearTotals[compareYear] ?? null;
+    }, [compareYear, allYearTotals]);
+
+    const compMap = useMemo(() => {
+        if (!compCommodities) return new Map<number, CommodityDetailItem>();
+        return new Map(compCommodities.map((c) => [c.pph_food_group_id, c]));
+    }, [compCommodities]);
+
+    // Comparison summary metrics
+    const comparisonSummary = useMemo(() => {
+        if (!compareYear || !compTotals || !compCommodities) return null;
+
+        const diffScore = Number((totals.total_skor_pph - compTotals.total_skor_pph).toFixed(2));
+        const diffEnergi = Number((totals.total_energi - compTotals.total_energi).toFixed(1));
+        const diffAke = Number((totals.total_ake - compTotals.total_ake).toFixed(2));
+
+        let increased = 0;
+        let decreased = 0;
+        let stable = 0;
+
+        commodityDetails.forEach((cur) => {
+            const prev = compMap.get(cur.pph_food_group_id);
+            if (!prev) return;
+            const diff = Number((cur.skor_pph - prev.skor_pph).toFixed(2));
+            if (diff > 0.01) increased++;
+            else if (diff < -0.01) decreased++;
+            else stable++;
+        });
+
+        return {
+            diffScore,
+            diffEnergi,
+            diffAke,
+            increased,
+            decreased,
+            stable,
+        };
+    }, [compareYear, compTotals, compCommodities, compMap, totals, commodityDetails]);
 
     const filteredCommodities = useMemo(() => {
         if (!searchTerm.trim()) return commodityDetails;
@@ -269,6 +355,95 @@ export default function PphPublic({
     }, [commodityDetails, searchTerm]);
 
     const handleExportCsv = () => {
+        if (compareYear && compCommodities && compTotals) {
+            // Mode Komparasi Antar Tahun
+            const headers = [
+                'No',
+                'Kelompok Bahan Pangan',
+                'Deskripsi / Contoh Komoditas',
+                `Energi ${compareYear} (Kkal)`,
+                `Energi ${selectedYear} (Kkal)`,
+                'Selisih Energi (Kkal)',
+                `% AKE ${compareYear}`,
+                `% AKE ${selectedYear}`,
+                'Selisih % AKE',
+                'Bobot',
+                `Skor PPH ${compareYear}`,
+                `Skor PPH ${selectedYear}`,
+                'Selisih Skor PPH',
+                'Status Perubahan',
+            ];
+
+            const rows = commodityDetails.map((c, idx) => {
+                const prev = compMap.get(c.pph_food_group_id);
+                const prevE = prev?.energi ?? 0;
+                const currE = c.energi;
+                const diffE = Number((currE - prevE).toFixed(1));
+
+                const prevA = prev?.ake_percentage ?? 0;
+                const currA = c.ake_percentage;
+                const diffA = Number((currA - prevA).toFixed(2));
+
+                const prevS = prev?.skor_pph ?? 0;
+                const currS = c.skor_pph;
+                const diffS = Number((currS - prevS).toFixed(2));
+
+                const status = diffS > 0.01 ? 'Meningkat' : diffS < -0.01 ? 'Menurun' : 'Stabil';
+
+                return [
+                    idx + 1,
+                    `"${c.food_group_name}"`,
+                    `"${c.food_group_description || ''}"`,
+                    prevE,
+                    currE,
+                    diffE,
+                    `${prevA}%`,
+                    `${currA}%`,
+                    `${diffA}%`,
+                    c.bobot,
+                    prevS,
+                    currS,
+                    diffS,
+                    `"${status}"`,
+                ];
+            });
+
+            const diffTotE = Number((totals.total_energi - compTotals.total_energi).toFixed(1));
+            const diffTotA = Number((totals.total_ake - compTotals.total_ake).toFixed(2));
+            const diffTotS = Number((totals.total_skor_pph - compTotals.total_skor_pph).toFixed(2));
+
+            const totalRow = [
+                '',
+                `"TOTAL KESELURUHAN (KOMPARASI)"`,
+                '',
+                compTotals.total_energi,
+                totals.total_energi,
+                diffTotE,
+                `${compTotals.total_ake}%`,
+                `${totals.total_ake}%`,
+                `${diffTotA}%`,
+                totals.total_bobot,
+                compTotals.total_skor_pph,
+                totals.total_skor_pph,
+                diffTotS,
+                `"Komparasi Tahun ${selectedYear} vs ${compareYear}"`,
+            ];
+
+            const csvContent =
+                'data:text/csv;charset=utf-8,\uFEFF' +
+                [headers.join(','), ...rows.map((r) => r.join(',')), totalRow.join(',')].join('\n');
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `Komparasi_PPH_Indramayu_${selectedYear}_vs_${compareYear}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            return;
+        }
+
+        // Mode Normal (Tahun Tunggal)
         const headers = [
             'No',
             'Kelompok Bahan Pangan',
@@ -337,6 +512,202 @@ export default function PphPublic({
             year: 'numeric',
         });
 
+        if (compareYear && compCommodities && compTotals && comparisonSummary) {
+            // Mode Cetak Komparasi
+            let tableRowsHtml = '';
+            commodityDetails.forEach((c, idx) => {
+                const prev = compMap.get(c.pph_food_group_id);
+                const prevE = prev?.energi ?? 0;
+                const currE = c.energi;
+                const diffE = Number((currE - prevE).toFixed(1));
+
+                const prevA = prev?.ake_percentage ?? 0;
+                const currA = c.ake_percentage;
+                const diffA = Number((currA - prevA).toFixed(2));
+
+                const prevS = prev?.skor_pph ?? 0;
+                const currS = c.skor_pph;
+                const diffS = Number((currS - prevS).toFixed(2));
+
+                const isUp = diffS > 0.01;
+                const isDown = diffS < -0.01;
+
+                tableRowsHtml += `
+                    <tr>
+                        <td style="text-align:center;color:#64748b;">${idx + 1}</td>
+                        <td style="font-weight:bold;color:#0f172a;">${c.food_group_name}</td>
+                        <td style="text-align:right;">${formatNumber(prevE, 1)}</td>
+                        <td style="text-align:right;font-weight:bold;">${formatNumber(currE, 1)}</td>
+                        <td style="text-align:right;color:${diffE >= 0 ? '#047857' : '#e11d48'};">${diffE >= 0 ? '+' : ''}${formatNumber(diffE, 1)}</td>
+                        <td style="text-align:right;">${formatNumber(prevA, 2)}%</td>
+                        <td style="text-align:right;font-weight:bold;">${formatNumber(currA, 2)}%</td>
+                        <td style="text-align:center;">${formatNumber(c.bobot, 1)}</td>
+                        <td style="text-align:right;">${formatNumber(prevS)}</td>
+                        <td style="text-align:right;font-weight:bold;color:#047857;">${formatNumber(currS)}</td>
+                        <td style="text-align:right;font-weight:bold;color:${isUp ? '#047857' : isDown ? '#e11d48' : '#64748b'};">
+                            ${isUp ? '+' : ''}${formatNumber(diffS)}
+                        </td>
+                        <td style="text-align:center;font-size:7.5pt;font-weight:bold;color:${isUp ? '#047857' : isDown ? '#e11d48' : '#64748b'};">
+                            ${isUp ? '▲ Naik' : isDown ? '▼ Turun' : '— Stabil'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const printHtml = `
+            <!DOCTYPE html>
+            <html lang="id">
+            <head>
+                <meta charset="UTF-8"/>
+                <title>Laporan_Komparasi_PPH_${selectedYear}_vs_${compareYear}</title>
+                <style>
+                    @page { size: A4 landscape; margin: 10mm 12mm; }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        margin: 0; padding: 12px; color: #0f172a; font-size: 8pt; background: #fff;
+                    }
+                    .no-print {
+                        margin-bottom: 12px; display: flex; gap: 12px; align-items: center;
+                        background: #f8fafc; padding: 8px 14px; border-radius: 8px; border: 1px solid #cbd5e1;
+                    }
+                    .btn {
+                        background: #006565; color: white; border: none; padding: 7px 16px;
+                        border-radius: 6px; font-weight: bold; font-size: 8.5pt; cursor: pointer;
+                    }
+                    .kop-container {
+                        text-align: center; margin-bottom: 10px; border-bottom: 3px double #006565; padding-bottom: 6px;
+                    }
+                    .kop-sub { font-size: 8.5pt; font-weight: 600; text-transform: uppercase; color: #334155; margin: 0; }
+                    .kop-main { font-size: 13pt; font-weight: 800; text-transform: uppercase; color: #006565; margin: 2px 0; }
+                    .kop-address { font-size: 7.5pt; color: #64748b; margin: 0; }
+                    .title-section { text-align: center; margin: 10px 0; }
+                    .title-section h1 { margin: 0; font-size: 11pt; font-weight: 800; text-transform: uppercase; color: #0f172a; }
+                    .title-section p { margin: 3px 0 0 0; font-size: 8pt; color: #475569; }
+                    .summary-box {
+                        display: flex; justify-content: space-around; background: #f0fdf4; border: 1px solid #bbf7d0;
+                        padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;
+                    }
+                    .summary-item { text-align: center; }
+                    .summary-item .label { font-size: 7pt; color: #166534; text-transform: uppercase; font-weight: bold; }
+                    .summary-item .val { font-size: 11pt; font-weight: 800; color: #14532d; font-family: monospace; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 7.5pt; }
+                    th { background-color: #006565; color: white; border: 1px solid #004d4d; padding: 5px 5px; font-weight: bold; text-align: center; }
+                    td { border: 1px solid #cbd5e1; padding: 4px 5px; }
+                    tr:nth-child(even) td { background-color: #f8fafc; }
+                    tfoot tr td { background-color: #ecfdf5; font-weight: bold; border-top: 2px solid #006565; }
+                    .footer-sign { margin-top: 18px; display: flex; justify-content: flex-end; }
+                    .sign-box { text-align: center; width: 220px; font-size: 7.5pt; }
+                    @media print { .no-print { display: none !important; } }
+                </style>
+            </head>
+            <body>
+                <div class="no-print">
+                    <button class="btn" onclick="window.print()">Cetak Dokumen Sekarang</button>
+                    <span style="font-size: 8pt; color: #64748b;">(Gunakan orientasi Lanskap di dialog cetak)</span>
+                </div>
+
+                <div class="kop-container">
+                    <p class="kop-sub">Pemerintah Kabupaten Indramayu</p>
+                    <h2 class="kop-main">Dinas Ketahanan Pangan dan Pertanian</h2>
+                    <p class="kop-address">Jl. MT Haryono No. 1, Sindang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45222</p>
+                </div>
+
+                <div class="title-section">
+                    <h1>Laporan Komparasi Pola Pangan Harapan (PPH)</h1>
+                    <p>Kabupaten Indramayu: Perbandingan Tahun ${selectedYear} vs Tahun ${compareYear}</p>
+                </div>
+
+                <div class="summary-box">
+                    <div class="summary-item">
+                        <div class="label">Skor PPH ${compareYear}</div>
+                        <div class="val">${formatNumber(compTotals.total_skor_pph)}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Skor PPH ${selectedYear}</div>
+                        <div class="val">${formatNumber(totals.total_skor_pph)}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Selisih Skor PPH</div>
+                        <div class="val" style="color:${comparisonSummary.diffScore >= 0 ? '#047857' : '#e11d48'};">
+                            ${comparisonSummary.diffScore >= 0 ? '+' : ''}${formatNumber(comparisonSummary.diffScore)} Poin
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Selisih Energi</div>
+                        <div class="val">
+                            ${comparisonSummary.diffEnergi >= 0 ? '+' : ''}${formatNumber(comparisonSummary.diffEnergi, 1)} Kkal
+                        </div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Komoditas Meningkat</div>
+                        <div class="val" style="color:#047857;">${comparisonSummary.increased} Kelompok</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th rowspan="2">No</th>
+                            <th rowspan="2">Kelompok Bahan Pangan</th>
+                            <th colspan="3">Energi (Kkal)</th>
+                            <th colspan="2">% AKE</th>
+                            <th rowspan="2">Bobot</th>
+                            <th colspan="3">Skor PPH</th>
+                            <th rowspan="2">Status</th>
+                        </tr>
+                        <tr>
+                            <th>${compareYear}</th>
+                            <th>${selectedYear}</th>
+                            <th>Δ (+/-)</th>
+                            <th>${compareYear}</th>
+                            <th>${selectedYear}</th>
+                            <th>${compareYear}</th>
+                            <th>${selectedYear}</th>
+                            <th>Δ Skor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" style="text-align:center;">TOTAL KESELURUHAN</td>
+                            <td style="text-align:right;">${formatNumber(compTotals.total_energi, 1)}</td>
+                            <td style="text-align:right;color:#047857;">${formatNumber(totals.total_energi, 1)}</td>
+                            <td style="text-align:right;color:${comparisonSummary.diffEnergi >= 0 ? '#047857' : '#e11d48'};">
+                                ${comparisonSummary.diffEnergi >= 0 ? '+' : ''}${formatNumber(comparisonSummary.diffEnergi, 1)}
+                            </td>
+                            <td style="text-align:right;">${formatNumber(compTotals.total_ake, 2)}%</td>
+                            <td style="text-align:right;color:#047857;">${formatNumber(totals.total_ake, 2)}%</td>
+                            <td style="text-align:center;">${formatNumber(totals.total_bobot, 1)}</td>
+                            <td style="text-align:right;">${formatNumber(compTotals.total_skor_pph)}</td>
+                            <td style="text-align:right;color:#047857;font-size:9pt;">${formatNumber(totals.total_skor_pph)}</td>
+                            <td style="text-align:right;color:${comparisonSummary.diffScore >= 0 ? '#047857' : '#e11d48'};font-size:9pt;">
+                                ${comparisonSummary.diffScore >= 0 ? '+' : ''}${formatNumber(comparisonSummary.diffScore)}
+                            </td>
+                            <td style="text-align:center;font-size:7.5pt;">${comparisonSummary.diffScore >= 0 ? 'Peningkatan' : 'Penurunan'}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="footer-sign">
+                    <div class="sign-box">
+                        <p style="margin: 0 0 35px 0;">Indramayu, ${formattedToday}<br/>Kepala DKPP Kabupaten Indramayu</p>
+                        <p style="margin: 0; font-weight: bold; text-decoration: underline;">DINAS KETAHANAN PANGAN &amp; PERTANIAN</p>
+                        <p style="margin: 0; color: #64748b; font-size: 7pt;">Pemerintah Kabupaten Indramayu</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            `;
+
+            printWindow.document.open();
+            printWindow.document.write(printHtml);
+            printWindow.document.close();
+            return;
+        }
+
+        // Mode Normal (Tahun Tunggal)
         let tableRowsHtml = '';
         commodityDetails.forEach((c, idx) => {
             const isFull = c.skor_pph >= c.skor_maksimal && c.skor_maksimal > 0;
@@ -493,6 +864,8 @@ export default function PphPublic({
 
     const currentYearScore = totals.total_skor_pph;
     const badgeMeta = getScoreBadgeColor(currentYearScore);
+    const currentYearData = yearlyScores.find((y) => y.tahun === selectedYear);
+    const currentTargetRenstra = currentYearData?.target_renstra ?? statistics.target_renstra ?? 94.0;
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-emerald-500 selection:text-white dark:bg-slate-950 dark:text-slate-100">
@@ -572,8 +945,8 @@ export default function PphPublic({
                                     <span>Skor Maksimal: 100.0</span>
                                 </div>
                                 <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
-                                    <Award className="size-3.5 text-cyan-300" />
-                                    <span>Target Bapanas: 94.0</span>
+                                    <Award className="size-3.5 text-amber-300" />
+                                    <span>Target RENSTRA: {formatNumber(currentTargetRenstra, 1)}</span>
                                 </div>
                                 <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
                                     <Utensils className="size-3.5 text-teal-300" />
@@ -645,7 +1018,7 @@ export default function PphPublic({
                                         </div>
                                         <div className="flex justify-between text-[10px] font-semibold text-emerald-200/70">
                                             <span>0 (Rendah)</span>
-                                            <span>Target Bapanas: 94.0</span>
+                                            <span>Target RENSTRA: {formatNumber(currentTargetRenstra, 1)}</span>
                                             <span>100 (Ideal)</span>
                                         </div>
                                     </div>
@@ -716,7 +1089,7 @@ export default function PphPublic({
                                         </CardTitle>
                                     </div>
                                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                        Tren capaian mutu konsumsi pangan penduduk Kabupaten Indramayu antar periode tahunan terhadap Target Nasional Bapanas (94.0) dan Skor Ideal (100.0).
+                                        Tren capaian mutu konsumsi pangan penduduk Kabupaten Indramayu antar periode tahunan terhadap Target RENSTRA dan Skor Ideal (100.0).
                                     </p>
                                 </div>
 
@@ -816,26 +1189,26 @@ export default function PphPublic({
                                                     fontWeight: 'bold',
                                                 }}
                                             />
-                                            <ReferenceLine
-                                                y={94}
+                                            <Line
+                                                type="monotone"
+                                                dataKey="target_renstra"
+                                                name="Target RENSTRA"
                                                 stroke="#f59e0b"
-                                                strokeDasharray="3 3"
-                                                strokeWidth={1.5}
-                                                label={{
-                                                    value: 'Target Bapanas (94.0)',
-                                                    position: 'insideBottomRight',
-                                                    fill: '#d97706',
-                                                    fontSize: 11,
-                                                    fontWeight: 'bold',
-                                                }}
+                                                strokeDasharray="4 4"
+                                                strokeWidth={2}
+                                                dot={{ r: 4, fill: '#f59e0b', stroke: '#fff', strokeWidth: 1.5 }}
+                                                activeDot={{ r: 6 }}
                                             />
                                             <Bar
                                                 dataKey="skor_pph"
                                                 name="Skor PPH Indramayu"
                                                 radius={[10, 10, 0, 0]}
                                                 maxBarSize={56}
-                                                cursor="pointer"
-                                                onClick={(entry) => handleYearChange(entry.tahun)}
+                                                onClick={(entry: any) => {
+                                                    if (entry && entry.tahun) {
+                                                        handleYearChange(Number(entry.tahun));
+                                                    }
+                                                }}
                                             >
                                                 {yearlyScores.map((entry) => (
                                                     <Cell
@@ -874,9 +1247,22 @@ export default function PphPublic({
                                                 axisLine={false}
                                             />
                                             <Tooltip content={<CustomYearTooltip />} />
-                                            <Legend verticalAlign="top" height={36} />
-                                            <ReferenceLine y={100} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} />
-                                            <ReferenceLine y={94} stroke="#f59e0b" strokeDasharray="3 3" strokeWidth={1.5} />
+                                            <Legend
+                                                verticalAlign="top"
+                                                height={36}
+                                                formatter={(val) => <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{val}</span>}
+                                            />
+                                            <ReferenceLine y={100} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: 'Ideal (100.0)', position: 'insideTopRight', fill: '#059669', fontSize: 11, fontWeight: 'bold' }} />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="target_renstra"
+                                                name="Target RENSTRA"
+                                                stroke="#f59e0b"
+                                                strokeDasharray="4 4"
+                                                strokeWidth={2}
+                                                dot={{ r: 4, fill: '#f59e0b', stroke: '#fff', strokeWidth: 1.5 }}
+                                                activeDot={{ r: 6 }}
+                                            />
                                             <Line
                                                 type="monotone"
                                                 dataKey="skor_pph"
@@ -911,8 +1297,22 @@ export default function PphPublic({
                                                 axisLine={false}
                                             />
                                             <Tooltip content={<CustomYearTooltip />} />
-                                            <ReferenceLine y={100} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} />
-                                            <ReferenceLine y={94} stroke="#f59e0b" strokeDasharray="3 3" strokeWidth={1.5} />
+                                            <Legend
+                                                verticalAlign="top"
+                                                height={36}
+                                                formatter={(val) => <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{val}</span>}
+                                            />
+                                            <ReferenceLine y={100} stroke="#10b981" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: 'Ideal (100.0)', position: 'insideTopRight', fill: '#059669', fontSize: 11, fontWeight: 'bold' }} />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="target_renstra"
+                                                name="Target RENSTRA"
+                                                stroke="#f59e0b"
+                                                strokeDasharray="4 4"
+                                                strokeWidth={2}
+                                                dot={{ r: 4, fill: '#f59e0b', stroke: '#fff', strokeWidth: 1.5 }}
+                                                activeDot={{ r: 6 }}
+                                            />
                                             <Area
                                                 type="monotone"
                                                 dataKey="skor_pph"
@@ -954,11 +1354,16 @@ export default function PphPublic({
                                                 )}
                                             </div>
 
-                                            <div className="mt-1 flex items-baseline gap-1">
-                                                <span className="font-mono text-xl font-black text-slate-900 dark:text-white">
-                                                    {formatNumber(y.skor_pph)}
+                                            <div className="mt-1 flex items-baseline justify-between">
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="font-mono text-xl font-black text-slate-900 dark:text-white">
+                                                        {formatNumber(y.skor_pph)}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-semibold">/100</span>
+                                                </div>
+                                                <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400 font-semibold" title="Target RENSTRA">
+                                                    Renstra {formatNumber(y.target_renstra ?? 94.0, 1)}
                                                 </span>
-                                                <span className="text-[10px] text-slate-400 font-semibold">/100</span>
                                             </div>
 
                                             <div className="mt-1 flex items-center justify-between">
@@ -1004,10 +1409,10 @@ export default function PphPublic({
                                     </p>
                                 </div>
 
-                                {/* Controls: Year Selector, Search, Export buttons */}
+                                {/* Controls: Year Selector, Compare Selector, Quick Toggle, Search, Export buttons */}
                                 <div className="flex flex-wrap items-center gap-2.5">
-                                    {/* Year Selector */}
-                                    <div className="w-36">
+                                    {/* Primary Year Selector */}
+                                    <div className="w-32">
                                         <Select
                                             value={String(selectedYear)}
                                             onValueChange={(val) => handleYearChange(Number(val))}
@@ -1025,12 +1430,71 @@ export default function PphPublic({
                                         </Select>
                                     </div>
 
+                                    {/* Compare Year Selector */}
+                                    <div className="w-44">
+                                        <Select
+                                            value={compareYear ? String(compareYear) : 'none'}
+                                            onValueChange={(val) => setCompareYear(val === 'none' ? null : Number(val))}
+                                        >
+                                            <SelectTrigger className={`h-9 rounded-xl text-xs font-bold border transition-colors ${
+                                                compareYear
+                                                    ? 'border-[#006565] bg-emerald-50/70 text-[#006565] dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                    : 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}>
+                                                <div className="flex items-center gap-1.5 truncate">
+                                                    <Scale className="size-3.5 shrink-0" />
+                                                    <span>{compareYear ? `Vs Tahun ${compareYear}` : 'Bandingkan Tahun'}</span>
+                                                </div>
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+                                                <SelectItem value="none" className="text-xs font-semibold text-slate-500">
+                                                    -- Tanpa Pembanding --
+                                                </SelectItem>
+                                                {availableYears
+                                                    .filter((yr) => yr !== selectedYear)
+                                                    .map((yr) => (
+                                                        <SelectItem key={yr} value={String(yr)} className="text-xs font-semibold">
+                                                            Bandingkan vs {yr}
+                                                        </SelectItem>
+                                                    ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Quick Comparison Toggle Button (Vs Previous Year) */}
+                                    {statistics.prev_year && statistics.prev_year !== selectedYear && (
+                                        <Button
+                                            type="button"
+                                            variant={compareYear === statistics.prev_year ? 'default' : 'outline'}
+                                            size="sm"
+                                            onClick={() =>
+                                                setCompareYear(
+                                                    compareYear === statistics.prev_year ? null : statistics.prev_year
+                                                )
+                                            }
+                                            className={`h-9 rounded-xl text-xs font-bold transition-all ${
+                                                compareYear === statistics.prev_year
+                                                    ? 'bg-[#006565] text-white hover:bg-[#005252] shadow-xs'
+                                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}
+                                            title={
+                                                compareYear === statistics.prev_year
+                                                    ? 'Batalkan perbandingan'
+                                                    : `Bandingkan cepat dengan tahun ${statistics.prev_year}`
+                                            }
+                                        >
+                                            <Scale className="size-3.5 mr-1" />
+                                            <span>Vs {statistics.prev_year}</span>
+                                            {compareYear === statistics.prev_year && <X className="size-3 ml-1 opacity-80" />}
+                                        </Button>
+                                    )}
+
                                     {/* Search Input */}
-                                    <div className="relative w-48 sm:w-56">
+                                    <div className="relative w-44 sm:w-52">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
                                         <Input
                                             type="text"
-                                            placeholder="Cari kelompok pangan..."
+                                            placeholder="Cari komoditas..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                             className="h-9 rounded-xl pl-9 text-xs border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800"
@@ -1064,33 +1528,370 @@ export default function PphPublic({
                         </CardHeader>
 
                         <CardContent className="p-0">
+                            {/* Comparison Active Banner */}
+                            {compareYear && compTotals && compCommodities && comparisonSummary && (
+                                <div className="mx-5 my-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border border-teal-200/90 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-amber-950/20 dark:border-teal-800/60 shadow-xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex size-9 items-center justify-center rounded-xl bg-[#006565] text-white shadow-xs">
+                                                <Scale className="size-4.5" />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                                                        Mode Komparasi: Tahun {selectedYear} vs Tahun {compareYear}
+                                                    </span>
+                                                    <Badge className="bg-[#006565] text-white text-[10px] py-0 px-2 font-bold">
+                                                        Perbandingan Aktif
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                                    Analisis perbedaan konsumsi energi, capaian % AKE, dan skor mutu pangan antar tahun.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setCompareYear(null)}
+                                            className="h-8 px-2.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-white/80 dark:text-slate-300 dark:hover:bg-slate-800 self-start sm:self-auto rounded-xl"
+                                        >
+                                            <X className="size-3.5 mr-1" />
+                                            <span>Tutup Komparasi</span>
+                                        </Button>
+                                    </div>
+
+                                    {/* Quick Comparison Highlights */}
+                                    <div className="mt-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-teal-200/60 dark:border-teal-800/40">
+                                        {/* Diff Skor */}
+                                        <div className="rounded-xl bg-white/90 p-2.5 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Selisih Skor PPH
+                                            </span>
+                                            <div className="mt-1 flex items-baseline gap-1.5">
+                                                <span
+                                                    className={`font-mono text-base font-black ${
+                                                        comparisonSummary.diffScore >= 0
+                                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                                            : 'text-rose-600 dark:text-rose-400'
+                                                    }`}
+                                                >
+                                                    {comparisonSummary.diffScore >= 0 ? '+' : ''}
+                                                    {formatNumber(comparisonSummary.diffScore)}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-semibold">poin</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Diff Energi */}
+                                        <div className="rounded-xl bg-white/90 p-2.5 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Selisih Energi
+                                            </span>
+                                            <div className="mt-1 flex items-baseline gap-1.5">
+                                                <span
+                                                    className={`font-mono text-base font-black ${
+                                                        comparisonSummary.diffEnergi >= 0
+                                                            ? 'text-teal-600 dark:text-teal-400'
+                                                            : 'text-rose-600 dark:text-rose-400'
+                                                    }`}
+                                                >
+                                                    {comparisonSummary.diffEnergi >= 0 ? '+' : ''}
+                                                    {formatNumber(comparisonSummary.diffEnergi, 1)}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-semibold">Kkal</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Kelompok Naik */}
+                                        <div className="rounded-xl bg-white/90 p-2.5 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Kelompok Naik
+                                            </span>
+                                            <div className="mt-1 flex items-center gap-1.5">
+                                                <TrendingUp className="size-4 text-emerald-600" />
+                                                <span className="font-mono text-base font-black text-emerald-600 dark:text-emerald-400">
+                                                    {comparisonSummary.increased}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-semibold">kelompok</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Kelompok Turun & Stabil */}
+                                        <div className="rounded-xl bg-white/90 p-2.5 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 shadow-2xs">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                                Turun / Tetap
+                                            </span>
+                                            <div className="mt-1 flex items-center gap-2">
+                                                <span className="flex items-center gap-1 font-mono text-xs font-bold text-rose-600 dark:text-rose-400">
+                                                    <TrendingDown className="size-3.5" />
+                                                    {comparisonSummary.decreased} Turun
+                                                </span>
+                                                <span className="text-slate-300 dark:text-slate-700">|</span>
+                                                <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-300">
+                                                    {comparisonSummary.stable} Tetap
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* The Table */}
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-                                    <thead className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
-                                        <tr>
-                                            <th className="py-3.5 pl-5 pr-2 w-12 text-center">No</th>
-                                            <th className="py-3.5 px-3 min-w-[220px]">Kelompok Bahan Pangan</th>
-                                            <th className="py-3.5 px-3 text-right">Energi (Kkal)</th>
-                                            <th className="py-3.5 px-3 text-right">% AKE</th>
-                                            <th className="py-3.5 px-3 text-center">Bobot</th>
-                                            <th className="py-3.5 px-3 text-right">Skor Riil</th>
-                                            <th className="py-3.5 px-3 text-right">Skor Maks</th>
-                                            <th className="py-3.5 px-3 text-right font-black text-[#006565] dark:text-emerald-400">
-                                                Skor PPH
-                                            </th>
-                                            <th className="py-3.5 px-3 text-center min-w-[130px]">% Capaian</th>
-                                            <th className="py-3.5 pr-5 pl-3 min-w-[180px]">Keterangan</th>
-                                        </tr>
-                                    </thead>
+                                    {compareYear && compCommodities && compTotals ? (
+                                        /* 2-LEVEL COMPARATIVE THEAD */
+                                        <thead className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300">
+                                            <tr>
+                                                <th rowSpan={2} className="py-3 pl-5 pr-2 w-10 text-center border-r border-slate-200/80 dark:border-slate-700">
+                                                    No
+                                                </th>
+                                                <th rowSpan={2} className="py-3 px-3 min-w-[200px] border-r border-slate-200/80 dark:border-slate-700">
+                                                    Kelompok Bahan Pangan
+                                                </th>
+                                                <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-emerald-50/70 text-[#006565] dark:border-slate-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                                    Konsumsi Energi (Kkal)
+                                                </th>
+                                                <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-teal-50/70 text-teal-800 dark:border-slate-700 dark:bg-teal-950/40 dark:text-teal-300">
+                                                    % AKE
+                                                </th>
+                                                <th rowSpan={2} className="py-3 px-2 text-center w-12 border-r border-slate-200/80 dark:border-slate-700">
+                                                    Bobot
+                                                </th>
+                                                <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-amber-50/70 text-amber-800 dark:border-slate-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                                    Skor PPH
+                                                </th>
+                                                <th rowSpan={2} className="py-3 pr-5 pl-3 text-center min-w-[130px]">
+                                                    Status Tren
+                                                </th>
+                                            </tr>
+                                            <tr className="border-t border-slate-200/80 text-[10px] dark:border-slate-700">
+                                                {/* Energi sub-headers */}
+                                                <th className="py-1.5 px-2 text-right bg-emerald-50/40 text-slate-600 dark:bg-emerald-950/20 dark:text-slate-400">
+                                                    {compareYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right bg-emerald-50/70 font-black text-[#006565] dark:bg-emerald-950/50 dark:text-emerald-300">
+                                                    {selectedYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right border-r border-slate-200/80 dark:border-slate-700 font-bold">
+                                                    Δ Selisih
+                                                </th>
+
+                                                {/* % AKE sub-headers */}
+                                                <th className="py-1.5 px-2 text-right bg-teal-50/40 text-slate-600 dark:bg-teal-950/20 dark:text-slate-400">
+                                                    {compareYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right bg-teal-50/70 font-black text-teal-700 dark:bg-teal-950/50 dark:text-teal-300">
+                                                    {selectedYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right border-r border-slate-200/80 dark:border-slate-700 font-bold">
+                                                    Δ Selisih
+                                                </th>
+
+                                                {/* Skor PPH sub-headers */}
+                                                <th className="py-1.5 px-2 text-right bg-amber-50/40 text-slate-600 dark:bg-amber-950/20 dark:text-slate-400">
+                                                    {compareYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right bg-amber-50/70 font-black text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                                                    {selectedYear}
+                                                </th>
+                                                <th className="py-1.5 px-2 text-right border-r border-slate-200/80 dark:border-slate-700 font-black text-[#006565] dark:text-emerald-400">
+                                                    Δ Skor
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                    ) : (
+                                        /* STANDARD SINGLE YEAR THEAD */
+                                        <thead className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
+                                            <tr>
+                                                <th className="py-3.5 pl-5 pr-2 w-12 text-center">No</th>
+                                                <th className="py-3.5 px-3 min-w-[220px]">Kelompok Bahan Pangan</th>
+                                                <th className="py-3.5 px-3 text-right">Energi (Kkal)</th>
+                                                <th className="py-3.5 px-3 text-right">% AKE</th>
+                                                <th className="py-3.5 px-3 text-center">Bobot</th>
+                                                <th className="py-3.5 px-3 text-right">Skor Riil</th>
+                                                <th className="py-3.5 px-3 text-right">Skor Maks</th>
+                                                <th className="py-3.5 px-3 text-right font-black text-[#006565] dark:text-emerald-400">
+                                                    Skor PPH
+                                                </th>
+                                                <th className="py-3.5 px-3 text-center min-w-[130px]">% Capaian</th>
+                                                <th className="py-3.5 pr-5 pl-3 min-w-[180px]">Keterangan</th>
+                                            </tr>
+                                        </thead>
+                                    )}
+
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                                         {filteredCommodities.length === 0 ? (
                                             <tr>
-                                                <td colSpan={10} className="py-12 text-center text-slate-400">
+                                                <td
+                                                    colSpan={compareYear && compCommodities ? 12 : 10}
+                                                    className="py-12 text-center text-slate-400"
+                                                >
                                                     Tidak ada data kelompok pangan yang sesuai pencarian "{searchTerm}".
                                                 </td>
                                             </tr>
+                                        ) : compareYear && compCommodities && compTotals ? (
+                                            /* COMPARATIVE TABLE ROWS */
+                                            filteredCommodities.map((item, idx) => {
+                                                const prev = compMap.get(item.pph_food_group_id);
+                                                const prevE = prev?.energi ?? 0;
+                                                const currE = item.energi;
+                                                const diffE = Number((currE - prevE).toFixed(1));
+
+                                                const prevA = prev?.ake_percentage ?? 0;
+                                                const currA = item.ake_percentage;
+                                                const diffA = Number((currA - prevA).toFixed(2));
+
+                                                const prevS = prev?.skor_pph ?? 0;
+                                                const currS = item.skor_pph;
+                                                const diffS = Number((currS - prevS).toFixed(2));
+
+                                                const isUp = diffS > 0.01;
+                                                const isDown = diffS < -0.01;
+                                                const isMax = currS >= item.skor_maksimal && item.skor_maksimal > 0;
+
+                                                return (
+                                                    <tr
+                                                        key={item.pph_food_group_id}
+                                                        className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-800/50"
+                                                    >
+                                                        {/* No */}
+                                                        <td className="py-3 pl-5 pr-2 text-center font-bold text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                                                            {idx + 1}
+                                                        </td>
+
+                                                        {/* Kelompok Bahan Pangan */}
+                                                        <td className="py-3 px-3 border-r border-slate-100 dark:border-slate-800">
+                                                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm dark:text-white">
+                                                                {item.food_group_name}
+                                                            </div>
+                                                            {item.food_group_description && (
+                                                                <div className="text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1 dark:text-slate-400">
+                                                                    {item.food_group_description}
+                                                                </div>
+                                                            )}
+                                                        </td>
+
+                                                        {/* Energi compareYear */}
+                                                        <td className="py-3 px-2 text-right font-mono text-slate-600 dark:text-slate-400 bg-slate-50/30 dark:bg-slate-900/30">
+                                                            {formatNumber(prevE, 1)}
+                                                        </td>
+
+                                                        {/* Energi selectedYear */}
+                                                        <td className="py-3 px-2 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                            {formatNumber(currE, 1)}
+                                                        </td>
+
+                                                        {/* Diff Energi */}
+                                                        <td
+                                                            className={`py-3 px-2 text-right font-mono text-xs font-bold border-r border-slate-100 dark:border-slate-800 ${
+                                                                diffE > 0
+                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                    : diffE < 0
+                                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                                    : 'text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {diffE > 0 ? '+' : ''}
+                                                            {formatNumber(diffE, 1)}
+                                                        </td>
+
+                                                        {/* % AKE compareYear */}
+                                                        <td className="py-3 px-2 text-right font-mono text-slate-600 dark:text-slate-400 bg-slate-50/30 dark:bg-slate-900/30">
+                                                            {formatNumber(prevA, 2)}%
+                                                        </td>
+
+                                                        {/* % AKE selectedYear */}
+                                                        <td className="py-3 px-2 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                            {formatNumber(currA, 2)}%
+                                                        </td>
+
+                                                        {/* Diff % AKE */}
+                                                        <td
+                                                            className={`py-3 px-2 text-right font-mono text-xs font-bold border-r border-slate-100 dark:border-slate-800 ${
+                                                                diffA > 0
+                                                                    ? 'text-teal-600 dark:text-teal-400'
+                                                                    : diffA < 0
+                                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                                    : 'text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {diffA > 0 ? '+' : ''}
+                                                            {formatNumber(diffA, 2)}%
+                                                        </td>
+
+                                                        {/* Bobot */}
+                                                        <td className="py-3 px-2 text-center font-mono font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                                                            {formatNumber(item.bobot, 1)}
+                                                        </td>
+
+                                                        {/* Skor PPH compareYear */}
+                                                        <td className="py-3 px-2 text-right font-mono text-slate-600 dark:text-slate-400 bg-slate-50/30 dark:bg-slate-900/30">
+                                                            {formatNumber(prevS)}
+                                                        </td>
+
+                                                        {/* Skor PPH selectedYear */}
+                                                        <td className="py-3 px-2 text-right font-mono font-black text-[#006565] dark:text-emerald-400">
+                                                            {formatNumber(currS)}
+                                                        </td>
+
+                                                        {/* Diff Skor PPH */}
+                                                        <td className="py-3 px-2 text-right border-r border-slate-100 dark:border-slate-800">
+                                                            <span
+                                                                className={`inline-flex items-center gap-0.5 font-mono text-xs font-black px-1.5 py-0.5 rounded-md ${
+                                                                    isUp
+                                                                        ? 'text-emerald-700 bg-emerald-100/80 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                        : isDown
+                                                                        ? 'text-rose-700 bg-rose-100/80 dark:bg-rose-950 dark:text-rose-300'
+                                                                        : 'text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-400'
+                                                                }`}
+                                                            >
+                                                                {isUp ? '+' : ''}
+                                                                {formatNumber(diffS)}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Status Tren Badge */}
+                                                        <td className="py-3 pr-5 pl-3 text-center">
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                                                        isUp
+                                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                            : isDown
+                                                                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                                                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                                    }`}
+                                                                >
+                                                                    {isUp ? (
+                                                                        <>
+                                                                            <TrendingUp className="size-3" />
+                                                                            <span>Meningkat</span>
+                                                                        </>
+                                                                    ) : isDown ? (
+                                                                        <>
+                                                                            <TrendingDown className="size-3" />
+                                                                            <span>Menurun</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <span>Stabil</span>
+                                                                    )}
+                                                                </span>
+                                                                {isMax && (
+                                                                    <span className="text-[9px] font-bold text-emerald-600">
+                                                                        ✓ Skor Maks
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
                                         ) : (
+                                            /* STANDARD SINGLE YEAR ROWS */
                                             filteredCommodities.map((item, idx) => {
                                                 const isMaxAchieved = item.skor_pph >= item.skor_maksimal && item.skor_maksimal > 0;
                                                 const capaianPercent = item.capaian_percentage;
@@ -1192,46 +1993,142 @@ export default function PphPublic({
                                     </tbody>
 
                                     {/* Table Total Summary Footer */}
-                                    <tfoot className="border-t-2 border-[#006565] bg-emerald-50/60 font-bold text-slate-900 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-white">
-                                        <tr>
-                                            <td colSpan={2} className="py-4 pl-5 pr-3 text-left">
-                                                <div className="text-xs uppercase tracking-wider text-[#006565] dark:text-emerald-400">
-                                                    TOTAL POLA PANGAN HARAPAN {selectedYear}
-                                                </div>
-                                                <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400">
-                                                    Kabupaten Indramayu (9 Kelompok Komoditas)
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
-                                                {formatNumber(totals.total_energi, 1)}
-                                            </td>
-                                            <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
-                                                {formatNumber(totals.total_ake, 2)}%
-                                            </td>
-                                            <td className="py-4 px-3 text-center font-mono font-black text-xs sm:text-sm">
-                                                {formatNumber(totals.total_bobot, 1)}
-                                            </td>
-                                            <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
-                                                {formatNumber(totals.total_skor_riil)}
-                                            </td>
-                                            <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
-                                                {formatNumber(totals.total_skor_maksimal)}
-                                            </td>
-                                            <td className="py-4 px-3 text-right font-mono font-black text-base sm:text-lg text-[#006565] dark:text-emerald-400">
-                                                <div className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1 shadow-xs border border-emerald-300 dark:bg-slate-900 dark:border-emerald-700">
-                                                    <span>{formatNumber(totals.total_skor_pph)}</span>
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-3 text-center font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
-                                                {formatNumber(totals.total_skor_maksimal > 0 ? (totals.total_skor_pph / totals.total_skor_maksimal) * 100 : 0, 1)}%
-                                            </td>
-                                            <td className="py-4 pr-5 pl-3">
-                                                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black border ${badgeMeta.badge}`}>
-                                                    {statistics.status}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
+                                    {compareYear && compCommodities && compTotals ? (
+                                        /* COMPARATIVE TFOOT */
+                                        <tfoot className="border-t-2 border-[#006565] bg-emerald-50/80 font-bold text-slate-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-white">
+                                            <tr>
+                                                <td colSpan={2} className="py-4 pl-5 pr-3 text-left border-r border-emerald-200/60 dark:border-emerald-800/60">
+                                                    <div className="text-xs uppercase tracking-wider text-[#006565] dark:text-emerald-400">
+                                                        TOTAL KOMPARASI {selectedYear} VS {compareYear}
+                                                    </div>
+                                                    <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                                                        Kabupaten Indramayu (9 Kelompok Komoditas)
+                                                    </div>
+                                                </td>
+                                                {/* Tot Energi */}
+                                                <td className="py-4 px-2 text-right font-mono text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                                    {formatNumber(compTotals.total_energi, 1)}
+                                                </td>
+                                                <td className="py-4 px-2 text-right font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                                                    {formatNumber(totals.total_energi, 1)}
+                                                </td>
+                                                <td className="py-4 px-2 text-right font-mono font-black text-xs border-r border-emerald-200/60 dark:border-emerald-800/60">
+                                                    <span
+                                                        className={
+                                                            totals.total_energi >= compTotals.total_energi
+                                                                ? 'text-emerald-700 dark:text-emerald-300'
+                                                                : 'text-rose-700 dark:text-rose-300'
+                                                        }
+                                                    >
+                                                        {totals.total_energi >= compTotals.total_energi ? '+' : ''}
+                                                        {formatNumber(totals.total_energi - compTotals.total_energi, 1)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Tot % AKE */}
+                                                <td className="py-4 px-2 text-right font-mono text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                                    {formatNumber(compTotals.total_ake, 2)}%
+                                                </td>
+                                                <td className="py-4 px-2 text-right font-mono font-black text-xs sm:text-sm text-slate-900 dark:text-white">
+                                                    {formatNumber(totals.total_ake, 2)}%
+                                                </td>
+                                                <td className="py-4 px-2 text-right font-mono font-black text-xs border-r border-emerald-200/60 dark:border-emerald-800/60">
+                                                    <span
+                                                        className={
+                                                            totals.total_ake >= compTotals.total_ake
+                                                                ? 'text-teal-700 dark:text-teal-300'
+                                                                : 'text-rose-700 dark:text-rose-300'
+                                                        }
+                                                    >
+                                                        {totals.total_ake >= compTotals.total_ake ? '+' : ''}
+                                                        {formatNumber(totals.total_ake - compTotals.total_ake, 2)}%
+                                                    </span>
+                                                </td>
+
+                                                {/* Tot Bobot */}
+                                                <td className="py-4 px-2 text-center font-mono font-black text-xs sm:text-sm border-r border-emerald-200/60 dark:border-emerald-800/60">
+                                                    {formatNumber(totals.total_bobot, 1)}
+                                                </td>
+
+                                                {/* Tot Skor PPH */}
+                                                <td className="py-4 px-2 text-right font-mono text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                                    {formatNumber(compTotals.total_skor_pph)}
+                                                </td>
+                                                <td className="py-4 px-2 text-right font-mono font-black text-sm sm:text-base text-[#006565] dark:text-emerald-400">
+                                                    {formatNumber(totals.total_skor_pph)}
+                                                </td>
+                                                <td className="py-4 px-2 text-right border-r border-emerald-200/60 dark:border-emerald-800/60">
+                                                    <span
+                                                        className={`inline-flex items-center gap-1 font-mono text-xs font-black px-2 py-0.5 rounded-lg ${
+                                                            totals.total_skor_pph >= compTotals.total_skor_pph
+                                                                ? 'bg-emerald-600 text-white'
+                                                                : 'bg-rose-600 text-white'
+                                                        }`}
+                                                    >
+                                                        {totals.total_skor_pph >= compTotals.total_skor_pph ? '+' : ''}
+                                                        {formatNumber(totals.total_skor_pph - compTotals.total_skor_pph)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Tot Status Komparasi */}
+                                                <td className="py-4 pr-5 pl-3 text-center">
+                                                    <span
+                                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black border ${
+                                                            totals.total_skor_pph >= compTotals.total_skor_pph
+                                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300'
+                                                                : 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300'
+                                                        }`}
+                                                    >
+                                                        {totals.total_skor_pph >= compTotals.total_skor_pph
+                                                            ? '▲ Skor Meningkat'
+                                                            : '▼ Skor Menurun'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    ) : (
+                                        /* STANDARD SINGLE YEAR TFOOT */
+                                        <tfoot className="border-t-2 border-[#006565] bg-emerald-50/60 font-bold text-slate-900 dark:border-emerald-500 dark:bg-emerald-950/30 dark:text-white">
+                                            <tr>
+                                                <td colSpan={2} className="py-4 pl-5 pr-3 text-left">
+                                                    <div className="text-xs uppercase tracking-wider text-[#006565] dark:text-emerald-400">
+                                                        TOTAL POLA PANGAN HARAPAN {selectedYear}
+                                                    </div>
+                                                    <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400">
+                                                        Kabupaten Indramayu (9 Kelompok Komoditas)
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
+                                                    {formatNumber(totals.total_energi, 1)}
+                                                </td>
+                                                <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
+                                                    {formatNumber(totals.total_ake, 2)}%
+                                                </td>
+                                                <td className="py-4 px-3 text-center font-mono font-black text-xs sm:text-sm">
+                                                    {formatNumber(totals.total_bobot, 1)}
+                                                </td>
+                                                <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
+                                                    {formatNumber(totals.total_skor_riil)}
+                                                </td>
+                                                <td className="py-4 px-3 text-right font-mono font-black text-xs sm:text-sm">
+                                                    {formatNumber(totals.total_skor_maksimal)}
+                                                </td>
+                                                <td className="py-4 px-3 text-right font-mono font-black text-base sm:text-lg text-[#006565] dark:text-emerald-400">
+                                                    <div className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1 shadow-xs border border-emerald-300 dark:bg-slate-900 dark:border-emerald-700">
+                                                        <span>{formatNumber(totals.total_skor_pph)}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 text-center font-mono font-black text-xs sm:text-sm text-emerald-700 dark:text-emerald-300">
+                                                    {formatNumber(totals.total_skor_maksimal > 0 ? (totals.total_skor_pph / totals.total_skor_maksimal) * 100 : 0, 1)}%
+                                                </td>
+                                                <td className="py-4 pr-5 pl-3">
+                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black border ${badgeMeta.badge}`}>
+                                                        {statistics.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    )}
                                 </table>
                             </div>
                         </CardContent>
@@ -1254,7 +2151,12 @@ export default function PphPublic({
                             </div>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed dark:text-slate-400">
-                            Dengan skor <strong className="text-[#006565] dark:text-emerald-400">{formatNumber(currentYearScore)}</strong>, mutu konsumsi pangan penduduk Kabupaten Indramayu berada pada kategori <strong>{badgeMeta.label}</strong>, melampaui target minimum nasional Bapanas (94.0).
+                            Dengan skor <strong className="text-[#006565] dark:text-emerald-400">{formatNumber(currentYearScore)}</strong>, mutu konsumsi pangan penduduk Kabupaten Indramayu berada pada kategori <strong>{badgeMeta.label}</strong>
+                            {currentYearScore >= currentTargetRenstra ? (
+                                <>, berhasil melampaui Target RENSTRA ({formatNumber(currentTargetRenstra)}).</>
+                            ) : (
+                                <>, menuju capaian Target RENSTRA ({formatNumber(currentTargetRenstra)}).</>
+                            )}
                         </p>
                     </Card>
 
