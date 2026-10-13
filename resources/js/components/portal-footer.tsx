@@ -50,7 +50,7 @@ export default function PortalFooter({
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-12 lg:gap-10">
                     {/* Brand & Address Column */}
                     <div className="space-y-4 lg:col-span-5">
-                        <Link href="/harga-konsumen" className="group inline-flex items-center gap-3">
+                        <Link href="/ikp" className="group inline-flex items-center gap-3">
                             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#006565] via-[#005252] to-[#003838] text-white shadow-md shadow-[#006565]/20 ring-1 ring-white/20 transition-all duration-300 group-hover:scale-105">
                                 <Wheat className="h-6 w-6 stroke-[2.2] text-emerald-100" />
                             </div>
@@ -70,7 +70,7 @@ export default function PortalFooter({
                         </Link>
 
                         <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400 max-w-md">
-                            Portal Satu Data Pangan Kabupaten Indramayu menyajikan transparansi data harga konsumen harian, harga produsen, neraca pangan bulanan, serta pemantauan mutu konsumsi pangan Pola Pangan Harapan (PPH) secara akurat dan berkala.
+                            Portal Satu Data Pangan Kabupaten Indramayu menyajikan data Indeks Ketahanan Pangan (IKP), transparansi harga konsumen harian, harga produsen, neraca pangan bulanan, serta Pola Pangan Harapan (PPH) secara akurat dan berkala.
                         </p>
 
                         <div className="space-y-2 pt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -87,6 +87,15 @@ export default function PortalFooter({
                             Modul Publik &amp; Layanan Data
                         </h4>
                         <ul className="space-y-2 text-xs font-medium">
+                            <li>
+                                <Link
+                                    href="/ikp"
+                                    className="inline-flex items-center gap-2 hover:text-[#006565] transition-colors dark:hover:text-emerald-400"
+                                >
+                                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Indeks Ketahanan Pangan (IKP vs Renstra)</span>
+                                </Link>
+                            </li>
                             <li>
                                 <Link
                                     href="/harga-konsumen"

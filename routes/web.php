@@ -5,6 +5,7 @@ use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
 use App\Http\Controllers\FoodBalanceCommodityController;
 use App\Http\Controllers\FoodBalanceController;
+use App\Http\Controllers\IkpScoreController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PphFoodGroupController;
 use App\Http\Controllers\PphScoreController;
@@ -23,7 +24,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return redirect()->route('harga-konsumen');
+    return redirect()->route('ikp');
 })->name('home');
 
 Route::get('/harga-konsumen', function (Request $request) {
@@ -232,8 +233,16 @@ Route::get('/neraca-pangan', [FoodBalanceController::class, 'publicIndex'])->nam
 Route::get('/pph', [PphScoreController::class, 'publicIndex'])->name('pph');
 Route::redirect('/skor-pph', '/pph');
 
+Route::get('/ikp', [IkpScoreController::class, 'publicIndex'])->name('ikp');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul IKP (Indeks Ketahanan Pangan)
+    Route::get('/ikp-scores', [IkpScoreController::class, 'index'])->name('ikp-scores.index');
+    Route::post('/ikp-scores', [IkpScoreController::class, 'store'])->name('ikp-scores.store');
+    Route::put('/ikp-scores/{ikpScore}', [IkpScoreController::class, 'update'])->name('ikp-scores.update');
+    Route::delete('/ikp-scores/{ikpScore}', [IkpScoreController::class, 'destroy'])->name('ikp-scores.destroy');
 
     // Modul Neraca Pangan Bulanan
     Route::get('/food-balances', [FoodBalanceController::class, 'index'])->name('food-balances.index');

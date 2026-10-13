@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Apple, FileSpreadsheet, LayoutGrid, Layers, PieChart, Scale, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Apple, FileSpreadsheet, LayoutGrid, Layers, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -41,6 +41,12 @@ const navGroups: NavGroup[] = [
     {
         title: 'Pemantauan Pangan',
         items: [
+            {
+                title: 'Indeks Ketahanan Pangan (IKP)',
+                href: '/ikp-scores',
+                icon: ShieldCheck,
+                badge: 'IKP vs Renstra',
+            },
             {
                 title: 'Harga Konsumen',
                 href: consumerPricesIndex(),
