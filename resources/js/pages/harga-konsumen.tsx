@@ -2620,8 +2620,9 @@ export default function HargaKonsumen({
                                                 >
                                                     <defs>
                                                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#006565" stopOpacity={0.25} />
-                                                            <stop offset="95%" stopColor="#006565" stopOpacity={0.0} />
+                                                            <stop offset="0%" stopColor="#1C8379" stopOpacity={0.85} />
+                                                            <stop offset="50%" stopColor="#3AAB91" stopOpacity={0.55} />
+                                                            <stop offset="100%" stopColor="#58CEA7" stopOpacity={0.25} />
                                                         </linearGradient>
                                                         <linearGradient id="colorHet" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
@@ -2670,14 +2671,14 @@ export default function HargaKonsumen({
                                                     <Area
                                                         type="monotone"
                                                         dataKey="price"
-                                                        stroke="#006565"
+                                                        stroke="#1C8379"
                                                         strokeWidth={2.5}
                                                         fillOpacity={1}
                                                         fill="url(#colorPrice)"
                                                         name="price"
                                                         connectNulls
-                                                        dot={{ r: 3, fill: '#006565' }}
-                                                        activeDot={{ r: 5 }}
+                                                        dot={{ r: 4, fill: '#f59e0b', stroke: '#ffffff', strokeWidth: 2 }}
+                                                        activeDot={{ r: 6, fill: '#d97706', stroke: '#ffffff', strokeWidth: 2 }}
                                                     />
                                                     <Area
                                                         type="monotone"

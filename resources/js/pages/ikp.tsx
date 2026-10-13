@@ -3,10 +3,16 @@ import {
     Activity,
     Award,
     BarChart2,
+    Beef,
     CheckCircle2,
     ChevronRight,
+    Download,
+    Droplets,
     ExternalLink,
     FileSpreadsheet,
+    Flame,
+    GraduationCap,
+    HeartPulse,
     HelpCircle,
     Info,
     Layers,
@@ -21,6 +27,8 @@ import {
     TrendingDown,
     TrendingUp,
     Utensils,
+    Wallet,
+    Warehouse,
     Wheat,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
@@ -131,8 +139,382 @@ function getCategoryBadge(status: string) {
 export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
     const [chartMode, setChartMode] = useState<ChartDisplayMode>('composed');
 
-    const handlePrint = () => {
-        window.print();
+    const handleDownloadExcel = () => {
+        const headers = [
+            'No',
+            'Tahun Evaluasi',
+            'Nilai IKP',
+            'Target RENSTRA',
+            'Deviasi (Poin)',
+            'Capaian (%)',
+            'Status Ketahanan',
+            'Keterangan',
+        ];
+
+        const rows = yearlyScores.map((row, idx) => [
+            idx + 1,
+            row.tahun,
+            row.nilai_ikp.toFixed(2),
+            row.target_renstra.toFixed(2),
+            `${row.diff_renstra >= 0 ? '+' : ''}${row.diff_renstra.toFixed(2)}`,
+            `${row.capaian_percentage.toFixed(1)}%`,
+            `"${row.status}"`,
+            `"${(row.keterangan || '-').replace(/"/g, '""')}"`,
+        ]);
+
+        const avgDeviasi = summary.avg_nilai_ikp - summary.avg_target_renstra;
+        const avgCapaian =
+            summary.avg_target_renstra > 0
+                ? (summary.avg_nilai_ikp / summary.avg_target_renstra) * 100
+                : 100;
+
+        const summaryRow = [
+            '',
+            '"RATA-RATA"',
+            summary.avg_nilai_ikp.toFixed(2),
+            summary.avg_target_renstra.toFixed(2),
+            `${avgDeviasi >= 0 ? '+' : ''}${avgDeviasi.toFixed(2)}`,
+            `${avgCapaian.toFixed(1)}%`,
+            `"${summary.latest_status}"`,
+            '""',
+        ];
+
+        const csvContent =
+            '\uFEFF' +
+            [
+                '"LAPORAN CAPAIAN INDEKS KETAHANAN PANGAN (IKP) DAN TARGET RENSTRA"',
+                '"DINAS KETAHANAN PANGAN DAN PERTANIAN KABUPATEN INDRAMAYU"',
+                `"Tahun Terkini: ${summary.latest_year} | Rata-rata IKP: ${summary.avg_nilai_ikp.toFixed(2)} | Target Renstra: ${summary.avg_target_renstra.toFixed(2)}"`,
+                '',
+                headers.join(','),
+                ...rows.map((r) => r.join(',')),
+                summaryRow.join(','),
+            ].join('\r\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute(
+            'download',
+            `Capaian_IKP_dan_Target_Renstra_Indramayu_${summary.latest_year}.csv`
+        );
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadPdf = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        const formattedToday = new Date().toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        });
+
+        const avgDeviasi = summary.avg_nilai_ikp - summary.avg_target_renstra;
+        const avgCapaian =
+            summary.avg_target_renstra > 0
+                ? (summary.avg_nilai_ikp / summary.avg_target_renstra) * 100
+                : 100;
+
+        let tableRowsHtml = '';
+        yearlyScores.forEach((row, idx) => {
+            const isAchieved = row.diff_renstra >= 0;
+            const diffColor = isAchieved ? '#059669' : '#dc2626';
+            const diffSign = isAchieved ? '+' : '';
+            const statusBadgeColor = isAchieved
+                ? 'background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;'
+                : 'background:#fee2e2;color:#991b1b;border:1px solid #fecaca;';
+
+            tableRowsHtml += `
+                <tr>
+                    <td style="text-align:center;color:#64748b;">${idx + 1}</td>
+                    <td style="text-align:center;font-weight:bold;color:#0f172a;">${row.tahun}</td>
+                    <td style="text-align:right;font-weight:bold;color:#047857;font-family:monospace;">${row.nilai_ikp.toFixed(2)}</td>
+                    <td style="text-align:right;font-weight:600;color:#334155;font-family:monospace;">${row.target_renstra.toFixed(2)}</td>
+                    <td style="text-align:right;font-weight:bold;color:${diffColor};font-family:monospace;">
+                        ${diffSign}${row.diff_renstra.toFixed(2)}
+                    </td>
+                    <td style="text-align:center;">
+                        <span style="padding:2px 8px;border-radius:12px;font-size:7pt;font-weight:bold;${statusBadgeColor}">
+                            ${row.capaian_percentage.toFixed(1)}%
+                        </span>
+                    </td>
+                    <td style="text-align:center;font-weight:600;color:#0f172a;">${row.status}</td>
+                    <td style="color:#64748b;font-size:7.5pt;">${row.keterangan || '-'}</td>
+                </tr>
+            `;
+        });
+
+        const printHtml = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8"/>
+            <title>Laporan_Capaian_IKP_dan_Target_Renstra_${summary.latest_year}</title>
+            <style>
+                @page {
+                    size: A4 portrait;
+                    margin: 12mm 15mm;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    margin: 0;
+                    padding: 16px;
+                    color: #0f172a;
+                    font-size: 8pt;
+                    background: #fff;
+                }
+                .no-print {
+                    margin-bottom: 16px;
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                    background: #f8fafc;
+                    padding: 10px 16px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                }
+                .btn {
+                    background: #006565;
+                    color: white;
+                    border: none;
+                    padding: 7px 16px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 8.5pt;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .btn-close {
+                    background: #64748b;
+                }
+                .kop-container {
+                    text-align: center;
+                    margin-bottom: 12px;
+                    border-bottom: 3px double #006565;
+                    padding-bottom: 8px;
+                }
+                .kop-sub {
+                    font-size: 9pt;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    color: #334155;
+                    margin: 0;
+                    letter-spacing: 0.5px;
+                }
+                .kop-main {
+                    font-size: 14pt;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    color: #006565;
+                    margin: 2px 0;
+                    letter-spacing: 0.5px;
+                }
+                .kop-address {
+                    font-size: 7.5pt;
+                    color: #64748b;
+                    margin: 0;
+                }
+                .title-section {
+                    text-align: center;
+                    margin: 12px 0;
+                }
+                .title-section h1 {
+                    margin: 0;
+                    font-size: 11.5pt;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    color: #0f172a;
+                }
+                .title-section p {
+                    margin: 3px 0 0 0;
+                    font-size: 8pt;
+                    color: #475569;
+                }
+                .summary-box {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 8px;
+                    background: #f0fdf4;
+                    border: 1px solid #bbf7d0;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    margin-bottom: 14px;
+                }
+                .summary-item {
+                    text-align: center;
+                }
+                .summary-item .label {
+                    font-size: 7pt;
+                    color: #166534;
+                    text-transform: uppercase;
+                    font-weight: bold;
+                }
+                .summary-item .val {
+                    font-size: 11pt;
+                    font-weight: 800;
+                    color: #14532d;
+                    font-family: monospace;
+                    margin-top: 2px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 8px;
+                    font-size: 7.5pt;
+                }
+                th {
+                    background-color: #006565;
+                    color: white;
+                    border: 1px solid #004d4d;
+                    padding: 6px 6px;
+                    font-weight: bold;
+                    text-align: center;
+                    font-size: 7pt;
+                    text-transform: uppercase;
+                }
+                td {
+                    border: 1px solid #cbd5e1;
+                    padding: 5px 6px;
+                }
+                tr:nth-child(even) td {
+                    background-color: #f8fafc;
+                }
+                tfoot tr td {
+                    background-color: #ecfdf5;
+                    font-weight: bold;
+                    border-top: 2px solid #006565;
+                }
+                .footer-sign {
+                    margin-top: 24px;
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .sign-box {
+                    text-align: center;
+                    width: 250px;
+                    font-size: 7.5pt;
+                }
+                .footer-meta {
+                    margin-top: 20px;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 6px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 7pt;
+                    color: #94a3b8;
+                }
+                @media print {
+                    .no-print {
+                        display: none !important;
+                    }
+                    body {
+                        padding: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print">
+                <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                <span style="font-size: 8pt; color: #475569;">
+                    Tips: Pada dialog print browser, pilih printer <strong>Save as PDF (Simpan sebagai PDF)</strong>.
+                </span>
+            </div>
+
+            <div class="kop-container">
+                <p class="kop-sub">Pemerintah Kabupaten Indramayu</p>
+                <h2 class="kop-main">Dinas Ketahanan Pangan dan Pertanian</h2>
+                <p class="kop-address">Jl. MT Haryono No. 1, Sindang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45222 | Laman: dkpp.indramayukab.go.id</p>
+            </div>
+
+            <div class="title-section">
+                <h1>Laporan Capaian Indeks Ketahanan Pangan (IKP) dan Target Renstra</h1>
+                <p>Kabupaten Indramayu - Tahun Evaluasi ${summary.latest_year}</p>
+            </div>
+
+            <div class="summary-box">
+                <div class="summary-item">
+                    <div class="label">Skor IKP Terkini (${summary.latest_year})</div>
+                    <div class="val">${summary.latest_nilai_ikp.toFixed(2)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Target RENSTRA</div>
+                    <div class="val">${summary.latest_target_renstra.toFixed(2)}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Deviasi Capaian</div>
+                    <div class="val" style="color:${summary.latest_diff_renstra >= 0 ? '#047857' : '#e11d48'};">
+                        ${summary.latest_diff_renstra >= 0 ? '+' : ''}${summary.latest_diff_renstra.toFixed(2)}
+                    </div>
+                </div>
+                <div class="summary-item">
+                    <div class="label">Status Ketahanan</div>
+                    <div class="val" style="font-size:9.5pt;padding-top:2px;">${summary.latest_status}</div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 28px;">No</th>
+                        <th style="width: 80px;">Tahun Evaluasi</th>
+                        <th>Nilai IKP</th>
+                        <th>Target RENSTRA</th>
+                        <th>Deviasi (Poin)</th>
+                        <th>Capaian (%)</th>
+                        <th>Status Ketahanan</th>
+                        <th>Keterangan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2" style="text-align:center;font-weight:bold;">RATA-RATA</td>
+                        <td style="text-align:right;font-family:monospace;color:#047857;">${summary.avg_nilai_ikp.toFixed(2)}</td>
+                        <td style="text-align:right;font-family:monospace;">${summary.avg_target_renstra.toFixed(2)}</td>
+                        <td style="text-align:right;font-family:monospace;color:${avgDeviasi >= 0 ? '#047857' : '#e11d48'};">
+                            ${avgDeviasi >= 0 ? '+' : ''}${avgDeviasi.toFixed(2)}
+                        </td>
+                        <td style="text-align:center;">${avgCapaian.toFixed(1)}%</td>
+                        <td style="text-align:center;">${summary.latest_status}</td>
+                        <td style="color:#64748b;font-size:7pt;">Rata-rata Historis ${summary.total_years} Tahun</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="footer-sign">
+                <div class="sign-box">
+                    <p style="margin: 0 0 50px 0;">Indramayu, ${formattedToday}<br/>Kepala Dinas Ketahanan Pangan dan Pertanian<br/>Kabupaten Indramayu</p>
+                    <p style="margin: 0; font-weight: bold; text-decoration: underline;">DINAS KETAHANAN PANGAN &amp; PERTANIAN</p>
+                    <p style="margin: 0; color: #64748b; font-size: 7.5pt;">Pemerintah Kabupaten Indramayu</p>
+                </div>
+            </div>
+
+            <div class="footer-meta">
+                <span>Dokumen resmi hasil pemantauan Indeks Ketahanan Pangan (IKP) Kabupaten Indramayu</span>
+                <span>Dicetak pada: ${formattedToday}</span>
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
     };
 
     const latestItem = useMemo(() => {
@@ -622,15 +1004,28 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                                 Rincian data historis evaluasi IKP tahun ke tahun Pemerintah Kabupaten Indramayu
                             </p>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handlePrint}
-                            className="self-start sm:self-auto gap-2 rounded-xl text-xs font-bold"
-                        >
-                            <Printer className="h-4 w-4" />
-                            <span>Cetak Laporan</span>
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDownloadExcel}
+                                className="gap-2 rounded-xl text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/80 shadow-xs cursor-pointer"
+                                title="Download data capaian IKP format Excel (.csv)"
+                            >
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                <span>Download Excel</span>
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDownloadPdf}
+                                className="gap-2 rounded-xl text-xs font-bold border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 shadow-xs cursor-pointer"
+                                title="Download dokumen laporan format PDF"
+                            >
+                                <Download className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                <span>Download PDF</span>
+                            </Button>
+                        </div>
                     </div>
 
                     <Card className="overflow-hidden rounded-3xl border-slate-200/90 bg-white shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
@@ -711,101 +1106,473 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                     </Card>
                 </section>
 
-                {/* 3. Edukasi: 3 Pilar Utama Indeks Ketahanan Pangan (Bapanas) */}
-                <section className="space-y-6">
-                    <div className="text-center max-w-2xl mx-auto space-y-2">
-                        <Badge className="bg-emerald-100 text-[#006565] border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400">
-                            Pedoman Indeks Ketahanan Pangan
-                        </Badge>
-                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-                            3 Pilar Utama Penilaian IKP
+                {/* 3. Edukasi: 3 Pilar Utama & 11 Indikator Penilaian IKP (Bapanas 2026) */}
+                <section className="space-y-8">
+                    {/* Header Section with Context Badges */}
+                    <div className="text-center max-w-3xl mx-auto space-y-3">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                            <Badge className="bg-emerald-100 text-[#006565] border-emerald-300 dark:bg-emerald-950 dark:text-emerald-400">
+                                <Sparkles className="h-3 w-3 mr-1 text-emerald-600 dark:text-emerald-400" />
+                                Pemutakhiran Metodologi Bapanas 2026
+                            </Badge>
+                            <Badge variant="outline" className="border-teal-300 bg-teal-50 text-teal-800 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-300">
+                                Penyusunan FSVA Kab/Kota
+                            </Badge>
+                            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                11 Indikator Komposit Nasional
+                            </Badge>
+                        </div>
+
+                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                            3 Pilar Utama &amp; 11 Indikator Penilaian IKP
                         </h2>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                            IKP disusun berdasarkan metodologi Badan Pangan Nasional dengan menganalisis sembilan indikator komposit yang mencakup tiga subsistem pangan utama.
+
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            Berdasarkan Peraturan dan Pedoman Teknis <strong>Badan Pangan Nasional (Bapanas) tahun 2026</strong> untuk penyusunan <em>Food Security and Vulnerability Atlas</em> (FSVA) tingkat Kabupaten/Kota, evaluasi IKP kini menggunakan <strong>11 indikator komposit</strong> yang mengintegrasikan tiga subsistem pangan utama secara holistik dan terukur.
                         </p>
+
+                        {/* Quick Distribution Chips */}
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+                                <Wheat className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>Pilar 1: Ketersediaan (4 Indikator)</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-800 border border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800">
+                                <Store className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+                                <span>Pilar 2: Keterjangkauan (3 Indikator)</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-bold text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                                <Utensils className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                                <span>Pilar 3: Pemanfaatan (4 Indikator)</span>
+                            </span>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Pilar 1 */}
-                        <Card className="rounded-3xl border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-[#006565] dark:bg-emerald-950 dark:text-emerald-400 mb-4">
-                                <Wheat className="h-6 w-6" />
+                    {/* 3 Pillar Cards Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-7 items-stretch">
+                        {/* PILAR 1: KETERSEDIAAN PANGAN (4 INDIKATOR) */}
+                        <Card className="rounded-3xl border-emerald-200/90 bg-gradient-to-b from-emerald-500/[0.04] via-white to-white shadow-xl shadow-emerald-500/[0.05] hover:shadow-2xl hover:border-emerald-300 transition-all duration-300 dark:border-emerald-800/60 dark:from-emerald-950/30 dark:via-slate-900 dark:to-slate-900 flex flex-col overflow-hidden">
+                            {/* Card Top Accent & Header */}
+                            <div className="p-6 border-b border-emerald-100 dark:border-emerald-900/40 relative">
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/90 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-900 dark:bg-emerald-900/60 dark:text-emerald-200">
+                                        Pilar 01
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800">
+                                        4 Indikator
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-3.5">
+                                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-[#006565] text-white shadow-lg shadow-emerald-600/25">
+                                        <Wheat className="h-7 w-7" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                                            Ketersediaan Pangan
+                                        </h3>
+                                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 italic">
+                                            Food Availability
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-3">
+                                    Mengukur kecukupan pasokan fisik pangan dari produksi wilayah, neraca pasokan makro, kecukupan energi dan protein, serta cadangan pangan pemerintah daerah.
+                                </p>
                             </div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-                                1. Pilar Ketersediaan Pangan
-                            </h3>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                                Mengukur kemampuan daerah dalam memproduksi dan menyediakan pangan bagi seluruh penduduk secara berkelanjutan.
-                            </p>
-                            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    <span>Rasio konsumsi normatif beras per kapita</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    <span>Ketersediaan beras &amp; komoditas pokok</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                    <span>Cadangan pangan pemerintah daerah</span>
-                                </li>
-                            </ul>
+
+                            {/* Indicators List */}
+                            <div className="p-5 space-y-3 flex-1">
+                                <div className="text-[11px] font-black uppercase tracking-wider text-emerald-800/80 dark:text-emerald-400">
+                                    Daftar Indikator Komposit:
+                                </div>
+
+                                {/* Indikator 1 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-emerald-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                            01
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#006565] dark:group-hover:text-emerald-300 transition-colors">
+                                                Rasio Konsumsi Normatif vs Ketersediaan Bersih
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Perbandingan antara penyediaan bersih serealia (terutama beras) terhadap kebutuhan konsumsi normatif tahunan penduduk.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800">
+                                                Target Rasio ≥ 1.0 (Surplus)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 2 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-emerald-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                            02
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#006565] dark:group-hover:text-emerald-300 transition-colors">
+                                                Rasio Ketersediaan Energi terhadap Standar AKE
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Pemenuhan pasokan kalori energi pangan harian per kapita disandingkan terhadap Angka Kecukupan Energi (AKE) nasional.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200/60 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800">
+                                                Standar AKE: 2.100 kkal/kap/hari
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 3 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-emerald-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                            03
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#006565] dark:group-hover:text-emerald-300 transition-colors">
+                                                Rasio Ketersediaan Protein Hewani per Kapita
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Kecukupan asam amino esensial dan protein bersumber hewani (daging, telur, ikan, susu) untuk daya tahan tubuh &amp; cegah stunting.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-800 border border-teal-200/60 dark:bg-teal-950/80 dark:text-teal-300 dark:border-teal-800">
+                                                Mutu Protein &amp; Asam Amino Esensial
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 4 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-emerald-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-emerald-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[11px] font-black text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                            04
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#006565] dark:group-hover:text-emerald-300 transition-colors">
+                                                Rasio Cadangan Pangan Pemerintah Daerah (CPPD)
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Stok beras penyangga milik pemerintah daerah terhadap target ketentuan regulasi untuk kesiapsiagaan darurat paceklik dan bencana.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800">
+                                                Buffer Stock Kesiapsiagaan Darurat
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card Footer: Regional Context Indramayu */}
+                            <div className="p-4 mx-4 mb-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/70 dark:bg-emerald-950/40 dark:border-emerald-800/60 text-xs">
+                                <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-200 mb-1">
+                                    <Wheat className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+                                    <span>Kekuatan Utama Indramayu</span>
+                                </div>
+                                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 leading-relaxed">
+                                    Sebagai sentra lumbung padi nasional dengan produksi &gt; 1,3 juta ton GKG/tahun, Indramayu memiliki pilar ketersediaan sangat kokoh dengan rasio swasembada beras tertinggi di Jawa Barat.
+                                </p>
+                            </div>
                         </Card>
 
-                        {/* Pilar 2 */}
-                        <Card className="rounded-3xl border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-400 mb-4">
-                                <Store className="h-6 w-6" />
+                        {/* PILAR 2: KETERJANGKAUAN PANGAN (3 INDIKATOR) */}
+                        <Card className="rounded-3xl border-sky-200/90 bg-gradient-to-b from-sky-500/[0.04] via-white to-white shadow-xl shadow-sky-500/[0.05] hover:shadow-2xl hover:border-sky-300 transition-all duration-300 dark:border-sky-800/60 dark:from-sky-950/30 dark:via-slate-900 dark:to-slate-900 flex flex-col overflow-hidden">
+                            {/* Card Top Accent & Header */}
+                            <div className="p-6 border-b border-sky-100 dark:border-sky-900/40 relative">
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-100/90 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-sky-900 dark:bg-sky-900/60 dark:text-sky-200">
+                                        Pilar 02
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-bold text-sky-700 border border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800">
+                                        3 Indikator
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-3.5">
+                                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-teal-600 text-white shadow-lg shadow-sky-600/25">
+                                        <Store className="h-7 w-7" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                                            Keterjangkauan Pangan
+                                        </h3>
+                                        <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 italic">
+                                            Food Access
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-3">
+                                    Mengukur akses fisik dan daya beli ekonomi masyarakat untuk memperoleh pangan yang cukup, aman, dan bergizi di tengah dinamika harga dan kondisi sosial-ekonomi.
+                                </p>
                             </div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-                                2. Pilar Keterjangkauan Pangan
-                            </h3>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                                Mengukur akses ekonomi dan fisik masyarakat untuk memperoleh pangan yang cukup dan bergizi setiap saat.
-                            </p>
-                            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                                    <span>Persentase penduduk di bawah garis kemiskinan</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                                    <span>Proporsi pengeluaran pangan terhadap total</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-                                    <span>Konektivitas jalan dan akses sarana pasar</span>
-                                </li>
-                            </ul>
+
+                            {/* Indicators List */}
+                            <div className="p-5 space-y-3 flex-1">
+                                <div className="text-[11px] font-black uppercase tracking-wider text-sky-800/80 dark:text-sky-400">
+                                    Daftar Indikator Komposit:
+                                </div>
+
+                                {/* Indikator 5 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-sky-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-sky-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-[11px] font-black text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                                            05
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-sky-700 dark:group-hover:text-sky-300 transition-colors">
+                                                Persentase Penduduk Kesejahteraan Rendah
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Proporsi penduduk berpendapatan rendah / di bawah garis kemiskinan dengan alokasi pengeluaran makanan dominan yang rentan fluktuasi ekonomi.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800 border border-sky-200/60 dark:bg-sky-950/80 dark:text-sky-300 dark:border-sky-800">
+                                                BPS &amp; Data Kemiskinan / Desil 1-4 P3KE
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 6 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-sky-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-sky-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-[11px] font-black text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                                            06
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-sky-700 dark:group-hover:text-sky-300 transition-colors">
+                                                Koefisien Variasi (CV) Harga Pangan Pokok
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Mengukur tingkat volatilitas dan stabilitas disparitas harga pangan pokok penting (beras, minyak goreng, telur, cabai) antarwaktu dan antarwilayah.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-800 border border-indigo-200/60 dark:bg-indigo-950/80 dark:text-indigo-300 dark:border-indigo-800">
+                                                Stabilitas &amp; Disparitas Harga Pasar
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 7 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-sky-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-sky-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-[11px] font-black text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+                                            07
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-sky-700 dark:group-hover:text-sky-300 transition-colors">
+                                                Prevalence of Undernourishment (PoU)
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Proporsi populasi yang konsumsi energi hariannya di bawah batas kebutuhan energi minimum (MDER / Minimum Dietary Energy Requirement).
+                                            </p>
+                                            <span className="inline-block rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-800 border border-teal-200/60 dark:bg-teal-950/80 dark:text-teal-300 dark:border-teal-800">
+                                                Standar Global FAO &amp; Bapanas
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card Footer: Regional Context Indramayu */}
+                            <div className="p-4 mx-4 mb-4 rounded-2xl bg-sky-50/70 border border-sky-200/70 dark:bg-sky-950/40 dark:border-sky-800/60 text-xs">
+                                <div className="flex items-center gap-2 font-bold text-sky-900 dark:text-sky-200 mb-1">
+                                    <Store className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                                    <span>Fokus Stabilisasi Pasar</span>
+                                </div>
+                                <p className="text-[11px] text-sky-800/80 dark:text-sky-300/80 leading-relaxed">
+                                    Pelaksanaan Gerakan Pangan Murah (GPM) berkala, pemantauan harga harian di 4 pasar pantura utama Indramayu, serta penguatan penyaluran beras SPHP untuk menjaga daya beli keluarga.
+                                </p>
+                            </div>
                         </Card>
 
-                        {/* Pilar 3 */}
-                        <Card className="rounded-3xl border-slate-200/90 bg-white p-6 shadow-sm hover:shadow-md transition-shadow dark:border-slate-800 dark:bg-slate-900">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400 mb-4">
-                                <Utensils className="h-6 w-6" />
+                        {/* PILAR 3: PEMANFAATAN PANGAN (4 INDIKATOR) */}
+                        <Card className="rounded-3xl border-amber-200/90 bg-gradient-to-b from-amber-500/[0.04] via-white to-white shadow-xl shadow-amber-500/[0.05] hover:shadow-2xl hover:border-amber-300 transition-all duration-300 dark:border-amber-800/60 dark:from-amber-950/30 dark:via-slate-900 dark:to-slate-900 flex flex-col overflow-hidden">
+                            {/* Card Top Accent & Header */}
+                            <div className="p-6 border-b border-amber-100 dark:border-amber-900/40 relative">
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/90 px-2.5 py-1 text-[11px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900/60 dark:text-amber-200">
+                                        Pilar 03
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                                        4 Indikator
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-3.5">
+                                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 text-white shadow-lg shadow-amber-600/25">
+                                        <Utensils className="h-7 w-7" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                                            Pemanfaatan Pangan
+                                        </h3>
+                                        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 italic">
+                                            Food Utilization
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-3">
+                                    Mengukur mutu biologis dan penyerapan gizi pangan melalui keanekaragaman konsumsi, kesehatan balita, kapasitas literasi ibu, serta sanitasi air minum layak.
+                                </p>
                             </div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2">
-                                3. Pilar Pemanfaatan Pangan
-                            </h3>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-                                Mengukur kualitas penyerapan gizi pangan, sanitasi lingkungan, dan kesehatan masyarakat.
-                            </p>
-                            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                    <span>Akses terhadap air bersih layak konsumsi</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                    <span>Rasio fasilitas dan tenaga kesehatan</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                                    <span>Angka Harapan Hidup (AHH) masyarakat</span>
-                                </li>
-                            </ul>
+
+                            {/* Indicators List */}
+                            <div className="p-5 space-y-3 flex-1">
+                                <div className="text-[11px] font-black uppercase tracking-wider text-amber-800/80 dark:text-amber-400">
+                                    Daftar Indikator Komposit:
+                                </div>
+
+                                {/* Indikator 8 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-amber-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-amber-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-[11px] font-black text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                            08
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                                                Skor Pola Pangan Harapan (PPH) Konsumsi
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Tingkat keragaman dan keseimbangan gizi konsumsi pangan masyarakat dari 9 kelompok pangan utama menuju skor ideal 100.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200/60 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800">
+                                                Mutu Konsumsi B2SA (Target Skor: 100)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 9 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-amber-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-amber-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-[11px] font-black text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                            09
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors">
+                                                Prevalensi Balita Pendek &amp; Sangat Pendek (Stunting)
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Persentase balita dengan tinggi badan menurut umur di bawah standar (&lt;-2 SD), cerminan kegagalan gizi kronis dan infeksi berulang.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-800 border border-rose-200/60 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800">
+                                                Akselerasi Penurunan Stunting Anak
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 10 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-amber-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-amber-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-[11px] font-black text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                            10
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                                                Rata-rata Lama Sekolah (RLS) Perempuan &gt; 15 Th
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Tingkat pendidikan wanita/ibu yang berperan sentral menentukan kapasitas literasi gizi, higienitas dapur, dan pola pengasuhan makanan anak.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-purple-800 border border-purple-200/60 dark:bg-purple-950/80 dark:text-purple-300 dark:border-purple-800">
+                                                Edukasi &amp; Literasi Gizi Ibu Asuh
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Indikator 11 */}
+                                <div className="group rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 hover:bg-white hover:border-amber-300 hover:shadow-xs transition-all dark:border-slate-800 dark:bg-slate-850/60 dark:hover:bg-slate-800 dark:hover:border-amber-700">
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-[11px] font-black text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                            11
+                                        </span>
+                                        <div className="space-y-1 flex-1">
+                                            <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                                                Persentase Rumah Tangga Tanpa Akses Air Layak
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                Akses air minum terlindungi dan layak sanitasi untuk mencegah penyakit infeksi pencernaan yang menggugurkan penyerapan zat gizi.
+                                            </p>
+                                            <span className="inline-block rounded-md bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-800 border border-sky-200/60 dark:bg-sky-950/80 dark:text-sky-300 dark:border-sky-800">
+                                                Sanitasi Lingkungan &amp; Air Bersih
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card Footer: Regional Context Indramayu */}
+                            <div className="p-4 mx-4 mb-4 rounded-2xl bg-amber-50/70 border border-amber-200/70 dark:bg-amber-950/40 dark:border-amber-800/60 text-xs">
+                                <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-200 mb-1">
+                                    <Utensils className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+                                    <span>Akselerasi Gizi &amp; B2SA</span>
+                                </div>
+                                <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                                    Kolaborasi terpadu DKPP bersama Dinas Kesehatan dan TP-PKK dalam gerakan konsumsi pangan B2SA berbahan pangan lokal Indramayu dan intervensi gizi terintegrasi untuk eliminasi stunting.
+                                </p>
+                            </div>
                         </Card>
+                    </div>
+
+                    {/* Informational Callout: Harmonisasi Metodologi FSVA Bapanas 2026 */}
+                    <div className="rounded-3xl border border-slate-200/90 bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-6 sm:p-7 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                            <div className="space-y-2 max-w-xl">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-[#006565] dark:bg-emerald-950 dark:text-emerald-400">
+                                        <Info className="h-4 w-4" />
+                                    </div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white">
+                                        Harmonisasi Metodologi FSVA &amp; IKP Bapanas (11 Indikator)
+                                    </h4>
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    Pemutakhiran dari 9 indikator klasik menjadi 11 indikator komposit pada tingkat Kabupaten/Kota ini menyelaraskan metodologi Indonesia dengan standar internasional <em>Global Food Security Index</em> (GFSI) dan FAO.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 text-xs">
+                                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-850">
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
+                                        <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+                                        <span>Standarisasi Data</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                        Normalisasi nilai indikator menggunakan metode Min-Max / Z-Score untuk menghasilkan indeks komposit berskala 0–100.
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-850">
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
+                                        <span className="flex h-2 w-2 rounded-full bg-sky-500" />
+                                        <span>Kolaborasi Multi-Sektor</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-400 leading-relaxed">
+                                        Integrasi data terpadu lintas BPS (Susenas/Sakernas), DKPP (Cadangan &amp; Pasar), Dinkes (Stunting), dan DPUPR (Sanitasi).
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-850">
+                                    <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-1">
+                                        <span className="flex h-2 w-2 rounded-full bg-amber-500" />
+                                        <span>Targeting Lokus Kebijakan</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 dark:text-slate-400 leading-relaxed">
+                                        Peta FSVA 11 indikator menentukan lokus desa rentan pangan dan acuan indikator sasaran Renstra/RPJMD Indramayu.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
