@@ -36,8 +36,8 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import PortalFooter from '@/components/portal-footer';
 import PortalNavbar from '@/components/portal-navbar';
-import { dashboard, login, register } from '@/routes';
 import {
     Area,
     AreaChart,
@@ -54,7 +54,7 @@ import {
 } from 'recharts';
 
 export interface ProducerCommodity {
-    id?: number | null;
+    id: number;
     key: string;
     name: string;
     short_name: string;
@@ -123,6 +123,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 6000,
         hap_label: 'HAP Bapanas',
         description: 'Gabah Kering Panen di tingkat petani sawah',
+        image: '/storage/producer-commodities/ORZlz1j9Gxgp48BO8fqCw85WxfhYhYaQXoJuaZ8Z.png',
+        image_url: '/storage/producer-commodities/ORZlz1j9Gxgp48BO8fqCw85WxfhYhYaQXoJuaZ8Z.png',
         today_price: 6800,
         yesterday_price: 6750,
         diff_hap: 800,
@@ -143,6 +145,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 6200,
         hap_label: 'HAP Bapanas',
         description: 'Gabah Kering Panen di tingkat usaha penggilingan padi',
+        image: '/storage/producer-commodities/wX2Z0Z34usT99z3BvDyyZDCKCStGvgnMEGvUbfpQ.png',
+        image_url: '/storage/producer-commodities/wX2Z0Z34usT99z3BvDyyZDCKCStGvgnMEGvUbfpQ.png',
         today_price: 7000,
         yesterday_price: 6950,
         diff_hap: 800,
@@ -163,6 +167,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 7400,
         hap_label: 'HAP Bapanas',
         description: 'Gabah Kering Giling di tingkat usaha penggilingan padi',
+        image: '/storage/producer-commodities/k1FZOc3yFsVMnTUBmttEwQV2cww75faa3LQZsdQG.png',
+        image_url: '/storage/producer-commodities/k1FZOc3yFsVMnTUBmttEwQV2cww75faa3LQZsdQG.png',
         today_price: 7900,
         yesterday_price: 7850,
         diff_hap: 500,
@@ -183,6 +189,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 12000,
         hap_label: 'HAP Bapanas',
         description: 'Beras Medium hasil produksi di tingkat penggilingan',
+        image: '/storage/producer-commodities/xV6yGFEyNTDOyO6N9Tk3wnKQm6Npcyr9MrSV5lj4.png',
+        image_url: '/storage/producer-commodities/xV6yGFEyNTDOyO6N9Tk3wnKQm6Npcyr9MrSV5lj4.png',
         today_price: 12200,
         yesterday_price: 12150,
         diff_hap: 200,
@@ -203,6 +211,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 13900,
         hap_label: 'HAP Bapanas',
         description: 'Beras Premium hasil produksi di tingkat penggilingan',
+        image: '/storage/producer-commodities/KekCOZQavP4CQpDDBHfG6O3A7TV3XrR5LESzvBSL.png',
+        image_url: '/storage/producer-commodities/KekCOZQavP4CQpDDBHfG6O3A7TV3XrR5LESzvBSL.png',
         today_price: 14200,
         yesterday_price: 14100,
         diff_hap: 300,
@@ -223,6 +233,8 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         hap: 56000,
         hap_label: 'HAP Farm Gate',
         description: 'Sapi potong hidup di tingkat peternak / produsen',
+        image: '/storage/producer-commodities/N2o103RzRgRrmlsXsOjKaoQITNdtWhHNOwcTgKnN.png',
+        image_url: '/storage/producer-commodities/N2o103RzRgRrmlsXsOjKaoQITNdtWhHNOwcTgKnN.png',
         today_price: 58000,
         yesterday_price: 58000,
         diff_hap: 2000,
@@ -233,6 +245,73 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
         change_type: 'stable',
     },
 ];
+
+export function getProducerCommodityImageUrl(item?: { image?: string | null; image_url?: string | null }): string | null {
+    if (!item) return null;
+    const raw = item.image_url || item.image;
+    if (!raw) return null;
+
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        try {
+            const parsed = new URL(raw);
+            if (parsed.pathname.startsWith('/storage/')) {
+                return parsed.pathname;
+            }
+        } catch {
+            // keep raw if url parsing fails
+        }
+        return raw;
+    }
+
+    if (raw.startsWith('/') || raw.startsWith('data:')) {
+        return raw;
+    }
+
+    return `/storage/${raw}`;
+}
+
+function ProducerCommodityImage({
+    item,
+    className,
+    fallbackSize = 'default',
+}: {
+    item: { name: string; image?: string | null; image_url?: string | null };
+    className?: string;
+    fallbackSize?: 'default' | 'small';
+}) {
+    const src = useMemo(() => getProducerCommodityImageUrl(item), [item]);
+    const [hasError, setHasError] = useState(false);
+
+    useEffect(() => {
+        setHasError(false);
+    }, [src]);
+
+    if (!src || hasError) {
+        if (fallbackSize === 'small') {
+            return (
+                <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
+                    <Wheat className="size-4 stroke-[1.75]" />
+                </div>
+            );
+        }
+        return (
+            <div className="flex flex-col items-center justify-center text-amber-200">
+                <Wheat className="size-10 stroke-[1.2]" />
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={src}
+            alt={item.name}
+            onError={() => setHasError(true)}
+            loading="lazy"
+            decoding="async"
+            className={className}
+        />
+    );
+}
 
 const formatIndoDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -1267,17 +1346,11 @@ export default function HargaProdusen({
                                             <div>
                                                 {/* Photo Showcase (Aspect 4:3, Zoom Out / Object Contain) */}
                                                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-amber-50/60 via-slate-50/40 to-orange-50/40 border-b border-slate-100 flex items-center justify-center p-3">
-                                                    {comm.image || comm.image_url ? (
-                                                        <img
-                                                            src={comm.image || comm.image_url}
-                                                            alt={comm.name}
-                                                            className="h-full w-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
-                                                        />
-                                                    ) : (
-                                                        <div className="flex flex-col items-center justify-center text-amber-200">
-                                                            <Wheat className="size-10 stroke-[1.2]" />
-                                                        </div>
-                                                    )}
+                                                    <ProducerCommodityImage
+                                                        item={comm}
+                                                        className="h-full w-full object-contain object-center transition-transform duration-300 group-hover:scale-105"
+                                                        fallbackSize="default"
+                                                    />
                                                     <div className="absolute top-2 left-2 right-2 flex items-center justify-between pointer-events-none gap-1">
                                                         <span className="truncate rounded-md bg-white/95 backdrop-blur-xs px-1.5 py-0.5 text-[9px] font-extrabold text-amber-900 uppercase shadow-2xs">
                                                             {comm.category}
@@ -1825,17 +1898,11 @@ export default function HargaProdusen({
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="relative size-9 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs flex items-center justify-center p-0.5">
-                                                        {item.image || item.image_url ? (
-                                                            <img
-                                                                src={item.image || item.image_url!}
-                                                                alt={item.name}
-                                                                className="h-full w-full object-contain"
-                                                            />
-                                                        ) : (
-                                                            <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
-                                                                <Wheat className="size-4 stroke-[1.75]" />
-                                                            </div>
-                                                        )}
+                                                        <ProducerCommodityImage
+                                                            item={item}
+                                                            className="h-full w-full object-contain"
+                                                            fallbackSize="small"
+                                                        />
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-start justify-between gap-1.5">
@@ -2281,51 +2348,8 @@ export default function HargaProdusen({
                     </div>
                 </main>
 
-                {/* ============================================================== */}
-                {/* 3. FOOTER                                                      */}
-                {/* ============================================================== */}
-                <footer className="border-t border-slate-200 bg-white text-slate-600">
-                    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#006565] text-white">
-                                    <Wheat className="h-5 w-5" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-base font-extrabold text-slate-900">
-                                        DKPP KABUPATEN INDRAMAYU
-                                    </span>
-                                    <span className="text-[10px] font-semibold tracking-wider text-[#006565] uppercase">
-                                        Dinas Ketahanan Pangan dan Pertanian
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600">
-                                <Link href="/harga-konsumen" className="hover:text-[#006565] transition-colors">
-                                    Harga Konsumen
-                                </Link>
-                                <span className="text-slate-300">•</span>
-                                <Link href="/harga-produsen" className="text-[#006565] font-bold">
-                                    Harga Produsen
-                                </Link>
-                                <span className="text-slate-300">•</span>
-                                <Link href={login()} className="hover:text-[#006565] transition-colors">
-                                    Portal Petugas
-                                </Link>
-                            </div>
-                        </div>
-
-                        <div className="mt-8 flex flex-col items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 sm:flex-row">
-                            <div>
-                                &copy; 2026 Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu. Lumbung Padi Nasional.
-                            </div>
-                            <div className="mt-2 font-medium sm:mt-0">
-                                Sistem Informasi Ketahanan Pangan Terpadu
-                            </div>
-                        </div>
-                    </div>
-                </footer>
+                {/* Public Portal Footer */}
+                <PortalFooter />
             </div>
         </>
     );

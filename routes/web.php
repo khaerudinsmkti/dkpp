@@ -185,7 +185,7 @@ Route::get('/harga-produsen', function (Request $request) {
         }
 
         return [
-            'id' => $cfg['id'] ?? null,
+            'id' => (int) ($cfg['id'] ?? $cfg['order']),
             'key' => $key,
             'name' => $cfg['name'],
             'short_name' => $cfg['short_name'],

@@ -63,6 +63,8 @@ class ProducerPrice extends Model
             'hap' => 6000,
             'hap_label' => 'HAP Bapanas',
             'description' => 'Gabah Kering Panen di tingkat petani sawah',
+            'image' => 'producer-commodities/ORZlz1j9Gxgp48BO8fqCw85WxfhYhYaQXoJuaZ8Z.png',
+            'image_url' => '/storage/producer-commodities/ORZlz1j9Gxgp48BO8fqCw85WxfhYhYaQXoJuaZ8Z.png',
         ],
         [
             'key' => 'gkp_penggilingan',
@@ -74,6 +76,8 @@ class ProducerPrice extends Model
             'hap' => 6200,
             'hap_label' => 'HAP Bapanas',
             'description' => 'Gabah Kering Panen di tingkat usaha penggilingan padi',
+            'image' => 'producer-commodities/wX2Z0Z34usT99z3BvDyyZDCKCStGvgnMEGvUbfpQ.png',
+            'image_url' => '/storage/producer-commodities/wX2Z0Z34usT99z3BvDyyZDCKCStGvgnMEGvUbfpQ.png',
         ],
         [
             'key' => 'gkg_penggilingan',
@@ -85,6 +89,8 @@ class ProducerPrice extends Model
             'hap' => 7400,
             'hap_label' => 'HAP Bapanas',
             'description' => 'Gabah Kering Giling di tingkat usaha penggilingan padi',
+            'image' => 'producer-commodities/k1FZOc3yFsVMnTUBmttEwQV2cww75faa3LQZsdQG.png',
+            'image_url' => '/storage/producer-commodities/k1FZOc3yFsVMnTUBmttEwQV2cww75faa3LQZsdQG.png',
         ],
         [
             'key' => 'beras_medium_penggilingan',
@@ -96,6 +102,8 @@ class ProducerPrice extends Model
             'hap' => 12000,
             'hap_label' => 'HAP Bapanas',
             'description' => 'Beras Medium hasil produksi di tingkat penggilingan',
+            'image' => 'producer-commodities/xV6yGFEyNTDOyO6N9Tk3wnKQm6Npcyr9MrSV5lj4.png',
+            'image_url' => '/storage/producer-commodities/xV6yGFEyNTDOyO6N9Tk3wnKQm6Npcyr9MrSV5lj4.png',
         ],
         [
             'key' => 'beras_premium_penggilingan',
@@ -107,6 +115,8 @@ class ProducerPrice extends Model
             'hap' => 13900,
             'hap_label' => 'HAP Bapanas',
             'description' => 'Beras Premium hasil produksi di tingkat penggilingan',
+            'image' => 'producer-commodities/KekCOZQavP4CQpDDBHfG6O3A7TV3XrR5LESzvBSL.png',
+            'image_url' => '/storage/producer-commodities/KekCOZQavP4CQpDDBHfG6O3A7TV3XrR5LESzvBSL.png',
         ],
         [
             'key' => 'sapi_hidup',
@@ -118,6 +128,8 @@ class ProducerPrice extends Model
             'hap' => 56000,
             'hap_label' => 'HAP Farm Gate',
             'description' => 'Sapi potong hidup di tingkat peternak / produsen',
+            'image' => 'producer-commodities/N2o103RzRgRrmlsXsOjKaoQITNdtWhHNOwcTgKnN.png',
+            'image_url' => '/storage/producer-commodities/N2o103RzRgRrmlsXsOjKaoQITNdtWhHNOwcTgKnN.png',
         ],
     ];
 

@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    ArrowUp,
     Layers,
     MapPin,
     PieChart,
@@ -7,6 +8,7 @@ import {
     Store,
     Wheat,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { dashboard, login } from '@/routes';
 
 interface PortalFooterProps {
@@ -17,6 +19,27 @@ export default function PortalFooter({
     currentYear = new Date().getFullYear(),
 }: PortalFooterProps) {
     const { auth } = usePage<{ auth?: { user?: { name?: string } } }>().props;
+    const [showFloatingTop, setShowFloatingTop] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.scrollY > 400) {
+                setShowFloatingTop(true);
+            } else {
+                setShowFloatingTop(false);
+            }
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth',
+        });
+    };
 
     return (
         <footer className="mt-16 border-t border-slate-200/90 bg-white text-slate-600 transition-colors dark:border-slate-800 dark:bg-slate-900/95 dark:text-slate-400">
@@ -134,15 +157,45 @@ export default function PortalFooter({
                 </div>
 
                 {/* Bottom Copyright & Sub-bar */}
-                <div className="mt-10 flex flex-col items-center justify-between border-t border-slate-200/80 pt-6 text-xs text-slate-400 sm:flex-row dark:border-slate-800">
-                    <div className="text-center sm:text-left">
+                <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200/80 pt-6 text-xs text-slate-400 md:flex-row dark:border-slate-800">
+                    <div className="text-center md:text-left">
                         &copy; {currentYear} Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu. Lumbung Padi Nasional.
                     </div>
-                    <div className="mt-2 text-center font-medium text-slate-500 sm:mt-0 sm:text-right dark:text-slate-400">
+
+                    {/* Tombol Kembali ke Atas Modern di Footer */}
+                    <button
+                        type="button"
+                        onClick={scrollToTop}
+                        className="group inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-[#006565] hover:bg-[#006565]/5 hover:text-[#006565] hover:shadow-xs active:scale-95 transition-all dark:border-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400 cursor-pointer"
+                        title="Kembali ke atas halaman"
+                        aria-label="Kembali ke atas"
+                    >
+                        <span>Kembali ke Atas</span>
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all duration-300 group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-700 dark:text-slate-300 dark:group-hover:bg-emerald-500 dark:group-hover:text-white">
+                            <ArrowUp className="h-3 w-3 stroke-[2.5] transition-transform duration-300 group-hover:-translate-y-0.5" />
+                        </div>
+                    </button>
+
+                    <div className="text-center font-medium text-slate-500 md:text-right dark:text-slate-400">
                         Sistem Informasi Satu Data Ketahanan Pangan Terpadu
                     </div>
                 </div>
             </div>
+
+            {/* Floating Back to Top Button */}
+            <button
+                type="button"
+                onClick={scrollToTop}
+                aria-label="Kembali ke atas"
+                title="Kembali ke atas"
+                className={`fixed bottom-6 right-6 z-40 flex items-center justify-center rounded-full bg-gradient-to-r from-[#006565] to-teal-700 p-3.5 text-white shadow-lg shadow-[#006565]/30 ring-1 ring-white/20 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:from-[#005252] hover:to-teal-800 active:scale-95 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 cursor-pointer ${
+                    showFloatingTop
+                        ? 'opacity-100 translate-y-0 pointer-events-auto'
+                        : 'opacity-0 translate-y-6 pointer-events-none'
+                }`}
+            >
+                <ArrowUp className="h-5 w-5 stroke-[2.5]" />
+            </button>
         </footer>
     );
 }
