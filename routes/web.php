@@ -83,6 +83,7 @@ Route::get('/harga-konsumen', function (Request $request) {
             'category' => $c->category,
             'unit' => $c->unit,
             'image' => $c->image_url,
+            'image_url' => $c->image_url,
             'today_price' => $todayPrice,
             'yesterday_price' => $yesterdayPrice,
             'het_price' => $hetPrice,
