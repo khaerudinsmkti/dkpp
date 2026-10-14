@@ -68,6 +68,7 @@ export interface ConsumerCommodityItem {
     category?: string;
     unit: string;
     image?: string | null;
+    image_url?: string | null;
     today_price: number | null;
     yesterday_price: number | null;
     het_price: number | null;
@@ -94,11 +95,80 @@ export interface HargaKonsumenProps {
 }
 
 // ==============================================================================
+// DEFAULT COMMODITY IMAGES & IMAGE URL RESOLVER
+// ==============================================================================
+export const DEFAULT_COMMODITY_IMAGES: Record<number, string> = {
+    1: '/storage/commodities/hKdKadrI97IHeK1n4L8X31wEYTww23NqwRrVFKQt.png',
+    2: '/storage/commodities/fyXYHTyLXfLB3FhAbY7pp9lqpNRu5XQkYW8plzS6.png',
+    3: '/storage/commodities/joOvhuKhA00v8mlaEFWXiKPNE2UQvhdCxdbOGEKr.png',
+    4: '/storage/commodities/ZqZ3uICW5w6RIS4ChEl2kvRKABAT22iKp5R76C5O.png',
+    5: '/storage/commodities/eh7UlONntX7nCBCU7ustQtXAN8OiEsEs4R9R6xJ8.png',
+    6: '/storage/commodities/wu2n8VSdrbNoBRFLyFDi5AUYKG66gOFyA35XoDFT.png',
+    7: '/storage/commodities/pc142xa3e9nxs6rABpaxoTbnzBzfYjXMthfB1QKi.png',
+    8: '/storage/commodities/4CX9z6FQ8zmA67QsIAM78v9ASQqLhOZE0ifCn1z1.png',
+    9: '/storage/commodities/zAIoHA80YBephRFY6G4dj2VKO1Cxl7VS92OC8Q0x.png',
+    10: '/storage/commodities/QkbWiZbX0nVAxzthjZrE0TAY36Es0xqN212MQNJj.png',
+    11: '/storage/commodities/3OOshqbUc5myBwLQGOkN2KzygPHYXISA1NTJDep2.png',
+    12: '/storage/commodities/nnT6yfaXaCA4kD8cwa6d6DlRbBdzyvw7c0VXLgXh.png',
+    13: '/storage/commodities/9fAnVftG5KUTodIur1Rh0zB6v3j74y8fnsdHeQJp.png',
+    14: '/storage/commodities/zdkSinG23HxKG0DsgljwSB3vwKM3Hk7YV2aw1gLa.png',
+    15: '/storage/commodities/4vxUaBOHmzBQyHByhZ7D21vQ89BguzkhHF0QcAYz.png',
+    16: '/storage/commodities/TagggXN8oxImnz6XotC0W3WqpCpf78ErZmdtAaWv.png',
+    17: '/storage/commodities/qhTqbU8YxpSEiBL7DParkSgB6ndrqAEJM2ZlA3wJ.png',
+    18: '/storage/commodities/1GvQzzo05K4QklViHlmqHGirPvrfz3qI9PdP2uwF.png',
+    19: '/storage/commodities/zFiEcm0bw48HLTMmajKrrc4AGHjEJlkNi5pQ2rQ5.png',
+    20: '/storage/commodities/kjqeyogAgRupExoFsm2p4DjDM12dXUJV1RFab53A.png',
+    21: '/storage/commodities/E1KdgmB01XGOdlkUykKzoCtrTIljMcbGrDPmNGFY.png',
+    22: '/storage/commodities/HWcQRUGLDXniB8y5Hwnt5WRvLXCNwyb7OMfnyYnc.png',
+    23: '/storage/commodities/Sl65xf0kXGNBkEZ58N0cCZHVdDhmTCzDvBzvhEBL.png',
+    24: '/storage/commodities/CgV9uTmFUxyGoBiftLAnVrGrZ7ZlZJFcUsfZU7Iy.png',
+    25: '/storage/commodities/toBEb01LaD6AQvlzpDlfirLVYZAegVRZjFHR3GYq.png',
+};
+
+/**
+ * Normalizes any commodity image URL to ensure relative same-origin path,
+ * avoiding CORS / port mismatches, and falling back to default image when empty.
+ */
+export function getConsumerCommodityImageUrl(item?: {
+    id?: number;
+    name?: string;
+    image?: string | null;
+    image_url?: string | null;
+}): string | null {
+    if (!item) return null;
+    let raw = item.image_url || item.image;
+
+    if (!raw && item.id && DEFAULT_COMMODITY_IMAGES[item.id]) {
+        raw = DEFAULT_COMMODITY_IMAGES[item.id];
+    }
+
+    if (!raw) return null;
+
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+        try {
+            const parsed = new URL(raw);
+            if (parsed.pathname.startsWith('/storage/')) {
+                return parsed.pathname;
+            }
+        } catch {
+            // keep raw if url parsing fails
+        }
+        return raw;
+    }
+
+    if (raw.startsWith('/') || raw.startsWith('data:')) {
+        return raw;
+    }
+
+    return `/storage/${raw}`;
+}
+
+// ==============================================================================
 // LOCAL BROWSER CACHING SYSTEM (Images & Commodity Data)
 // Prevents image reloads across slide transitions & page navigation
 // ==============================================================================
-const CONSUMER_DATA_CACHE_KEY = 'dkpp_consumer_commodities_cache_v1';
-const IMAGE_CACHE_PREFIX = 'dkpp_img_cache_';
+const CONSUMER_DATA_CACHE_KEY = 'dkpp_consumer_commodities_cache_v2';
+const IMAGE_CACHE_PREFIX = 'dkpp_img_cache_v2_';
 const memoryImageCache = new Map<string, string>();
 
 /**
@@ -133,7 +203,7 @@ async function cacheImageLocally(url?: string | null): Promise<string | null> {
     if (typeof window === 'undefined') return url;
 
     try {
-        const response = await fetch(url, { mode: 'cors' });
+        const response = await fetch(url);
         if (!response.ok) throw new Error('Fetch failed');
         const blob = await response.blob();
         return await new Promise<string>((resolve) => {
@@ -169,27 +239,38 @@ async function cacheImageLocally(url?: string | null): Promise<string | null> {
 }
 
 /**
- * Fast cached image component that avoids reloading from server
+ * Fast cached image component that avoids reloading from server with error fallback
  */
 function CachedCommodityImage({
     src,
     alt,
     className,
+    fallback,
 }: {
-    src: string;
+    src?: string | null;
     alt: string;
     className?: string;
+    fallback?: React.ReactNode;
 }) {
-    const [imageSrc, setImageSrc] = useState<string>(() => {
+    const [hasError, setHasError] = useState(false);
+    const [imageSrc, setImageSrc] = useState<string | null>(() => {
+        if (!src) return null;
         return getLocalCachedImage(src) || src;
     });
 
     useEffect(() => {
+        setHasError(false);
+        if (!src) {
+            setImageSrc(null);
+            return;
+        }
+
         let isMounted = true;
         const cached = getLocalCachedImage(src);
         if (cached) {
             setImageSrc(cached);
         } else {
+            setImageSrc(src);
             cacheImageLocally(src).then((cachedUrl) => {
                 if (isMounted && cachedUrl) {
                     setImageSrc(cachedUrl);
@@ -201,13 +282,18 @@ function CachedCommodityImage({
         };
     }, [src]);
 
+    if (!imageSrc || hasError) {
+        return <>{fallback}</>;
+    }
+
     return (
         <img
             src={imageSrc}
             alt={alt}
             className={className}
-            loading="eager"
+            loading="lazy"
             decoding="async"
+            onError={() => setHasError(true)}
         />
     );
 }
@@ -218,6 +304,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Beras Premium',
         category: 'Bahan Pokok Utama',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[1],
+        image_url: DEFAULT_COMMODITY_IMAGES[1],
         today_price: 14900,
         yesterday_price: 14900,
         het_price: 14900,
@@ -227,6 +315,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Beras Medium',
         category: 'Bahan Pokok Utama',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[2],
+        image_url: DEFAULT_COMMODITY_IMAGES[2],
         today_price: 13250,
         yesterday_price: 13250,
         het_price: 13500,
@@ -236,6 +326,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Beras SPHP',
         category: 'Bahan Pokok Utama',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[3],
+        image_url: DEFAULT_COMMODITY_IMAGES[3],
         today_price: 12000,
         yesterday_price: 12000,
         het_price: 12500,
@@ -245,6 +337,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Beras Medium Non SPHP',
         category: 'Bahan Pokok Utama',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[4],
+        image_url: DEFAULT_COMMODITY_IMAGES[4],
         today_price: 13500,
         yesterday_price: 13500,
         het_price: 13500,
@@ -254,6 +348,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Jagung Tk Peternak',
         category: 'Pakan Ternak & Palawija',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[5],
+        image_url: DEFAULT_COMMODITY_IMAGES[5],
         today_price: 5200,
         yesterday_price: 5148,
         het_price: 5800,
@@ -263,6 +359,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Kedelai Biji Kering (Impor)',
         category: 'Palawija & Kacang',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[6],
+        image_url: DEFAULT_COMMODITY_IMAGES[6],
         today_price: 11400,
         yesterday_price: 11375,
         het_price: 12000,
@@ -272,6 +370,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Bawang Merah',
         category: 'Bumbu Dapur Strategis',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[7],
+        image_url: DEFAULT_COMMODITY_IMAGES[7],
         today_price: 32333,
         yesterday_price: 32333,
         het_price: 40000,
@@ -281,6 +381,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Bawang Putih Bonggol',
         category: 'Bumbu Dapur Strategis',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[8],
+        image_url: DEFAULT_COMMODITY_IMAGES[8],
         today_price: 32333,
         yesterday_price: 32333,
         het_price: 38000,
@@ -290,6 +392,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Cabai Merah Keriting',
         category: 'Hortikultura Strategis',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[9],
+        image_url: DEFAULT_COMMODITY_IMAGES[9],
         today_price: 58000,
         yesterday_price: 56333,
         het_price: 55000,
@@ -299,6 +403,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Cabai Merah Besar',
         category: 'Hortikultura Strategis',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[10],
+        image_url: DEFAULT_COMMODITY_IMAGES[10],
         today_price: 42000,
         yesterday_price: 41333,
         het_price: null,
@@ -308,6 +414,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Daging Sapi Murni',
         category: 'Protein Hewani',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[11],
+        image_url: DEFAULT_COMMODITY_IMAGES[11],
         today_price: 150000,
         yesterday_price: 150000,
         het_price: 140000,
@@ -317,6 +425,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Cabai Rawit Merah',
         category: 'Hortikultura Strategis',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[12],
+        image_url: DEFAULT_COMMODITY_IMAGES[12],
         today_price: 75333,
         yesterday_price: 76333,
         het_price: 57500,
@@ -326,6 +436,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Daging Ayam Ras',
         category: 'Protein Hewani',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[13],
+        image_url: DEFAULT_COMMODITY_IMAGES[13],
         today_price: 38667,
         yesterday_price: 38333,
         het_price: 40000,
@@ -335,6 +447,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Telur Ayam Ras',
         category: 'Protein Hewani',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[14],
+        image_url: DEFAULT_COMMODITY_IMAGES[14],
         today_price: 25167,
         yesterday_price: 25167,
         het_price: 27000,
@@ -344,6 +458,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Gula Konsumsi',
         category: 'Bahan Pokok Utama',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[15],
+        image_url: DEFAULT_COMMODITY_IMAGES[15],
         today_price: 18500,
         yesterday_price: 18500,
         het_price: 17500,
@@ -353,6 +469,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Minyak Goreng Kemasan',
         category: 'Minyak & Lemak',
         unit: 'Liter',
+        image: DEFAULT_COMMODITY_IMAGES[16],
+        image_url: DEFAULT_COMMODITY_IMAGES[16],
         today_price: 23750,
         yesterday_price: 23542,
         het_price: null,
@@ -362,6 +480,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Minyak Goreng Curah',
         category: 'Minyak & Lemak',
         unit: 'Liter',
+        image: DEFAULT_COMMODITY_IMAGES[17],
+        image_url: DEFAULT_COMMODITY_IMAGES[17],
         today_price: 16400,
         yesterday_price: 16400,
         het_price: null,
@@ -371,6 +491,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Tepung Terigu (Curah)',
         category: 'Olahan Tepung',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[18],
+        image_url: DEFAULT_COMMODITY_IMAGES[18],
         today_price: 8667,
         yesterday_price: 8833,
         het_price: null,
@@ -380,6 +502,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Minyakita',
         category: 'Minyak & Lemak',
         unit: 'Liter',
+        image: DEFAULT_COMMODITY_IMAGES[19],
+        image_url: DEFAULT_COMMODITY_IMAGES[19],
         today_price: 15700,
         yesterday_price: 15700,
         het_price: 15700,
@@ -389,6 +513,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Tepung Terigu Kemasan',
         category: 'Olahan Tepung',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[20],
+        image_url: DEFAULT_COMMODITY_IMAGES[20],
         today_price: 12500,
         yesterday_price: 12500,
         het_price: null,
@@ -398,6 +524,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Ikan Kembung',
         category: 'Hasil Perikanan',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[21],
+        image_url: DEFAULT_COMMODITY_IMAGES[21],
         today_price: 50000,
         yesterday_price: 50000,
         het_price: null,
@@ -407,6 +535,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Ikan Tongkol',
         category: 'Hasil Perikanan',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[22],
+        image_url: DEFAULT_COMMODITY_IMAGES[22],
         today_price: 33667,
         yesterday_price: 33667,
         het_price: null,
@@ -416,6 +546,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Ikan Bandeng',
         category: 'Hasil Perikanan',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[23],
+        image_url: DEFAULT_COMMODITY_IMAGES[23],
         today_price: 33667,
         yesterday_price: 33667,
         het_price: null,
@@ -425,6 +557,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Garam Konsumsi',
         category: 'Bumbu & Garam',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[24],
+        image_url: DEFAULT_COMMODITY_IMAGES[24],
         today_price: 12000,
         yesterday_price: 12000,
         het_price: null,
@@ -434,6 +568,8 @@ export const DEFAULT_CONSUMER_COMMODITIES: ConsumerCommodityItem[] = [
         name: 'Daging Kerbau Beku (Impor Luar Negeri)',
         category: 'Protein Hewani',
         unit: 'Kg',
+        image: DEFAULT_COMMODITY_IMAGES[25],
+        image_url: DEFAULT_COMMODITY_IMAGES[25],
         today_price: 80000,
         yesterday_price: 80000,
         het_price: 80000,
@@ -561,8 +697,9 @@ export default function HargaKonsumen({
     // Preload & store all commodity images into browser local cache (RAM & localStorage)
     useEffect(() => {
         commoditiesList.forEach((item) => {
-            if (item.image) {
-                cacheImageLocally(item.image);
+            const imgUrl = getConsumerCommodityImageUrl(item);
+            if (imgUrl) {
+                cacheImageLocally(imgUrl);
             }
         });
     }, [commoditiesList]);
@@ -2266,20 +2403,19 @@ export default function HargaKonsumen({
                                                 {/* Card Top: Image Showcase & Floating Badges */}
                                                 <div>
                                                     <div className="relative mb-2.5 aspect-[16/11] w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 shadow-inner">
-                                                        {item.image ? (
-                                                            <CachedCommodityImage
-                                                                src={item.image}
-                                                                alt={item.name}
-                                                                className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-105"
-                                                            />
-                                                        ) : (
-                                                            <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-amber-50/60 via-slate-50 to-emerald-50/50 text-slate-400">
-                                                                <Wheat className="h-8 w-8 stroke-[1.5] text-amber-500/70 mb-0.5 transition-transform duration-300 group-hover:scale-110" />
-                                                                <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
-                                                                    {item.category || 'Pangan'}
-                                                                </span>
-                                                            </div>
-                                                        )}
+                                                        <CachedCommodityImage
+                                                            src={getConsumerCommodityImageUrl(item)}
+                                                            alt={item.name}
+                                                            className="h-full w-full object-contain p-2.5 transition-transform duration-300 group-hover:scale-105"
+                                                            fallback={
+                                                                <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-amber-50/60 via-slate-50 to-emerald-50/50 text-slate-400">
+                                                                    <Wheat className="h-8 w-8 stroke-[1.5] text-amber-500/70 mb-0.5 transition-transform duration-300 group-hover:scale-110" />
+                                                                    <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
+                                                                        {item.category || 'Pangan'}
+                                                                    </span>
+                                                                </div>
+                                                            }
+                                                        />
 
                                                         {/* Floating Category Tag */}
                                                         <div className="absolute top-1.5 left-1.5">
@@ -2858,17 +2994,16 @@ export default function HargaKonsumen({
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-2xs">
-                                                        {item.image ? (
-                                                            <CachedCommodityImage
-                                                                src={item.image}
-                                                                alt={item.name}
-                                                                className="h-full w-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
-                                                                <Wheat className="size-4 stroke-[1.75]" />
-                                                            </div>
-                                                        )}
+                                                        <CachedCommodityImage
+                                                            src={getConsumerCommodityImageUrl(item)}
+                                                            alt={item.name}
+                                                            className="h-full w-full object-cover"
+                                                            fallback={
+                                                                <div className="flex h-full w-full items-center justify-center bg-amber-50 text-amber-600">
+                                                                    <Wheat className="size-4 stroke-[1.75]" />
+                                                                </div>
+                                                            }
+                                                        />
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-start justify-between gap-1.5">

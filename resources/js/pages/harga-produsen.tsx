@@ -246,9 +246,28 @@ export const DEFAULT_PRODUCER_COMMODITIES: ProducerCommodity[] = [
     },
 ];
 
-export function getProducerCommodityImageUrl(item?: { image?: string | null; image_url?: string | null }): string | null {
+export const DEFAULT_PRODUCER_IMAGES: Record<string, string> = {
+    gkp_petani: '/storage/producer-commodities/ORZlz1j9Gxgp48BO8fqCw85WxfhYhYaQXoJuaZ8Z.png',
+    gkp_penggilingan: '/storage/producer-commodities/wX2Z0Z34usT99z3BvDyyZDCKCStGvgnMEGvUbfpQ.png',
+    gkg_penggilingan: '/storage/producer-commodities/k1FZOc3yFsVMnTUBmttEwQV2cww75faa3LQZsdQG.png',
+    beras_medium_penggilingan: '/storage/producer-commodities/xV6yGFEyNTDOyO6N9Tk3wnKQm6Npcyr9MrSV5lj4.png',
+    beras_premium_penggilingan: '/storage/producer-commodities/KekCOZQavP4CQpDDBHfG6O3A7TV3XrR5LESzvBSL.png',
+    sapi_hidup: '/storage/producer-commodities/N2o103RzRgRrmlsXsOjKaoQITNdtWhHNOwcTgKnN.png',
+};
+
+export function getProducerCommodityImageUrl(item?: {
+    id?: number;
+    key?: string;
+    image?: string | null;
+    image_url?: string | null;
+}): string | null {
     if (!item) return null;
-    const raw = item.image_url || item.image;
+    let raw = item.image_url || item.image;
+
+    if (!raw && item.key && DEFAULT_PRODUCER_IMAGES[item.key]) {
+        raw = DEFAULT_PRODUCER_IMAGES[item.key];
+    }
+
     if (!raw) return null;
 
     if (raw.startsWith('http://') || raw.startsWith('https://')) {
