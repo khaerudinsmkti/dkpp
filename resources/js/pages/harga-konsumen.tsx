@@ -28,6 +28,7 @@ import {
     Play,
     Printer,
     RefreshCw,
+    Search,
     ShieldCheck,
     SlidersHorizontal,
     Sparkles,
@@ -899,6 +900,93 @@ export default function HargaKonsumen({
     const [historyPrevMonthAvgs, setHistoryPrevMonthAvgs] = useState<Record<number | string, number | null>>({});
     const [historyCommodityHets, setHistoryCommodityHets] = useState<Record<number | string, number | null>>({});
 
+    // ==============================================================
+    // TABULASI TABEL HISTORIS: 'daily' (Tab 1) | 'monthly' (Tab 2)
+    // ==============================================================
+    const [historyTab, setHistoryTab] = useState<'daily' | 'monthly'>('daily');
+
+    // ==============================================================
+    // FITUR TABEL HISTORIS RATA-RATA BULANAN (JANUARI - DESEMBER)
+    // ==============================================================
+    interface MonthlyCommodityRow {
+        id: number;
+        name: string;
+        category: string;
+        unit: string;
+        current_het: number | null;
+        monthly_prices: Record<number, number | null>;
+        monthly_hets: Record<number, number | null>;
+        is_above_het: Record<number, boolean>;
+        yearly_average: number | null;
+    }
+
+    interface MonthInfo {
+        num: number;
+        name: string;
+        short: string;
+    }
+
+    const [monthlyHistYear, setMonthlyHistYear] = useState<number>(() => {
+        if (selectedDate) {
+            const yr = parseInt(selectedDate.substring(0, 4), 10);
+            if (!isNaN(yr)) return yr;
+        }
+        return new Date().getFullYear();
+    });
+    const [monthlyAvailableYears, setMonthlyAvailableYears] = useState<number[]>([
+        new Date().getFullYear(),
+        new Date().getFullYear() - 1,
+    ]);
+    const [monthlyCommodityRows, setMonthlyCommodityRows] = useState<MonthlyCommodityRow[]>([]);
+    const [monthlyMonths, setMonthlyMonths] = useState<MonthInfo[]>([]);
+    const [monthlySummary, setMonthlySummary] = useState<Record<number, { average: number | null; above_het_count: number; recorded_count: number }>>({});
+    const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
+    const [monthlyError, setMonthlyError] = useState<string | null>(null);
+    const [monthlyViewMode, setMonthlyViewMode] = useState<'by_commodity' | 'by_month'>('by_commodity');
+    const [monthlySearchQuery, setMonthlySearchQuery] = useState<string>('');
+
+    const fetchMonthlyHistoryData = async (targetYear?: number) => {
+        setMonthlyLoading(true);
+        setMonthlyError(null);
+        try {
+            const yr = targetYear ?? monthlyHistYear;
+            const params = new URLSearchParams();
+            params.append('market_id', String(currentMarketId));
+            params.append('year', String(yr));
+
+            const res = await fetch(`/api/public-monthly-history-data?${params.toString()}`);
+            if (!res.ok) throw new Error('Gagal mengambil data rata-rata bulanan');
+            const data = await res.json();
+
+            setMonthlyCommodityRows(data.commodity_rows || []);
+            setMonthlyMonths(data.months || []);
+            setMonthlySummary(data.month_summary || {});
+            if (data.available_years && data.available_years.length > 0) {
+                setMonthlyAvailableYears(data.available_years);
+            }
+            if (data.year) {
+                setMonthlyHistYear(data.year);
+            }
+        } catch (err: any) {
+            setMonthlyError(err.message || 'Terjadi kesalahan saat memuat data rata-rata bulanan');
+        } finally {
+            setMonthlyLoading(false);
+        }
+    };
+
+    const handleMonthlyYearChange = (yr: number) => {
+        setMonthlyHistYear(yr);
+        fetchMonthlyHistoryData(yr);
+    };
+
+    const filteredMonthlyCommodityRows = useMemo(() => {
+        if (!monthlySearchQuery.trim()) return monthlyCommodityRows;
+        const q = monthlySearchQuery.toLowerCase();
+        return monthlyCommodityRows.filter(
+            (r) => r.name.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q)
+        );
+    }, [monthlyCommodityRows, monthlySearchQuery]);
+
     const fetchHistoryData = async (start?: string, end?: string) => {
         setHistoryLoading(true);
         setHistoryError(null);
@@ -928,7 +1016,10 @@ export default function HargaKonsumen({
 
     useEffect(() => {
         fetchHistoryData();
-    }, [currentMarketId]);
+        if (historyTab === 'monthly') {
+            fetchMonthlyHistoryData();
+        }
+    }, [currentMarketId, historyTab]);
 
     const handleApplyHistoryPreset = (preset: '14' | '7' | '30') => {
         setHistoryPreset(preset);
@@ -1013,6 +1104,14 @@ export default function HargaKonsumen({
             end_date: historyEndDate,
         });
         window.location.href = `/api/public-history-excel?${params.toString()}`;
+    };
+
+    const handleDownloadMonthlyHistoryExcel = () => {
+        const params = new URLSearchParams({
+            market_id: String(currentMarketId),
+            year: String(monthlyHistYear),
+        });
+        window.location.href = `/api/public-monthly-history-excel?${params.toString()}`;
     };
 
     // Calculate period average for each commodity across historyRows
@@ -1293,6 +1392,207 @@ export default function HargaKonsumen({
                 <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;"></span> Hijau: Penurunan</span>
                 <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fef9c3;border:1px solid #fde047;border-radius:2px;"></span> Kuning: Kenaikan (1 - 10%)</span>
                 <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;"></span> Merah: Kenaikan (&gt; 10%)</span>
+            </div>
+            <div class="footer">
+                <span>DKPP Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
+                <span>Dicetak pada: ${new Date().toLocaleString('id-ID')}</span>
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+        }, 400);
+    };
+
+    const handleDownloadMonthlyPdf = () => {
+        const marketObj = markets.find((m) => m.id === currentMarketId);
+        const marketTitle = marketObj?.name || selectedMarketName || 'Pasar Daerah Indramayu';
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+        let tableHeaders = '<th>No</th><th style="text-align:left">Komoditas</th><th>Sat</th><th>HET/HAP</th>';
+        monthNames.forEach((m) => {
+            tableHeaders += `<th>${m}</th>`;
+        });
+        tableHeaders += '<th>Rata-rata</th>';
+
+        let tableRowsHtml = '';
+        const rowsToRender = filteredMonthlyCommodityRows.length > 0 ? filteredMonthlyCommodityRows : monthlyCommodityRows;
+        rowsToRender.forEach((row, idx) => {
+            let cells = `<td style="text-align:center;font-weight:bold">${idx + 1}</td>`;
+            cells += `<td style="text-align:left;white-space:nowrap;font-weight:bold">${row.name}</td>`;
+            cells += `<td style="text-align:center">${row.unit}</td>`;
+            cells += `<td style="text-align:right;white-space:nowrap">${row.current_het ? formatCurrency(row.current_het) : '-'}</td>`;
+
+            for (let m = 1; m <= 12; m++) {
+                const price = row.monthly_prices[m];
+                const isAbove = row.is_above_het[m];
+                const bgStyle = isAbove ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : '';
+                cells += `<td style="text-align:right;white-space:nowrap;${bgStyle}">${price ? formatCurrency(price) : '-'}</td>`;
+            }
+
+            cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap">${row.yearly_average ? formatCurrency(row.yearly_average) : '-'}</td>`;
+            tableRowsHtml += `<tr>${cells}</tr>`;
+        });
+
+        // Summary footer
+        let avgRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f1f5f9;">Rata-rata Semua Komoditas</td>';
+        for (let m = 1; m <= 12; m++) {
+            const avg = monthlySummary[m]?.average;
+            avgRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap">${avg ? formatCurrency(avg) : '-'}</td>`;
+        }
+        avgRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+
+        let hetCountRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f1f5f9;">Jml Komoditas di Atas HET</td>';
+        for (let m = 1; m <= 12; m++) {
+            const cnt = monthlySummary[m]?.above_het_count || 0;
+            const bgStyle = cnt > 0 ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : 'background-color:#f8fafc;';
+            hetCountRowHtml += `<td style="text-align:center;${bgStyle}">${cnt > 0 ? cnt + ' Komoditas' : '-'}</td>`;
+        }
+        hetCountRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+
+        const html = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8"/>
+            <title>Historis Rata-rata Bulanan Harga Pangan - ${marketTitle} (${monthlyHistYear})</title>
+            <style>
+                @page {
+                    size: landscape;
+                    margin: 8mm 6mm;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                    margin: 0;
+                    padding: 10px;
+                    color: #0f172a;
+                    font-size: 7.5pt;
+                }
+                .no-print {
+                    margin-bottom: 12px;
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    background: #f1f5f9;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                }
+                .btn {
+                    background: #006565;
+                    color: white;
+                    border: none;
+                    padding: 6px 14px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 8.5pt;
+                    cursor: pointer;
+                }
+                .btn-close {
+                    background: #64748b;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 10px;
+                    border-bottom: 2px solid #006565;
+                    padding-bottom: 6px;
+                }
+                .header h1 {
+                    margin: 0;
+                    font-size: 12pt;
+                    font-weight: 800;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                }
+                .header h2 {
+                    margin: 2px 0 0 0;
+                    font-size: 10pt;
+                    font-weight: 700;
+                    color: #006565;
+                }
+                .header p {
+                    margin: 3px 0 0 0;
+                    font-size: 7.5pt;
+                    color: #475569;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+                th, td {
+                    border: 1px solid #cbd5e1;
+                    padding: 3.5px 4px;
+                    font-size: 7pt;
+                }
+                th {
+                    background-color: #006565;
+                    color: white;
+                    font-weight: bold;
+                    text-align: center;
+                    vertical-align: middle;
+                }
+                tbody tr:nth-child(even) {
+                    background-color: #f8fafc;
+                }
+                tfoot tr td {
+                    font-size: 6.8pt;
+                    padding: 3.5px 4px;
+                }
+                .footer {
+                    margin-top: 10px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 7pt;
+                    color: #64748b;
+                }
+                @media print {
+                    .no-print {
+                        display: none !important;
+                    }
+                    body {
+                        padding: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print">
+                <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                <span style="font-size: 8pt; color: #475569">Tips: Pada dialog browser, pilih <strong>Save as PDF</strong> dan orientasi <strong>Landscape</strong>.</span>
+            </div>
+            <div class="header">
+                <h1>Pemerintah Kabupaten Indramayu</h1>
+                <h2>Dinas Ketahanan Pangan dan Pertanian</h2>
+                <p><strong>Tabel Historis Harga Rata-rata Bulanan Pangan Tingkat Konsumen (Januari - Desember ${monthlyHistYear})</strong> | Pasar: <strong>${marketTitle}</strong></p>
+            </div>
+            <table>
+                <thead>
+                    <tr>${tableHeaders}</tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr style="border-top: 2px solid #006565;">${avgRowHtml}</tr>
+                    <tr>${hetCountRowHtml}</tr>
+                </tfoot>
+            </table>
+            <div class="legend" style="margin-top: 8px; font-size: 6.8pt; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 5px;">
+                <span><strong>Keterangan Tabel:</strong></span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#fee2e2;border:1px solid #fca5a5;border-radius:2px;"></span> <strong>Merah:</strong> Harga Rata-rata Bulanan Melebihi HET / HAP Acuan</span>
+                <span style="display:inline-flex;align-items:center;gap:3px;"><span style="display:inline-block;width:9px;height:9px;background:#ffffff;border:1px solid #cbd5e1;border-radius:2px;"></span> <strong>Normal:</strong> Sesuai atau Di Bawah HET</span>
             </div>
             <div class="footer">
                 <span>DKPP Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
@@ -3065,8 +3365,65 @@ export default function HargaKonsumen({
                     {/* TABEL HISTORIS PERKEMBANGAN HARGA PANGAN (1 KOLOM FULL)        */}
                     {/* ============================================================== */}
                     <div id="rekap-section" className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs scroll-mt-20">
-                        {/* Header & Export Actions */}
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                        {/* Tab Switcher: Tab 1 (Harian) vs Tab 2 (Rata-rata Bulanan Jan-Des) */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5 mb-6">
+                            <div>
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
+                                    <Layers className="h-3.5 w-3.5" />
+                                    <span>Rekapitulasi Historis 25 Komoditas</span>
+                                </div>
+                                <h2 className="mt-2 text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                    Tabel Historis Harga Pangan Tingkat Konsumen
+                                </h2>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    Pilih tabulasi untuk melihat data perkembangan harian atau rekapitulasi rata-rata bulanan di{' '}
+                                    <strong className="text-slate-800">
+                                        {markets.find((m) => m.id === currentMarketId)?.name || selectedMarketName || 'Pasar Daerah Indramayu'}
+                                    </strong>
+                                </p>
+                            </div>
+
+                            {/* 2 Tab Navigation Buttons */}
+                            <div className="inline-flex rounded-2xl bg-slate-100 p-1.5 shadow-inner shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setHistoryTab('daily')}
+                                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                                        historyTab === 'daily'
+                                            ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/60 font-extrabold'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Clock className="h-4 w-4" />
+                                    <span>Tab 1: Perkembangan Harian</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setHistoryTab('monthly');
+                                        if (monthlyCommodityRows.length === 0) {
+                                            fetchMonthlyHistoryData();
+                                        }
+                                    }}
+                                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                                        historyTab === 'monthly'
+                                            ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/60 font-extrabold'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <BarChart3 className="h-4 w-4" />
+                                    <span>Tab 2: Rata-rata Bulanan (Jan - Des)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ============================================================== */}
+                        {/* TABULASI 1: TABEL HISTORIS PERKEMBANGAN HARGA PANGAN (HARIAN)  */}
+                        {/* ============================================================== */}
+                        {historyTab === 'daily' && (
+                            <div>
+                                {/* Header & Export Actions */}
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
                             <div>
                                 <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
                                     <Clock className="h-3.5 w-3.5" />
@@ -3501,6 +3858,502 @@ export default function HargaKonsumen({
                                 </div>
                             </div>
                         </div>
+                    </div>
+                )}
+
+                        {/* ============================================================== */}
+                        {/* TABULASI 2: TABEL HISTORIS RATA-RATA BULANAN (JAN - DES)      */}
+                        {/* ============================================================== */}
+                        {historyTab === 'monthly' && (
+                            <div>
+                                {/* Header & Export Actions */}
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                                    <div>
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
+                                            <Calendar className="h-3.5 w-3.5" />
+                                            <span>Data Rata-rata Bulanan 25 Komoditas</span>
+                                        </div>
+                                        <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                                            Tabel Historis Harga Rata-rata Bulanan Semua Komoditi
+                                        </h3>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            Rata-rata bulanan (Januari s/d Desember) tahun{' '}
+                                            <strong className="text-slate-800">{monthlyHistYear}</strong> di{' '}
+                                            <strong className="text-slate-800">
+                                                {markets.find((m) => m.id === currentMarketId)?.name || selectedMarketName || 'Pasar Daerah Indramayu'}
+                                            </strong>
+                                        </p>
+                                    </div>
+
+                                    {/* Export Buttons */}
+                                    <div className="flex flex-wrap items-center gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={handleDownloadMonthlyHistoryExcel}
+                                            disabled={monthlyLoading || monthlyCommodityRows.length === 0}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                            title="Download data rata-rata bulanan dalam format Excel (.xlsx)"
+                                        >
+                                            <FileSpreadsheet className="h-4 w-4" />
+                                            <span>Download Excel</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDownloadMonthlyPdf}
+                                            disabled={monthlyLoading || monthlyCommodityRows.length === 0}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                            title="Cetak atau unduh dokumen PDF format Landscape"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            <span>Download PDF</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Filter & Controls Bar */}
+                                <div className="mt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 p-3.5">
+                                    {/* Year Selector & View Mode Toggle */}
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-slate-600">Tahun:</span>
+                                            <div className="relative inline-flex items-center">
+                                                <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-[#006565] pointer-events-none" />
+                                                <select
+                                                    value={monthlyHistYear}
+                                                    onChange={(e) => handleMonthlyYearChange(Number(e.target.value))}
+                                                    className="rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-[#006565] focus:outline-none cursor-pointer"
+                                                >
+                                                    {monthlyAvailableYears.map((yr) => (
+                                                        <option key={yr} value={yr}>
+                                                            Tahun {yr}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* View Mode Toggle */}
+                                        <div className="flex items-center rounded-xl bg-white border border-slate-200 p-0.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setMonthlyViewMode('by_commodity')}
+                                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                                    monthlyViewMode === 'by_commodity'
+                                                        ? 'bg-[#006565] text-white shadow-2xs'
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                Matriks (Komoditas × Bulan)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setMonthlyViewMode('by_month')}
+                                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                                    monthlyViewMode === 'by_month'
+                                                        ? 'bg-[#006565] text-white shadow-2xs'
+                                                        : 'text-slate-600 hover:text-slate-900'
+                                                }`}
+                                            >
+                                                Kalender (Bulan × Komoditas)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Search (when by_commodity) */}
+                                    {monthlyViewMode === 'by_commodity' && (
+                                        <div className="relative min-w-[200px]">
+                                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                value={monthlySearchQuery}
+                                                onChange={(e) => setMonthlySearchQuery(e.target.value)}
+                                                placeholder="Cari nama komoditas..."
+                                                className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-[#006565] focus:outline-none"
+                                            />
+                                            {monthlySearchQuery && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setMonthlySearchQuery('')}
+                                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Table Display */}
+                                <div className="mt-5 relative">
+                                    {monthlyLoading && (
+                                        <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/70 backdrop-blur-2xs rounded-2xl min-h-[300px]">
+                                            <div className="flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 shadow-md border border-slate-100 text-xs font-bold text-[#006565]">
+                                                <RefreshCw className="h-4 w-4 animate-spin text-[#006565]" />
+                                                <span>Memuat data rata-rata bulanan...</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {monthlyError ? (
+                                        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-center text-xs text-rose-700">
+                                            <p className="font-bold">{monthlyError}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => fetchMonthlyHistoryData()}
+                                                className="mt-2 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 cursor-pointer"
+                                            >
+                                                Muat Ulang
+                                            </button>
+                                        </div>
+                                    ) : monthlyCommodityRows.length === 0 && !monthlyLoading ? (
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
+                                            Tidak ada data harga rata-rata bulanan yang tersedia untuk tahun {monthlyHistYear}.
+                                        </div>
+                                    ) : monthlyViewMode === 'by_commodity' ? (
+                                        /* ============================================== */
+                                        /* MODE 1: MATRIKS (BARIS: KOMODITAS, KOLOM: BULAN) */
+                                        /* ============================================== */
+                                        <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[620px] overflow-y-auto">
+                                            <table className="w-full border-collapse text-left text-xs">
+                                                <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                                    <tr>
+                                                        {/* Kolom 1: No (Sticky) */}
+                                                        <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[45px] border-r border-slate-200">
+                                                            No
+                                                        </th>
+                                                        {/* Kolom 2: Komoditas (Sticky) */}
+                                                        <th className="sticky left-[45px] z-40 bg-slate-100 px-3.5 py-3 text-left font-extrabold text-slate-700 min-w-[200px] border-r border-slate-200 shadow-xs">
+                                                            Komoditas
+                                                        </th>
+                                                        {/* Kolom 3: HET / HAP Acuan (Sticky) */}
+                                                        <th className="sticky left-[245px] z-40 bg-slate-100 px-3 py-3 text-right font-extrabold text-slate-700 min-w-[110px] border-r-2 border-slate-300 shadow-xs">
+                                                            HET / HAP
+                                                        </th>
+                                                        {/* Kolom 4 s/d 15: 12 Bulan (Jan - Des) */}
+                                                        {monthlyMonths.map((m) => (
+                                                            <th
+                                                                key={m.num}
+                                                                className="px-3 py-3 text-right min-w-[100px] border-r border-slate-200/60 whitespace-nowrap"
+                                                            >
+                                                                <div className="font-extrabold text-slate-800">
+                                                                    {m.name}
+                                                                </div>
+                                                                <div className="text-[10px] font-normal text-slate-400">
+                                                                    {monthlyHistYear}
+                                                                </div>
+                                                            </th>
+                                                        ))}
+                                                        {/* Kolom 16: Rata-rata Tahunan */}
+                                                        <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[125px] border-l-2 border-slate-300 shadow-xs">
+                                                            Rata-rata
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 bg-white">
+                                                    {filteredMonthlyCommodityRows.map((row, idx) => (
+                                                        <tr
+                                                            key={row.id}
+                                                            className="group hover:bg-emerald-50/30 transition-colors"
+                                                        >
+                                                            {/* No (Sticky) */}
+                                                            <td className="sticky left-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                                {idx + 1}
+                                                            </td>
+                                                            {/* Komoditas (Sticky) */}
+                                                            <td className="sticky left-[45px] z-20 bg-white group-hover:bg-emerald-50/40 px-3.5 py-2.5 border-r border-slate-200 shadow-xs whitespace-nowrap">
+                                                                <div className="font-bold text-slate-900 text-xs line-clamp-1" title={row.name}>
+                                                                    {row.name}
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <span className="text-[10px] text-slate-400 font-normal">
+                                                                        Rp/{row.unit}
+                                                                    </span>
+                                                                    {row.category && (
+                                                                        <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[9px] font-medium text-slate-600">
+                                                                            {row.category}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            {/* HET Acuan (Sticky) */}
+                                                            <td className="sticky left-[245px] z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2.5 text-right border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-mono font-bold text-slate-700">
+                                                                {row.current_het ? formatCurrency(row.current_het) : '-'}
+                                                            </td>
+                                                            {/* 12 Bulan (Jan - Des) */}
+                                                            {monthlyMonths.map((m) => {
+                                                                const price = row.monthly_prices[m.num];
+                                                                const isAbove = !!row.is_above_het[m.num];
+                                                                const het = row.monthly_hets[m.num] ?? row.current_het;
+
+                                                                return (
+                                                                    <td
+                                                                        key={m.num}
+                                                                        className={`px-3 py-2 text-right border-r whitespace-nowrap transition-colors ${
+                                                                            isAbove
+                                                                                ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200 shadow-2xs'
+                                                                                : 'border-slate-100 font-semibold text-slate-800'
+                                                                        }`}
+                                                                        title={
+                                                                            price
+                                                                                ? isAbove
+                                                                                    ? `Rp ${price.toLocaleString('id-ID')} (Melebihi HET Rp ${het ? het.toLocaleString('id-ID') : '-'})`
+                                                                                    : `Rp ${price.toLocaleString('id-ID')} (HET: Rp ${het ? het.toLocaleString('id-ID') : '-'})`
+                                                                                : 'Data tidak tersedia'
+                                                                        }
+                                                                    >
+                                                                        {price !== null && price !== undefined && Number(price) > 0 ? (
+                                                                            <div className="inline-flex items-center justify-end gap-1 font-mono">
+                                                                                {isAbove && (
+                                                                                    <span title="Melebihi HET">
+                                                                                        <ArrowUp className="h-3 w-3 stroke-[2.5] text-rose-600 shrink-0" />
+                                                                                    </span>
+                                                                                )}
+                                                                                <span className={isAbove ? 'font-black text-rose-950' : 'text-slate-800'}>
+                                                                                    {formatCurrency(Number(price))}
+                                                                                </span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-slate-300 font-normal">
+                                                                                -
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            {/* Rata-rata Tahunan */}
+                                                            <td className="sticky right-0 z-20 bg-slate-50 group-hover:bg-slate-100 px-3.5 py-2.5 text-right border-l-2 border-slate-300 shadow-xs whitespace-nowrap font-mono font-black text-slate-900">
+                                                                {row.yearly_average ? formatCurrency(row.yearly_average) : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                                {/* TFoot Summary */}
+                                                <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+                                                    {/* Baris 1: Rata-rata Semua Komoditas */}
+                                                    <tr className="border-b border-slate-200">
+                                                        <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            -
+                                                        </td>
+                                                        <td className="sticky left-[45px] z-20 bg-slate-100 px-3.5 py-2 border-r border-slate-200 font-black text-slate-800 whitespace-nowrap shadow-xs">
+                                                            Rata-rata Semua Komoditas
+                                                        </td>
+                                                        <td className="sticky left-[245px] z-20 bg-slate-100 px-3 py-2 text-right border-r-2 border-slate-300 font-bold text-slate-500 whitespace-nowrap shadow-xs">
+                                                            -
+                                                        </td>
+                                                        {monthlyMonths.map((m) => {
+                                                            const mAvg = monthlySummary[m.num]?.average;
+                                                            return (
+                                                                <td
+                                                                    key={m.num}
+                                                                    className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-900"
+                                                                >
+                                                                    {mAvg ? formatCurrency(mAvg) : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                    </tr>
+
+                                                    {/* Baris 2: Jumlah Komoditas di Atas HET */}
+                                                    <tr>
+                                                        <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            -
+                                                        </td>
+                                                        <td className="sticky left-[45px] z-20 bg-slate-100 px-3.5 py-2 border-r border-slate-200 font-black text-rose-900 whitespace-nowrap shadow-xs">
+                                                            Jml Komoditas di Atas HET
+                                                        </td>
+                                                        <td className="sticky left-[245px] z-20 bg-slate-100 px-3 py-2 text-right border-r-2 border-slate-300 font-bold text-slate-500 whitespace-nowrap shadow-xs">
+                                                            -
+                                                        </td>
+                                                        {monthlyMonths.map((m) => {
+                                                            const cnt = monthlySummary[m.num]?.above_het_count || 0;
+                                                            return (
+                                                                <td
+                                                                    key={m.num}
+                                                                    className={`px-3 py-2 text-right border-r border-slate-200 font-mono whitespace-nowrap ${
+                                                                        cnt > 0 ? 'bg-rose-100/90 text-rose-900 font-black' : 'bg-slate-50 text-slate-500'
+                                                                    }`}
+                                                                >
+                                                                    {cnt > 0 ? `${cnt} Komoditas` : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        /* ============================================== */
+                                        /* MODE 2: KALENDER (BARIS: BULAN, KOLOM: KOMODITAS) */
+                                        /* ============================================== */
+                                        <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[620px] overflow-y-auto">
+                                            <table className="w-full border-collapse text-left text-xs">
+                                                <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                                    <tr>
+                                                        {/* Kolom 1: No */}
+                                                        <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[45px] border-r border-slate-200">
+                                                            No
+                                                        </th>
+                                                        {/* Kolom 2: Bulan */}
+                                                        <th className="sticky left-[45px] z-40 bg-slate-100 px-4 py-3 text-left font-extrabold text-slate-700 min-w-[130px] border-r-2 border-slate-300 shadow-xs">
+                                                            Bulan ({monthlyHistYear})
+                                                        </th>
+                                                        {/* Kolom 3 s/d 27: 25 Komoditas */}
+                                                        {monthlyCommodityRows.map((c) => (
+                                                            <th
+                                                                key={c.id}
+                                                                className="px-3.5 py-3 text-right min-w-[135px] border-r border-slate-200/60 whitespace-nowrap"
+                                                                title={`${c.name} (${c.unit}) - HET: ${c.current_het ? formatCurrency(c.current_het) : '-'}`}
+                                                            >
+                                                                <div className="font-extrabold text-slate-800 line-clamp-1">
+                                                                    {c.name}
+                                                                </div>
+                                                                <div className="text-[10px] font-normal text-slate-400">
+                                                                    Rp/{c.unit} {c.current_het ? `(HET: ${formatCurrency(c.current_het)})` : ''}
+                                                                </div>
+                                                            </th>
+                                                        ))}
+                                                        {/* Kolom Terakhir: Di Atas HET */}
+                                                        <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-center font-extrabold text-slate-700 min-w-[110px] border-l-2 border-slate-300 shadow-xs">
+                                                            Di Atas HET
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 bg-white">
+                                                    {monthlyMonths.map((m, idx) => {
+                                                        const aboveCnt = monthlySummary[m.num]?.above_het_count || 0;
+                                                        return (
+                                                            <tr
+                                                                key={m.num}
+                                                                className="group hover:bg-emerald-50/40 transition-colors"
+                                                            >
+                                                                {/* No */}
+                                                                <td className="sticky left-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                                    {idx + 1}
+                                                                </td>
+                                                                {/* Bulan */}
+                                                                <td className="sticky left-[45px] z-20 bg-white group-hover:bg-emerald-50/40 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                                    <div className="font-bold text-slate-900">
+                                                                        {m.name}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400">
+                                                                        Tahun {monthlyHistYear}
+                                                                    </div>
+                                                                </td>
+                                                                {/* Prices per commodity */}
+                                                                {monthlyCommodityRows.map((c) => {
+                                                                    const price = c.monthly_prices[m.num];
+                                                                    const isAbove = !!c.is_above_het[m.num];
+                                                                    const het = c.monthly_hets[m.num] ?? c.current_het;
+
+                                                                    return (
+                                                                        <td
+                                                                            key={c.id}
+                                                                            className={`px-3 py-2 text-right border-r whitespace-nowrap transition-colors ${
+                                                                                isAbove
+                                                                                    ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200'
+                                                                                    : 'border-slate-100 font-semibold text-slate-800'
+                                                                            }`}
+                                                                            title={
+                                                                                price
+                                                                                    ? isAbove
+                                                                                        ? `Rp ${price.toLocaleString('id-ID')} - Melebihi HET Rp ${het ? het.toLocaleString('id-ID') : '-'}`
+                                                                                        : `Rp ${price.toLocaleString('id-ID')} (HET: Rp ${het ? het.toLocaleString('id-ID') : '-'})`
+                                                                                    : 'Data tidak tersedia'
+                                                                            }
+                                                                        >
+                                                                            {price !== null && price !== undefined && Number(price) > 0 ? (
+                                                                                <div className="inline-flex items-center justify-end gap-1.5 font-mono">
+                                                                                    {isAbove && (
+                                                                                        <span title="Melebihi HET">
+                                                                                            <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600 shrink-0" />
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <span className={isAbove ? 'font-black text-rose-950' : 'text-slate-800'}>
+                                                                                        {formatCurrency(Number(price))}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-300 font-normal">
+                                                                                    -
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                {/* Di Atas HET count */}
+                                                                <td className="sticky right-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs whitespace-nowrap font-mono">
+                                                                    {aboveCnt > 0 ? (
+                                                                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-900 border border-rose-200">
+                                                                            {aboveCnt} Komoditas
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 font-normal">-</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                                {/* TFoot: Rata-rata Tahunan */}
+                                                <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+                                                    <tr>
+                                                        <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            -
+                                                        </td>
+                                                        <td className="sticky left-[45px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                            Rata-rata Tahunan
+                                                        </td>
+                                                        {monthlyCommodityRows.map((c) => (
+                                                            <td
+                                                                key={c.id}
+                                                                className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-900"
+                                                            >
+                                                                {c.yearly_average ? formatCurrency(c.yearly_average) : '-'}
+                                                            </td>
+                                                        ))}
+                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                            -
+                                                        </td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    )}
+
+                                    {/* Legend & Scroll Hint */}
+                                    <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 border-t border-slate-200/60 pt-3 px-1">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <span className="font-bold text-slate-700">Keterangan:</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="inline-block h-3.5 w-6 rounded bg-rose-100 border border-rose-300" />
+                                                <span className="text-slate-700 font-medium">Merah: Harga Rata-rata Bulanan Melebihi HET / HAP Acuan</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600" />
+                                                <span className="text-slate-700 font-medium">Indikator Melebihi HET</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="inline-block h-3.5 w-6 rounded bg-white border border-slate-200" />
+                                                <span className="text-slate-700 font-medium">Sesuai / Di Bawah HET</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-slate-400 font-bold">-</span>
+                                                <span className="text-slate-500 font-medium">Data Belum Direkam</span>
+                                            </div>
+                                        </div>
+                                        <div className="text-slate-400">
+                                            👉 Geser tabel ke samping untuk melihat seluruh data bulan dan 25 komoditas.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Switch to Harga Produsen Promo Card */}

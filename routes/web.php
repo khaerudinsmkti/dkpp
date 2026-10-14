@@ -224,6 +224,8 @@ Route::get('/harga-produsen', function (Request $request) {
 Route::get('/api/public-chart-data', [ConsumerPriceController::class, 'chartData'])->name('public.chart-data');
 Route::get('/api/public-history-data', [ConsumerPriceController::class, 'historyData'])->name('public.history-data');
 Route::get('/api/public-history-excel', [ConsumerPriceController::class, 'historyExcel'])->name('public.history-excel');
+Route::get('/api/public-monthly-history-data', [ConsumerPriceController::class, 'monthlyHistoryData'])->name('public.monthly-history-data');
+Route::get('/api/public-monthly-history-excel', [ConsumerPriceController::class, 'monthlyHistoryExcel'])->name('public.monthly-history-excel');
 
 Route::get('/api/public-producer-chart-data', [ProducerPriceController::class, 'chartData'])->name('public.producer-chart-data');
 Route::get('/api/public-producer-history-data', [ProducerPriceController::class, 'historyData'])->name('public.producer-history-data');

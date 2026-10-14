@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PphFoodGroup>
+ * @extends Factory<PphFoodGroup>
  */
 class PphFoodGroupFactory extends Factory
 {
@@ -33,4 +33,3 @@ class PphFoodGroupFactory extends Factory
         ];
     }
 }
-

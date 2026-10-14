@@ -365,3 +365,60 @@ test('authenticated user can import multi-day consumer prices up to 31 days via 
     // 25 commodities x 31 days = 775 price records
     expect(ConsumerPrice::where('market_id', $market->id)->count())->toBe(775);
 });
+
+test('public can fetch monthly history data and download monthly history excel', function () {
+    $this->seed([MarketSeeder::class, CommoditySeeder::class]);
+    $market = Market::first();
+    $commodity = Commodity::first();
+    $hetPrice = 14000;
+
+    CommodityHet::create([
+        'commodity_id' => $commodity->id,
+        'price' => $hetPrice,
+        'effective_date' => '2026-01-01',
+    ]);
+
+    // Record prices: January below HET, February above HET
+    ConsumerPrice::create([
+        'commodity_id' => $commodity->id,
+        'market_id' => $market->id,
+        'recorded_date' => '2026-01-10',
+        'price' => 13500,
+    ]);
+    ConsumerPrice::create([
+        'commodity_id' => $commodity->id,
+        'market_id' => $market->id,
+        'recorded_date' => '2026-02-10',
+        'price' => 15500,
+    ]);
+
+    // 1. Test public-monthly-history-data JSON endpoint
+    $response = $this->getJson("/api/public-monthly-history-data?market_id={$market->id}&year=2026");
+    $response->assertOk()
+        ->assertJsonStructure([
+            'market' => ['id', 'name'],
+            'year',
+            'available_years',
+            'months',
+            'commodities',
+            'commodity_rows',
+            'month_summary',
+        ]);
+
+    $data = $response->json();
+    expect($data['year'])->toBe(2026);
+    expect($data['months'])->toHaveCount(12);
+
+    $commodityRow = collect($data['commodity_rows'])->firstWhere('id', $commodity->id);
+    expect($commodityRow)->not->toBeNull();
+    expect($commodityRow['monthly_prices'][1])->toEqual(13500);
+    expect($commodityRow['is_above_het'][1])->toBeFalse();
+    expect($commodityRow['monthly_prices'][2])->toEqual(15500);
+    expect($commodityRow['is_above_het'][2])->toBeTrue();
+
+    // 2. Test public-monthly-history-excel download endpoint
+    $excelResponse = $this->get("/api/public-monthly-history-excel?market_id={$market->id}&year=2026");
+    $excelResponse->assertOk();
+    $excelResponse->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(strlen($excelResponse->getContent()))->toBeGreaterThan(100);
+});

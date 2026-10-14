@@ -6,7 +6,7 @@ use App\Models\PphScore;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\PphScore>
+ * @extends Factory<PphScore>
  */
 class PphScoreFactory extends Factory
 {
@@ -27,4 +27,3 @@ class PphScoreFactory extends Factory
         ];
     }
 }
-

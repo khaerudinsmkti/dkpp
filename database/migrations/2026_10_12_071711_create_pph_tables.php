@@ -173,4 +173,3 @@ return new class extends Migration
         Schema::dropIfExists('pph_food_groups');
     }
 };
-

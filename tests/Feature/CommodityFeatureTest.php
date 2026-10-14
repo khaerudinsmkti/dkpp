@@ -5,6 +5,8 @@ use App\Models\CommodityHet;
 use App\Models\User;
 use Database\Seeders\CommoditySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -110,10 +112,10 @@ test('authenticated user can delete a commodity and cascades its hets', function
 });
 
 test('authenticated user can upload an image for commodity and delete it', function () {
-    \Illuminate\Support\Facades\Storage::fake('public');
+    Storage::fake('public');
     $user = User::factory()->create();
 
-    $file = \Illuminate\Http\UploadedFile::fake()->image('beras.jpg');
+    $file = UploadedFile::fake()->image('beras.jpg');
 
     $response = $this->actingAs($user)->post('/commodities', [
         'name' => 'Beras Organik Istimewa',
@@ -127,10 +129,10 @@ test('authenticated user can upload an image for commodity and delete it', funct
     expect($commodity)->not->toBeNull()
         ->and($commodity->image)->not->toBeNull();
 
-    \Illuminate\Support\Facades\Storage::disk('public')->assertExists($commodity->image);
+    Storage::disk('public')->assertExists($commodity->image);
 
     // Update with new image
-    $newFile = \Illuminate\Http\UploadedFile::fake()->image('beras-baru.png');
+    $newFile = UploadedFile::fake()->image('beras-baru.png');
     $oldPath = $commodity->image;
 
     $this->actingAs($user)->put("/commodities/{$commodity->id}", [
@@ -141,8 +143,8 @@ test('authenticated user can upload an image for commodity and delete it', funct
     ]);
 
     $commodity->refresh();
-    \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($oldPath);
-    \Illuminate\Support\Facades\Storage::disk('public')->assertExists($commodity->image);
+    Storage::disk('public')->assertMissing($oldPath);
+    Storage::disk('public')->assertExists($commodity->image);
 
     // Remove image
     $this->actingAs($user)->put("/commodities/{$commodity->id}", [
@@ -156,3 +158,25 @@ test('authenticated user can upload an image for commodity and delete it', funct
     expect($commodity->image)->toBeNull();
 });
 
+test('authenticated user can update commodity image via post with _method put', function () {
+    Storage::fake('public');
+    $commodity = Commodity::factory()->create(['name' => 'Beras Pandan Wangi']);
+    $user = User::factory()->create();
+
+    $newFile = UploadedFile::fake()->image('beras-baru.jpg');
+
+    $response = $this->actingAs($user)->post("/commodities/{$commodity->id}", [
+        '_method' => 'put',
+        'name' => 'Beras Pandan Wangi',
+        'category' => 'Beras',
+        'unit' => 'Kg',
+        'order' => 1,
+        'is_active' => '1',
+        'image' => $newFile,
+    ]);
+
+    $response->assertRedirect();
+    $commodity->refresh();
+    expect($commodity->image)->not->toBeNull();
+    Storage::disk('public')->assertExists($commodity->image);
+});

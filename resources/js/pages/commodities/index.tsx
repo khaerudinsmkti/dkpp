@@ -156,15 +156,90 @@ export default function CommoditiesIndex({
         return 'Rp ' + Number(amount).toLocaleString('id-ID');
     };
 
-    const handleCreateImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    /**
+     * Mengoptimalkan gambar raster (JPEG/PNG/WEBP) sebelum diunggah ke server.
+     * Mengubah skala gambar besar ke max 1200px dan mengompresi kualitas sehingga
+     * ukuran file selalu di bawah batas upload_max_filesize server PHP dan proses simpan cepat.
+     */
+    const optimizeImageForUpload = (file: File): Promise<File> => {
+        if (file.type === 'image/svg+xml' || file.size <= 1024 * 1024) {
+            return Promise.resolve(file);
+        }
+
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            return Promise.resolve(file);
+        }
+
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const maxDim = 1200;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        resolve(file);
+                        return;
+                    }
+
+                    ctx.drawImage(img, 0, 0, width, height);
+                    const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+                    const quality = outputType === 'image/jpeg' ? 0.85 : undefined;
+
+                    canvas.toBlob(
+                        (blob) => {
+                            if (!blob || blob.size >= file.size) {
+                                resolve(file);
+                            } else {
+                                const optimizedFile = new File([blob], file.name, {
+                                    type: blob.type,
+                                    lastModified: Date.now(),
+                                });
+                                resolve(optimizedFile);
+                            }
+                        },
+                        outputType,
+                        quality
+                    );
+                };
+                img.onerror = () => resolve(file);
+                img.src = event.target?.result as string;
+            };
+            reader.onerror = () => resolve(file);
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleCreateImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (file.size > 3 * 1024 * 1024) {
-            toast.error('Ukuran gambar maksimal 3MB.');
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Ukuran file gambar terlalu besar (maksimal 10MB).');
             return;
         }
-        setCreateImage(file);
         setCreateImagePreview(URL.createObjectURL(file));
+        try {
+            const optimized = await optimizeImageForUpload(file);
+            setCreateImage(optimized);
+        } catch {
+            setCreateImage(file);
+        }
     };
 
     const handleRemoveCreateImage = () => {
@@ -172,16 +247,21 @@ export default function CommoditiesIndex({
         setCreateImagePreview(null);
     };
 
-    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleEditImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (file.size > 3 * 1024 * 1024) {
-            toast.error('Ukuran gambar maksimal 3MB.');
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Ukuran file gambar terlalu besar (maksimal 10MB).');
             return;
         }
-        setEditImage(file);
         setEditImagePreview(URL.createObjectURL(file));
         setEditRemoveImage(false);
+        try {
+            const optimized = await optimizeImageForUpload(file);
+            setEditImage(optimized);
+        } catch {
+            setEditImage(file);
+        }
     };
 
     const handleRemoveEditImage = () => {
@@ -194,6 +274,7 @@ export default function CommoditiesIndex({
         setEditRemoveImage(false);
         setEditImagePreview(editingItem?.image_url || null);
     };
+
 
     // Open Create Modal
     const handleOpenCreate = () => {
@@ -245,7 +326,8 @@ export default function CommoditiesIndex({
                     setIsSubmittingCreate(false);
                 },
                 onError: (err) => {
-                    toast.error('Gagal menambahkan komoditas: ' + Object.values(err)[0]);
+                    const firstError = Object.values(err)[0] || 'Terjadi kesalahan saat menambahkan komoditas.';
+                    toast.error('Gagal menambahkan komoditas: ' + firstError);
                     setIsSubmittingCreate(false);
                 },
             }
@@ -282,7 +364,7 @@ export default function CommoditiesIndex({
 
         setIsSubmittingEdit(true);
         const formData = new FormData();
-        formData.append('_method', 'put');
+        formData.append('_method', 'PUT');
         formData.append('name', editName);
         formData.append('category', finalCategory);
         formData.append('unit', editUnit);
@@ -296,7 +378,7 @@ export default function CommoditiesIndex({
         }
 
         router.post(
-            updateCommodityAction.url(editingItem.id),
+            updateCommodityAction.form(editingItem.id).action,
             formData,
             {
                 forceFormData: true,
@@ -307,12 +389,14 @@ export default function CommoditiesIndex({
                     setIsSubmittingEdit(false);
                 },
                 onError: (err) => {
-                    toast.error('Gagal memperbarui komoditas: ' + Object.values(err)[0]);
+                    const firstError = Object.values(err)[0] || 'Terjadi kesalahan saat memperbarui komoditas.';
+                    toast.error('Gagal memperbarui komoditas: ' + firstError);
                     setIsSubmittingEdit(false);
                 },
             }
         );
     };
+
 
     // Open Delete Modal
     const handleOpenDelete = (item: CommodityItem) => {
@@ -805,13 +889,16 @@ export default function CommoditiesIndex({
                                             <span className="text-amber-600 font-semibold">Klik untuk upload foto</span> atau seret file ke sini
                                         </div>
                                         <p className="text-[11px] text-neutral-400">
-                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 5MB, kompresi otomatis)
                                         </p>
                                         <input
                                             id="create-image-upload"
                                             type="file"
                                             accept="image/*"
                                             className="sr-only"
+                                            onClick={(e) => {
+                                                (e.target as HTMLInputElement).value = '';
+                                            }}
                                             onChange={handleCreateImageChange}
                                         />
                                     </label>
@@ -1017,6 +1104,9 @@ export default function CommoditiesIndex({
                                                     type="file"
                                                     accept="image/*"
                                                     className="sr-only"
+                                                    onClick={(e) => {
+                                                        (e.target as HTMLInputElement).value = '';
+                                                    }}
                                                     onChange={handleEditImageChange}
                                                 />
                                             </label>
@@ -1044,13 +1134,16 @@ export default function CommoditiesIndex({
                                             <span className="text-amber-600 font-semibold">Klik untuk upload foto</span> atau seret file ke sini
                                         </div>
                                         <p className="text-[11px] text-neutral-400">
-                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 5MB, kompresi otomatis)
                                         </p>
                                         <input
                                             id="edit-image-upload"
                                             type="file"
                                             accept="image/*"
                                             className="sr-only"
+                                            onClick={(e) => {
+                                                (e.target as HTMLInputElement).value = '';
+                                            }}
                                             onChange={handleEditImageChange}
                                         />
                                     </label>

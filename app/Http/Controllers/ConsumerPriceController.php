@@ -790,4 +790,234 @@ class ConsumerPriceController extends Controller
             'Cache-Control' => 'max-age=0',
         ]);
     }
+
+    /**
+     * Resolve monthly historical price data (Jan - Dec) for the specified market and year.
+     *
+     * @return array{
+     *     market: ?Market,
+     *     year: int,
+     *     available_years: array<int, int>,
+     *     months: array<int, array{num: int, name: string, short: string}>,
+     *     commodities: Collection<int, Commodity>,
+     *     commodity_rows: array<int, array{
+     *         id: int,
+     *         name: string,
+     *         category: string,
+     *         unit: string,
+     *         current_het: float|null,
+     *         monthly_prices: array<int, float|null>,
+     *         monthly_hets: array<int, float|null>,
+     *         is_above_het: array<int, bool>,
+     *         yearly_average: float|null,
+     *     }>,
+     *     month_summary: array<int, array{
+     *         average: float|null,
+     *         above_het_count: int,
+     *         recorded_count: int,
+     *     }>,
+     * }
+     */
+    protected function getMonthlyHistoryPricePayload(Request $request): array
+    {
+        $marketId = (int) $request->query('market_id');
+        if (! $marketId) {
+            $firstMarket = Market::where('is_active', true)->orderBy('order')->first();
+            $marketId = $firstMarket?->id ?? 1;
+        }
+
+        $market = Market::find($marketId);
+
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $yearSql = $isSqlite ? "strftime('%Y', recorded_date)" : 'YEAR(recorded_date)';
+        $monthSql = $isSqlite ? "CAST(strftime('%m', recorded_date) AS INTEGER)" : 'MONTH(recorded_date)';
+
+        // Get available recorded years for this market
+        $availableYears = ConsumerPrice::where('market_id', $marketId)
+            ->selectRaw("DISTINCT {$yearSql} as yr")
+            ->orderByDesc('yr')
+            ->pluck('yr')
+            ->map(fn ($y) => (int) $y)
+            ->values()
+            ->all();
+
+        $currentYear = (int) now()->format('Y');
+        if (empty($availableYears)) {
+            $availableYears = [$currentYear];
+        }
+
+        $requestedYear = (int) $request->query('year');
+        if ($requestedYear > 2000 && $requestedYear < 2100) {
+            $year = $requestedYear;
+            if (! in_array($year, $availableYears, true)) {
+                $availableYears[] = $year;
+                rsort($availableYears);
+            }
+        } else {
+            $year = $availableYears[0];
+        }
+
+        $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
+
+        // Query monthly averages in a single aggregated SQL query
+        $monthlyPricesRaw = ConsumerPrice::where('market_id', $marketId)
+            ->whereYear('recorded_date', $year)
+            ->selectRaw("commodity_id, {$monthSql} as month_num, ROUND(AVG(price), 0) as avg_price, COUNT(*) as sample_count")
+            ->groupBy('commodity_id', DB::raw($monthSql))
+            ->get();
+
+        $groupedMonthlyPrices = [];
+        foreach ($monthlyPricesRaw as $record) {
+            $groupedMonthlyPrices[(int) $record->commodity_id][(int) $record->month_num] = (float) $record->avg_price;
+        }
+
+        $monthNames = [
+            1 => ['name' => 'Januari', 'short' => 'Jan'],
+            2 => ['name' => 'Februari', 'short' => 'Feb'],
+            3 => ['name' => 'Maret', 'short' => 'Mar'],
+            4 => ['name' => 'April', 'short' => 'Apr'],
+            5 => ['name' => 'Mei', 'short' => 'Mei'],
+            6 => ['name' => 'Juni', 'short' => 'Jun'],
+            7 => ['name' => 'Juli', 'short' => 'Jul'],
+            8 => ['name' => 'Agustus', 'short' => 'Agu'],
+            9 => ['name' => 'September', 'short' => 'Sep'],
+            10 => ['name' => 'Oktober', 'short' => 'Okt'],
+            11 => ['name' => 'November', 'short' => 'Nov'],
+            12 => ['name' => 'Desember', 'short' => 'Des'],
+        ];
+
+        $months = [];
+        foreach ($monthNames as $mNum => $mInfo) {
+            $months[] = [
+                'num' => $mNum,
+                'name' => $mInfo['name'],
+                'short' => $mInfo['short'],
+            ];
+        }
+
+        $commodityRows = [];
+        $monthCommodityPrices = array_fill(1, 12, []);
+        $monthAboveHetCounts = array_fill(1, 12, 0);
+
+        foreach ($commodities as $c) {
+            $monthlyPrices = [];
+            $monthlyHets = [];
+            $isAboveHet = [];
+            $validPricesForYear = [];
+
+            $latestHetRecord = $c->hetAt(sprintf('%04d-12-31', $year)) ?? $c->hets->first();
+            $currentHetPrice = $latestHetRecord ? (float) $latestHetRecord->price : null;
+
+            for ($m = 1; $m <= 12; $m++) {
+                $price = $groupedMonthlyPrices[$c->id][$m] ?? null;
+                $midDate = sprintf('%04d-%02d-15', $year, $m);
+                $hetRecord = $c->hetAt($midDate) ?? $latestHetRecord;
+                $hetPrice = $hetRecord ? (float) $hetRecord->price : null;
+
+                $above = ($price !== null && $hetPrice !== null && $hetPrice > 0 && $price > $hetPrice);
+
+                $monthlyPrices[$m] = $price;
+                $monthlyHets[$m] = $hetPrice;
+                $isAboveHet[$m] = $above;
+
+                if ($price !== null) {
+                    $validPricesForYear[] = $price;
+                    $monthCommodityPrices[$m][] = $price;
+                }
+
+                if ($above) {
+                    $monthAboveHetCounts[$m]++;
+                }
+            }
+
+            $yearlyAvg = ! empty($validPricesForYear)
+                ? round(array_sum($validPricesForYear) / count($validPricesForYear), 0)
+                : null;
+
+            $commodityRows[] = [
+                'id' => $c->id,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+                'current_het' => $currentHetPrice,
+                'monthly_prices' => $monthlyPrices,
+                'monthly_hets' => $monthlyHets,
+                'is_above_het' => $isAboveHet,
+                'yearly_average' => $yearlyAvg,
+            ];
+        }
+
+        $monthSummary = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $pricesInMonth = $monthCommodityPrices[$m];
+            $monthAvg = ! empty($pricesInMonth) ? round(array_sum($pricesInMonth) / count($pricesInMonth), 0) : null;
+            $monthSummary[$m] = [
+                'average' => $monthAvg,
+                'above_het_count' => $monthAboveHetCounts[$m],
+                'recorded_count' => count($pricesInMonth),
+            ];
+        }
+
+        return [
+            'market' => $market,
+            'year' => $year,
+            'available_years' => $availableYears,
+            'months' => $months,
+            'commodities' => $commodities,
+            'commodity_rows' => $commodityRows,
+            'month_summary' => $monthSummary,
+        ];
+    }
+
+    /**
+     * Get monthly historical price data in JSON format for the interactive table.
+     */
+    public function monthlyHistoryData(Request $request): JsonResponse
+    {
+        $payload = $this->getMonthlyHistoryPricePayload($request);
+
+        return response()->json([
+            'market' => $payload['market'] ? [
+                'id' => $payload['market']->id,
+                'name' => $payload['market']->name,
+            ] : null,
+            'year' => $payload['year'],
+            'available_years' => $payload['available_years'],
+            'months' => $payload['months'],
+            'commodities' => $payload['commodities']->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+            ]),
+            'commodity_rows' => $payload['commodity_rows'],
+            'month_summary' => $payload['month_summary'],
+        ]);
+    }
+
+    /**
+     * Download monthly historical price data as Excel (.xlsx).
+     */
+    public function monthlyHistoryExcel(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $payload = $this->getMonthlyHistoryPricePayload($request);
+        $marketName = $payload['market']?->name ?? 'Pasar Indramayu';
+
+        $xlsxContent = $excelService->generateMonthlyHistoricalXlsx(
+            marketName: $marketName,
+            year: $payload['year'],
+            commodities: $payload['commodities'],
+            commodityRows: $payload['commodity_rows'],
+            monthSummary: $payload['month_summary']
+        );
+
+        $safeMarketName = preg_replace('/[^A-Za-z0-9_-]/', '_', $marketName);
+        $filename = 'Historis_Rata_Rata_Bulanan_'.$safeMarketName.'_'.$payload['year'].'.xlsx';
+
+        return response($xlsxContent, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+            'Cache-Control' => 'max-age=0',
+        ]);
+    }
 }

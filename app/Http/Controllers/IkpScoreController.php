@@ -197,4 +197,3 @@ class IkpScoreController extends Controller
         return back()->with('success', "Data IKP Tahun {$tahun} berhasil dihapus.");
     }
 }
-

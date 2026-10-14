@@ -77,4 +77,3 @@ class IkpScore extends Model
         return 'Sangat Rentan';
     }
 }
-

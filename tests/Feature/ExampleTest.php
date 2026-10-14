@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\ConsumerPriceController;
+use Illuminate\Http\Request;
+
 test('returns a successful response', function () {
     $response = $this->get(route('harga-konsumen'));
 
@@ -10,8 +13,8 @@ test('chart data endpoint inspection', function () {
     config(['database.connections.mysql.database' => 'dkpp']);
     config(['database.default' => 'mysql']);
 
-    $controller = new \App\Http\Controllers\ConsumerPriceController();
-    $req = \Illuminate\Http\Request::create('/api/public-chart-data', 'GET', [
+    $controller = new ConsumerPriceController;
+    $req = Request::create('/api/public-chart-data', 'GET', [
         'type' => 'daily',
         'commodity_id' => 6,
         'market_id' => 1,
