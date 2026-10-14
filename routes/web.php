@@ -230,6 +230,8 @@ Route::get('/api/public-monthly-history-excel', [ConsumerPriceController::class,
 Route::get('/api/public-producer-chart-data', [ProducerPriceController::class, 'chartData'])->name('public.producer-chart-data');
 Route::get('/api/public-producer-history-data', [ProducerPriceController::class, 'historyData'])->name('public.producer-history-data');
 Route::get('/api/public-producer-history-excel', [ProducerPriceController::class, 'historyExcel'])->name('public.producer-history-excel');
+Route::get('/api/public-producer-monthly-history-data', [ProducerPriceController::class, 'monthlyHistoryData'])->name('public.producer-monthly-history-data');
+Route::get('/api/public-producer-monthly-history-excel', [ProducerPriceController::class, 'monthlyHistoryExcel'])->name('public.producer-monthly-history-excel');
 
 Route::get('/neraca-pangan', [FoodBalanceController::class, 'publicIndex'])->name('neraca-pangan');
 

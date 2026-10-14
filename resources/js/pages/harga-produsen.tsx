@@ -27,6 +27,7 @@ import {
     Printer,
     RefreshCw,
     Scale,
+    Search,
     ShieldCheck,
     Sparkles,
     Store,
@@ -94,6 +95,7 @@ interface HistoryRow {
     haps?: Record<number | string, number | null>;
     hets?: Record<number | string, number | null>;
     is_above_hap?: Record<number | string, boolean>;
+    is_below_hap?: Record<number | string, boolean>;
     is_above_het?: Record<number | string, boolean>;
     diffs?: Record<number | string, 'up' | 'down' | 'stable' | null>;
 }
@@ -104,6 +106,28 @@ interface HistoryCommodity {
     name: string;
     category?: string;
     unit: string;
+}
+
+interface MonthlyCommodityRow {
+    id: number;
+    key?: string;
+    name: string;
+    category: string;
+    unit: string;
+    current_hap: number | null;
+    current_het?: number | null;
+    monthly_prices: Record<number, number | null>;
+    monthly_haps: Record<number, number | null>;
+    monthly_hets?: Record<number, number | null>;
+    is_below_hap: Record<number, boolean>;
+    is_above_hap?: Record<number, boolean>;
+    yearly_average: number | null;
+}
+
+interface MonthInfo {
+    num: number;
+    name: string;
+    short: string;
 }
 
 const formatCurrency = (val: number | null | undefined): string => {
@@ -373,11 +397,12 @@ export default function HargaProdusen({
     const heroStats = useMemo(() => {
         const list = displayCommodities;
         const countAboveHap = list.filter((c) => c.status === 'above').length;
-        const countBelowHap = list.filter((c) => c.status !== 'above').length;
+        const countBelowHap = list.filter((c) => c.status === 'below').length;
+        const countEqualHap = list.filter((c) => c.status === 'equal').length;
         const countUp = list.filter((c) => c.change_type === 'up').length;
         const countDown = list.filter((c) => c.change_type === 'down').length;
         const countStable = list.filter((c) => c.change_type === 'stable' || !c.change_type).length;
-        const hapComplianceRate = list.length > 0 ? Math.round((countBelowHap / list.length) * 100) : 100;
+        const hapComplianceRate = list.length > 0 ? Math.round(((list.length - countBelowHap) / list.length) * 100) : 100;
 
         const gkp = list.find((c) => c.key === 'gkp_petani') || list[0];
         const beras = list.find((c) => c.key === 'beras_medium_penggilingan') || list[3];
@@ -386,6 +411,7 @@ export default function HargaProdusen({
             total: list.length,
             countAboveHap,
             countBelowHap,
+            countEqualHap,
             countUp,
             countDown,
             countStable,
@@ -395,8 +421,8 @@ export default function HargaProdusen({
         };
     }, [displayCommodities]);
 
-    // List of commodities whose today_price > hap (Di atas HAP/HET)
-    const aboveHapCommodities = useMemo(() => {
+    // List of commodities whose today_price < hap (Di bawah HAP - Warning bagi produsen/petani)
+    const belowHapCommodities = useMemo(() => {
         return displayCommodities
             .filter((item) => {
                 if (
@@ -408,21 +434,23 @@ export default function HargaProdusen({
                 ) {
                     return false;
                 }
-                return item.today_price > item.hap;
+                return item.today_price < item.hap;
             })
             .map((item) => {
-                const diff = (item.today_price ?? 0) - (item.hap ?? 0);
+                const diff = (item.hap ?? 0) - (item.today_price ?? 0);
                 const pct = (item.hap ?? 0) > 0 ? (diff / (item.hap ?? 0)) * 100 : 0;
-                const isRed = pct > 10;
                 return {
                     ...item,
                     diff,
                     pct,
-                    isRed,
+                    isRed: true,
                 };
             })
             .sort((a, b) => b.pct - a.pct);
     }, [displayCommodities]);
+
+    // Alias for compatibility
+    const aboveHapCommodities = belowHapCommodities;
 
     // Auto rotate hero banner every 6 seconds
     useEffect(() => {
@@ -570,7 +598,12 @@ export default function HargaProdusen({
     };
 
     // ==============================================================
-    // 2. STATE & FITUR TABEL HISTORIS PERKEMBANGAN HARGA PRODUSEN
+    // TABULASI TABEL HISTORIS: 'daily' (Tab 1) | 'monthly' (Tab 2)
+    // ==============================================================
+    const [historyTab, setHistoryTab] = useState<'daily' | 'monthly'>('daily');
+
+    // ==============================================================
+    // 2. STATE & FITUR TABEL HISTORIS PERKEMBANGAN HARGA PRODUSEN (HARIAN)
     // ==============================================================
     const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
     const [historyCommodities, setHistoryCommodities] = useState<HistoryCommodity[]>([]);
@@ -583,6 +616,69 @@ export default function HargaProdusen({
     const [historyPrevMonthLabel, setHistoryPrevMonthLabel] = useState<string>('');
     const [historyPrevMonthAvgs, setHistoryPrevMonthAvgs] = useState<Record<number | string, number | null>>({});
     const [historyCommodityHaps, setHistoryCommodityHaps] = useState<Record<number | string, number | null>>({});
+
+    // ==============================================================
+    // FITUR TABEL HISTORIS RATA-RATA BULANAN (JANUARI - DESEMBER)
+    // ==============================================================
+    const [monthlyHistYear, setMonthlyHistYear] = useState<number>(() => {
+        if (selectedDate) {
+            const yr = parseInt(selectedDate.substring(0, 4), 10);
+            if (!isNaN(yr)) return yr;
+        }
+        return new Date().getFullYear();
+    });
+    const [monthlyAvailableYears, setMonthlyAvailableYears] = useState<number[]>([
+        new Date().getFullYear(),
+        new Date().getFullYear() - 1,
+    ]);
+    const [monthlyCommodityRows, setMonthlyCommodityRows] = useState<MonthlyCommodityRow[]>([]);
+    const [monthlyMonths, setMonthlyMonths] = useState<MonthInfo[]>([]);
+    const [monthlySummary, setMonthlySummary] = useState<Record<number, { average: number | null; below_hap_count: number; above_hap_count: number; recorded_count: number }>>({});
+    const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
+    const [monthlyError, setMonthlyError] = useState<string | null>(null);
+    const [monthlyViewMode, setMonthlyViewMode] = useState<'by_commodity' | 'by_month'>('by_commodity');
+    const [monthlySearchQuery, setMonthlySearchQuery] = useState<string>('');
+
+    const fetchMonthlyHistoryData = async (targetYear?: number) => {
+        setMonthlyLoading(true);
+        setMonthlyError(null);
+        try {
+            const yr = targetYear ?? monthlyHistYear;
+            const params = new URLSearchParams();
+            params.append('year', String(yr));
+
+            const res = await fetch(`/api/public-producer-monthly-history-data?${params.toString()}`);
+            if (!res.ok) throw new Error('Gagal mengambil data rata-rata bulanan produsen');
+            const data = await res.json();
+
+            setMonthlyCommodityRows(data.commodity_rows || []);
+            setMonthlyMonths(data.months || []);
+            setMonthlySummary(data.month_summary || {});
+            if (data.available_years && data.available_years.length > 0) {
+                setMonthlyAvailableYears(data.available_years);
+            }
+            if (data.year) {
+                setMonthlyHistYear(data.year);
+            }
+        } catch (err: any) {
+            setMonthlyError(err.message || 'Terjadi kesalahan saat memuat data rata-rata bulanan produsen');
+        } finally {
+            setMonthlyLoading(false);
+        }
+    };
+
+    const handleMonthlyYearChange = (yr: number) => {
+        setMonthlyHistYear(yr);
+        fetchMonthlyHistoryData(yr);
+    };
+
+    const filteredMonthlyCommodityRows = useMemo(() => {
+        if (!monthlySearchQuery.trim()) return monthlyCommodityRows;
+        const q = monthlySearchQuery.toLowerCase();
+        return monthlyCommodityRows.filter(
+            (r) => r.name.toLowerCase().includes(q) || r.category?.toLowerCase().includes(q)
+        );
+    }, [monthlyCommodityRows, monthlySearchQuery]);
 
     const fetchHistoryData = async (start?: string, end?: string) => {
         setHistoryLoading(true);
@@ -612,7 +708,10 @@ export default function HargaProdusen({
 
     useEffect(() => {
         fetchHistoryData();
-    }, []);
+        if (historyTab === 'monthly') {
+            fetchMonthlyHistoryData();
+        }
+    }, [historyTab]);
 
     const handleApplyHistoryPreset = (preset: '14' | '7' | '30') => {
         setHistoryPreset(preset);
@@ -716,7 +815,39 @@ export default function HargaProdusen({
         return avgs;
     }, [historyRows, historyCommodities, commodities]);
 
-    // Format % change and color styling
+    // Format % change against HAP: Below HAP = RED (merugikan petani), Above HAP = GREEN (menguntungkan petani)
+    const getHapChangeColorAndText = (current: number | null, hap: number | null) => {
+        if (current === null || hap === null || hap <= 0) {
+            return {
+                text: '-',
+                bgClass: 'bg-white text-slate-400',
+                style: 'background-color:#ffffff;color:#94a3b8;',
+            };
+        }
+        const diff = current - hap;
+        const pct = (diff / hap) * 100;
+        const text = `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
+        if (pct < 0) {
+            return {
+                text,
+                bgClass: 'bg-rose-100/90 text-rose-950 font-black',
+                style: 'background-color:#fee2e2;color:#b91c1c;',
+            };
+        } else if (pct > 0) {
+            return {
+                text,
+                bgClass: 'bg-emerald-100/90 text-emerald-900 font-black',
+                style: 'background-color:#dcfce7;color:#15803d;',
+            };
+        }
+        return {
+            text: '0.0%',
+            bgClass: 'bg-emerald-50 text-emerald-800 font-bold',
+            style: 'background-color:#f0fdf4;color:#166534;',
+        };
+    };
+
+    // Format % change for MoM (Month-over-Month): for producer, price up is green, price down is red
     const getChangeColorAndText = (current: number | null, base: number | null) => {
         if (current === null || base === null || base <= 0) {
             return {
@@ -728,19 +859,13 @@ export default function HargaProdusen({
         const diff = current - base;
         const pct = (diff / base) * 100;
         const text = `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`;
-        if (pct < 0) {
+        if (pct > 0) {
             return {
                 text,
                 bgClass: 'bg-emerald-100/90 text-emerald-900 font-black',
                 style: 'background-color:#dcfce7;color:#15803d;',
             };
-        } else if (pct > 0 && pct <= 10) {
-            return {
-                text,
-                bgClass: 'bg-amber-100/90 text-amber-900 font-black',
-                style: 'background-color:#fef9c3;color:#a16207;',
-            };
-        } else if (pct > 10) {
+        } else if (pct < 0) {
             return {
                 text,
                 bgClass: 'bg-rose-100/90 text-rose-950 font-black',
@@ -774,14 +899,22 @@ export default function HargaProdusen({
             cells += `<td style="white-space:nowrap;font-weight:bold">${r.formatted_date || r.date}</td>`;
             commoditiesToRender.forEach((c) => {
                 const price = r.prices[c.id];
-                const isAbove = r.is_above_hap?.[c.id] ?? r.is_above_het?.[c.id];
+                const hapVal = r.haps?.[c.id] ?? historyCommodityHaps[c.id];
+                const isBelow = (r.is_below_hap?.[c.id] !== undefined)
+                    ? r.is_below_hap[c.id]
+                    : (price !== null && hapVal !== null && Number(hapVal) > 0 && Number(price) < Number(hapVal));
+                const isAbove = (r.is_above_hap?.[c.id] !== undefined)
+                    ? r.is_above_hap[c.id]
+                    : (price !== null && hapVal !== null && Number(hapVal) > 0 && Number(price) > Number(hapVal));
                 const diff = r.diffs?.[c.id];
-                const bgStyle = isAbove ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : '';
+                const bgStyle = isBelow
+                    ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;'
+                    : (isAbove ? 'background-color:#dcfce7;color:#166534;font-weight:bold;' : '');
                 let arrowHtml = '';
                 if (diff === 'up') {
-                    arrowHtml = '<span style="color:#e11d48;font-weight:bold;margin-right:2px">▲</span>';
+                    arrowHtml = '<span style="color:#15803d;font-weight:bold;margin-right:2px">▲</span>';
                 } else if (diff === 'down') {
-                    arrowHtml = '<span style="color:#059669;font-weight:bold;margin-right:2px">▼</span>';
+                    arrowHtml = '<span style="color:#b91c1c;font-weight:bold;margin-right:2px">▼</span>';
                 }
                 cells += `<td style="text-align:right;white-space:nowrap;${bgStyle}">${price ? arrowHtml + formatCurrency(price) : '-'}</td>`;
             });
@@ -807,7 +940,7 @@ export default function HargaProdusen({
         commoditiesToRender.forEach((c) => {
             const avg = historyPeriodAvgs[c.id];
             const hap = historyCommodityHaps[c.id] ?? (historyRows[0]?.haps?.[c.id] ?? null);
-            const res = getChangeColorAndText(avg, hap ? Number(hap) : null);
+            const res = getHapChangeColorAndText(avg, hap ? Number(hap) : null);
             pctHapRowHtml += `<td style="text-align:right;font-weight:bold;white-space:nowrap;${res.style}">${res.text}</td>`;
         });
 
@@ -879,6 +1012,144 @@ export default function HargaProdusen({
             <div class="footer-info">
                 <span>Sumber Data: Aplikasi Si-Pangan DKPP Kab. Indramayu</span>
                 <span>Dicetak pada: ${new Date().toLocaleString('id-ID')}</span>
+            </div>
+            <script>
+                setTimeout(() => { window.print(); }, 600);
+            </script>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+    };
+
+    const handleDownloadMonthlyHistoryExcel = () => {
+        const params = new URLSearchParams({
+            year: String(monthlyHistYear),
+        });
+        window.location.href = `/api/public-producer-monthly-history-excel?${params.toString()}`;
+    };
+
+    const handleDownloadMonthlyPdf = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        const months = monthlyMonths.length > 0 ? monthlyMonths : [
+            { num: 1, name: 'Januari', short: 'Jan' },
+            { num: 2, name: 'Februari', short: 'Feb' },
+            { num: 3, name: 'Maret', short: 'Mar' },
+            { num: 4, name: 'April', short: 'Apr' },
+            { num: 5, name: 'Mei', short: 'Mei' },
+            { num: 6, name: 'Juni', short: 'Jun' },
+            { num: 7, name: 'Juli', short: 'Jul' },
+            { num: 8, name: 'Agustus', short: 'Agu' },
+            { num: 9, name: 'September', short: 'Sep' },
+            { num: 10, name: 'Oktober', short: 'Okt' },
+            { num: 11, name: 'November', short: 'Nov' },
+            { num: 12, name: 'Desember', short: 'Des' },
+        ];
+
+        let tableHeaders = '<th>No</th><th>Komoditas</th><th>HAP Acuan</th>';
+        months.forEach((m) => {
+            tableHeaders += `<th>${m.name}</th>`;
+        });
+        tableHeaders += '<th>Rata-rata</th>';
+
+        let tableRowsHtml = '';
+        monthlyCommodityRows.forEach((row, idx) => {
+            let cells = `<td style="text-align:center;font-weight:bold">${idx + 1}</td>`;
+            cells += `<td style="font-weight:bold;white-space:nowrap">${row.name}<br/><span style="font-weight:normal;font-size:7pt;color:#64748b">(${row.unit})</span></td>`;
+            cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap;font-family:monospace">${row.current_hap ? formatCurrency(row.current_hap) : '-'}</td>`;
+
+            months.forEach((m) => {
+                const price = row.monthly_prices[m.num];
+                const hap = row.monthly_haps[m.num] ?? row.current_hap;
+                const isBelow = !!row.is_below_hap[m.num];
+                const isAbove = !isBelow && price !== null && Number(price) > 0 && hap !== null && Number(price) > Number(hap);
+                const bgStyle = isBelow
+                    ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;'
+                    : (isAbove ? 'background-color:#dcfce7;color:#166534;font-weight:bold;' : '');
+                const arrow = isBelow
+                    ? '<span style="color:#b91c1c;font-weight:bold;margin-right:2px">▼</span>'
+                    : (isAbove ? '<span style="color:#15803d;font-weight:bold;margin-right:2px">▲</span>' : '');
+                cells += `<td style="text-align:right;white-space:nowrap;font-family:monospace;${bgStyle}">${price ? arrow + formatCurrency(price) : '-'}</td>`;
+            });
+
+            cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap;font-family:monospace;background-color:#f8fafc">${row.yearly_average ? formatCurrency(row.yearly_average) : '-'}</td>`;
+            tableRowsHtml += `<tr>${cells}</tr>`;
+        });
+
+        // Summary row 1: Rata-rata Semua Komoditas
+        let avgRowHtml = '<td colspan="3" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">Rata-rata Semua Komoditas</td>';
+        months.forEach((m) => {
+            const mAvg = monthlySummary[m.num]?.average;
+            avgRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;font-family:monospace">${mAvg ? formatCurrency(mAvg) : '-'}</td>`;
+        });
+        avgRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+
+        // Summary row 2: Jml Komoditas di Bawah HAP
+        let belowHapRowHtml = '<td colspan="3" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#991b1b;">Jml Komoditas di Bawah HAP</td>';
+        months.forEach((m) => {
+            const cnt = monthlySummary[m.num]?.below_hap_count || 0;
+            const bgStyle = cnt > 0 ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : 'background-color:#f8fafc;color:#64748b;';
+            belowHapRowHtml += `<td style="text-align:center;white-space:nowrap;font-family:monospace;${bgStyle}">${cnt > 0 ? `${cnt} Komoditas` : '-'}</td>`;
+        });
+        belowHapRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+
+        const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8">
+            <title>Rekap Historis Rata-rata Bulanan Harga Produsen - DKPP Indramayu</title>
+            <style>
+                @page { size: landscape; margin: 10mm; }
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 8pt; color: #1e293b; margin: 0; padding: 15px; }
+                .header { text-align: center; margin-bottom: 14px; border-bottom: 2px solid #b45309; padding-bottom: 8px; }
+                .header h1 { font-size: 13pt; margin: 0; color: #78350f; font-weight: 800; text-transform: uppercase; }
+                .header h2 { font-size: 10pt; margin: 3px 0 0 0; color: #1e293b; font-weight: 700; }
+                .header p { font-size: 7.5pt; margin: 3px 0 0 0; color: #64748b; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 7.5pt; }
+                th, td { border: 1px solid #cbd5e1; padding: 5px 6px; }
+                th { background-color: #fef3c7; color: #78350f; font-weight: 800; text-align: center; font-size: 7pt; }
+                tr:nth-child(even) td { background-color: #fefce8; }
+                .footer-info { margin-top: 12px; font-size: 7pt; color: #64748b; display: flex; justify-content: space-between; }
+                .legend-box { margin-top: 8px; padding: 6px 10px; background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 4px; font-size: 7pt; color: #9a3412; }
+                @media print {
+                    button { display: none !important; }
+                    body { padding: 0; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>DINAS KETAHANAN PANGAN DAN PERTANIAN KABUPATEN INDRAMAYU</h1>
+                <h2>TABEL HISTORIS HARGA RATA-RATA BULANAN TINGKAT PRODUSEN</h2>
+                <p>Periode: <strong>Januari s/d Desember ${monthlyHistYear}</strong> | Lokasi: <strong>Kabupaten Indramayu (Sentra Produsen & Penggilingan)</strong></p>
+            </div>
+            <table>
+                <thead>
+                    <tr>${tableHeaders}</tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+                <tfoot>
+                    <tr>${avgRowHtml}</tr>
+                    <tr>${belowHapRowHtml}</tr>
+                </tfoot>
+            </table>
+            <div class="legend-box">
+                <strong>Catatan / Keterangan:</strong> Sel dengan latar belakang berwarna merah (<span style="background-color:#fee2e2;color:#991b1b;padding:1px 4px;font-weight:bold;">▼ Rp ...</span>) menandakan harga rata-rata komoditas di tingkat produsen berada di bawah HAP acuan (Harga Acuan Pembelian Bapanas RI No. 6/2023) yang merupakan batas harga perlindungan bagi petani dan produsen.
+            </div>
+            <div class="footer-info">
+                <span>Dicetak pada: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} WIB</span>
+                <span>Dokumen Resmi Sistem Informasi Pangan DKPP Kabupaten Indramayu</span>
             </div>
             <script>
                 setTimeout(() => { window.print(); }, 600);
@@ -1014,11 +1285,11 @@ export default function HargaProdusen({
                                             </div>
                                             <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
                                                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                                <span>{heroStats.countBelowHap} Sesuai/Bawah HAP</span>
+                                                <span>{heroStats.countAboveHap} Di Atas HAP</span>
                                             </div>
                                             <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
-                                                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                                                <span>{heroStats.countAboveHap} Di Atas HAP</span>
+                                                <span className="h-2 w-2 rounded-full bg-rose-400" />
+                                                <span>{heroStats.countBelowHap} Di Bawah HAP</span>
                                             </div>
                                             <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-emerald-100">
                                                 <span className="h-2 w-2 rounded-full bg-teal-400" />
@@ -1274,12 +1545,18 @@ export default function HargaProdusen({
                                                         </p>
                                                         <span
                                                             className={`inline-block text-[9px] font-bold ${
-                                                                comm.status === 'above'
-                                                                    ? 'text-amber-300'
-                                                                    : 'text-emerald-300'
+                                                                comm.status === 'below'
+                                                                    ? 'text-rose-400 font-extrabold'
+                                                                    : comm.status === 'above'
+                                                                    ? 'text-emerald-300 font-extrabold'
+                                                                    : 'text-emerald-200'
                                                             }`}
                                                         >
-                                                            {comm.status === 'above' ? '▲ Di Atas HAP' : '✓ Sesuai HAP'}
+                                                            {comm.status === 'below'
+                                                                ? '▼ Di Bawah HAP'
+                                                                : comm.status === 'above'
+                                                                ? '▲ Di Atas HAP'
+                                                                : '✓ Sesuai HAP'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1411,11 +1688,11 @@ export default function HargaProdusen({
                                                     <span className="text-slate-500">vs Kemarin:</span>
                                                     {comm.today_price !== null && comm.yesterday_price !== null ? (
                                                         comm.change_type === 'up' ? (
-                                                            <span className="font-bold text-rose-600 truncate ml-1 text-right">
+                                                            <span className="font-bold text-emerald-700 truncate ml-1 text-right">
                                                                 +Rp {comm.diff_yesterday?.toLocaleString('id-ID')} (+{comm.diff_yesterday_percentage}%)
                                                             </span>
                                                         ) : comm.change_type === 'down' ? (
-                                                            <span className="font-bold text-emerald-700 truncate ml-1 text-right">
+                                                            <span className="font-bold text-rose-600 truncate ml-1 text-right">
                                                                 -Rp {Math.abs(comm.diff_yesterday || 0).toLocaleString('id-ID')} ({comm.diff_yesterday_percentage}%)
                                                             </span>
                                                         ) : (
@@ -1428,18 +1705,18 @@ export default function HargaProdusen({
 
                                                 <div className="mt-2 text-right">
                                                     {comm.status === 'above' && (
-                                                        <span className="inline-block truncate max-w-full rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-700 border border-amber-200">
-                                                            Di Atas HAP (+Rp {comm.diff_hap?.toLocaleString('id-ID')})
+                                                        <span className="inline-block truncate max-w-full rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200">
+                                                            ▲ Di Atas HAP (+Rp {comm.diff_hap?.toLocaleString('id-ID')})
                                                         </span>
                                                     )}
                                                     {comm.status === 'equal' && (
                                                         <span className="inline-block truncate max-w-full rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200">
-                                                            Sesuai HAP Bapanas
+                                                            ✓ Sesuai HAP Bapanas
                                                         </span>
                                                     )}
                                                     {comm.status === 'below' && (
                                                         <span className="inline-block truncate max-w-full rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-extrabold text-rose-700 border border-rose-200">
-                                                            Di Bawah HAP
+                                                            ▼ Di Bawah HAP (-Rp {Math.abs(comm.diff_hap || 0).toLocaleString('id-ID')})
                                                         </span>
                                                     )}
                                                     {comm.status === 'not_recorded' && (
@@ -1762,7 +2039,11 @@ export default function HargaProdusen({
                                                     const valFormatted = formatCurrency(Number(value));
                                                     if (name === 'price') {
                                                         const pHap = item?.payload?.hap;
-                                                        if (pHap && Number(value) > Number(pHap)) {
+                                                        if (pHap && Number(value) < Number(pHap)) {
+                                                            const pDiff = Number(pHap) - Number(value);
+                                                            const pPct = (pDiff / Number(pHap)) * 100;
+                                                            return [valFormatted, `Harga Rata-rata (Di Bawah HAP / -${pPct.toFixed(1)}%)`];
+                                                        } else if (pHap && Number(value) > Number(pHap)) {
                                                             const pDiff = Number(value) - Number(pHap);
                                                             const pPct = (pDiff / Number(pHap)) * 100;
                                                             return [valFormatted, `Harga Rata-rata (Di Atas HAP / +${pPct.toFixed(1)}%)`];
@@ -1793,11 +2074,12 @@ export default function HargaProdusen({
                                             />
                                             <Bar dataKey="price" name="price" radius={[6, 6, 0, 0]} maxBarSize={48}>
                                                 {chartPoints.map((entry, index) => {
+                                                    const isBelow = entry.price && entry.hap && Number(entry.price) < Number(entry.hap);
                                                     const isAbove = entry.price && entry.hap && Number(entry.price) > Number(entry.hap);
                                                     return (
                                                         <Cell
                                                             key={`cell-${index}`}
-                                                            fill={isAbove ? '#d97706' : '#059669'}
+                                                            fill={isBelow ? '#ef4444' : isAbove ? '#059669' : '#059669'}
                                                         />
                                                     );
                                                 })}
@@ -1854,66 +2136,57 @@ export default function HargaProdusen({
 
                         {/* ---------------------------------------------------------- */}
                         {/* KOLOM KANAN (30% / 3 cols di grid 10)                       */}
-                        {/* STATUS LIST KOMODITAS DI ATAS HAP/HET                       */}
+                        {/* STATUS LIST KOMODITAS DI BAWAH HAP (WARNING BAGI PRODUSEN)  */}
                         {/* ---------------------------------------------------------- */}
                         <div id="hap-warning-section" className="lg:col-span-3 scroll-mt-20">
                             <div className="rounded-3xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
                                 {/* Header Widget */}
                                 <div className="border-b border-slate-100 pb-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 border border-rose-200/60">
                                             <AlertCircle className="h-3.5 w-3.5" />
                                             <span>Peringatan HAP</span>
                                         </div>
-                                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                                            {aboveHapCommodities.length} Komoditas
+                                        <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200/60">
+                                            {belowHapCommodities.length} Komoditas
                                         </span>
                                     </div>
                                     <h4 className="mt-2 text-sm font-black text-slate-900 leading-tight">
-                                        Daftar Komoditas di Atas HAP/HET Hari Ini
+                                        Daftar Komoditas di Bawah HAP Hari Ini
                                     </h4>
                                     <p className="mt-1 text-[11px] text-slate-500">
-                                        Komoditas produsen yang melampaui batas HAP Bapanas pada tanggal terpilih.
+                                        Komoditas produsen dengan harga transaksi di bawah HAP Bapanas (merugikan petani/produsen).
                                     </p>
                                 </div>
 
-                                {/* Legend Warna Kenaikan */}
-                                <div className="mt-3 flex items-center justify-between gap-1 rounded-xl bg-slate-50 px-2.5 py-2 text-[10px]">
-                                    <div className="flex items-center gap-1">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-amber-400 border border-amber-500" />
-                                        <span className="font-bold text-amber-900">Kuning:</span>
-                                        <span className="text-slate-600">1 - 10%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-rose-600" />
-                                        <span className="font-bold text-rose-900">Merah:</span>
-                                        <span className="text-slate-600">&gt; 10%</span>
+                                {/* Legend Status Merah */}
+                                <div className="mt-3 flex items-center justify-between gap-1 rounded-xl bg-rose-50/80 border border-rose-200 px-2.5 py-2 text-[10px]">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="h-2.5 w-2.5 rounded-full bg-rose-500 border border-rose-600 shrink-0" />
+                                        <span className="font-extrabold text-rose-900">Status Merah:</span>
+                                        <span className="text-rose-700">Harga &lt; HAP Bapanas (Perlu Intervensi)</span>
                                     </div>
                                 </div>
 
-                                {/* List Komoditas di Atas HAP */}
+                                {/* List Komoditas di Bawah HAP */}
                                 <div className="mt-3 divide-y divide-slate-100 max-h-[460px] overflow-y-auto pr-1">
-                                    {aboveHapCommodities.length === 0 ? (
+                                    {belowHapCommodities.length === 0 ? (
                                         <div className="py-8 text-center">
-                                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
                                                 <CheckCircle2 className="h-5 w-5" />
                                             </div>
                                             <p className="mt-2 text-xs font-bold text-slate-800">
-                                                Semua Harga Aman!
+                                                Semua Harga Aman &amp; Memenuhi HAP!
                                             </p>
                                             <p className="mt-0.5 text-[11px] text-slate-500">
-                                                Tidak ada komoditas dengan harga di atas HAP pada tanggal ini.
+                                                Tidak ada komoditas dengan harga transaksi di bawah batas HAP pada tanggal ini.
                                             </p>
                                         </div>
                                     ) : (
-                                        aboveHapCommodities.map((item) => (
+                                        belowHapCommodities.map((item) => (
                                             <div
                                                 key={item.key || item.id}
-                                                className={`py-2.5 px-2.5 rounded-2xl transition-colors mb-2 border ${
-                                                    item.isRed
-                                                        ? 'bg-rose-50/60 border-rose-200 hover:bg-rose-50'
-                                                        : 'bg-amber-50/60 border-amber-200 hover:bg-amber-50'
-                                                }`}
+                                                className="py-2.5 px-2.5 rounded-2xl transition-colors mb-2 border bg-rose-50/70 border-rose-200 hover:bg-rose-100/60"
                                             >
                                                 <div className="flex items-center gap-2.5">
                                                     <div className="relative size-9 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-2xs flex items-center justify-center p-0.5">
@@ -1928,14 +2201,8 @@ export default function HargaProdusen({
                                                             <span className="text-xs font-extrabold text-slate-900 line-clamp-1" title={item.name}>
                                                                 {item.name}
                                                             </span>
-                                                            <span
-                                                                className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black border ${
-                                                                    item.isRed
-                                                                        ? 'bg-rose-100 text-rose-800 border-rose-300'
-                                                                        : 'bg-amber-100 text-amber-800 border-amber-300'
-                                                                }`}
-                                                            >
-                                                                +{item.pct.toFixed(1)}%
+                                                            <span className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black border bg-rose-100 text-rose-800 border-rose-300">
+                                                                -{item.pct.toFixed(1)}%
                                                             </span>
                                                         </div>
                                                         <p className="text-[10px] text-slate-500">{item.category} • {item.unit}</p>
@@ -1946,7 +2213,7 @@ export default function HargaProdusen({
                                                     <span className="text-[11px] text-slate-500">
                                                         Harga Produsen:
                                                     </span>
-                                                    <span className="font-extrabold text-slate-900">
+                                                    <span className="font-extrabold text-rose-950 font-mono">
                                                         {formatCurrency(item.today_price)}
                                                         <span className="text-[10px] font-normal text-slate-500">/{item.unit}</span>
                                                     </span>
@@ -1956,20 +2223,16 @@ export default function HargaProdusen({
                                                     <span className="text-[11px] text-slate-500">
                                                         Batas HAP:
                                                     </span>
-                                                    <span className="font-semibold text-slate-600">
+                                                    <span className="font-semibold text-slate-600 font-mono">
                                                         {formatCurrency(item.hap)}
                                                     </span>
                                                 </div>
 
-                                                <div className="mt-1 flex items-center justify-between border-t border-slate-200/50 pt-1 text-[11px]">
-                                                    <span className="text-slate-500 font-medium">Selisih Kenaikan:</span>
-                                                    <span
-                                                        className={`font-bold inline-flex items-center gap-0.5 ${
-                                                            item.isRed ? 'text-rose-700' : 'text-amber-800'
-                                                        }`}
-                                                    >
-                                                        <ArrowUp className="h-3 w-3 stroke-[2.5]" />
-                                                        +{formatCurrency(item.diff)}
+                                                <div className="mt-1 flex items-center justify-between border-t border-rose-200/60 pt-1 text-[11px]">
+                                                    <span className="text-rose-900 font-medium">Selisih di Bawah HAP:</span>
+                                                    <span className="font-bold inline-flex items-center gap-0.5 text-rose-700 font-mono">
+                                                        <ArrowDown className="h-3 w-3 stroke-[2.5]" />
+                                                        -{formatCurrency(item.diff)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1984,13 +2247,67 @@ export default function HargaProdusen({
                     {/* TABEL HISTORIS PERKEMBANGAN HARGA PRODUSEN                     */}
                     {/* ============================================================== */}
                     <div id="rekap-section" className="mt-12 rounded-3xl border border-slate-200/80 bg-white p-5 sm:p-7 shadow-xs scroll-mt-20">
-                        {/* Header & Export Actions */}
-                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                        {/* Tab Switcher: Tab 1 (Perkembangan Harian) vs Tab 2 (Rata-rata Bulanan Jan-Des) */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5 mb-6">
                             <div>
                                 <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900">
-                                    <Clock className="h-3.5 w-3.5 text-amber-600" />
-                                    <span>Data Historis 6 Komoditas Produsen</span>
+                                    <Layers className="h-3.5 w-3.5 text-amber-600" />
+                                    <span>Rekapitulasi Historis 6 Komoditas Produsen</span>
                                 </div>
+                                <h2 className="mt-2 text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                                    Tabel Historis Perkembangan Harga Produsen
+                                </h2>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    Pilih tabulasi untuk melihat data perkembangan harian atau rekapitulasi rata-rata bulanan di tingkat petani &amp; produsen se-Kabupaten Indramayu
+                                </p>
+                            </div>
+
+                            {/* 2 Tab Navigation Buttons */}
+                            <div className="inline-flex rounded-2xl bg-slate-100 p-1.5 shadow-inner shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setHistoryTab('daily')}
+                                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                                        historyTab === 'daily'
+                                            ? 'bg-white text-amber-900 shadow-xs ring-1 ring-slate-200/60 font-extrabold'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Clock className="h-4 w-4" />
+                                    <span>Tab 1: Perkembangan Harian</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setHistoryTab('monthly');
+                                        if (monthlyCommodityRows.length === 0) {
+                                            fetchMonthlyHistoryData();
+                                        }
+                                    }}
+                                    className={`inline-flex items-center gap-2 rounded-xl px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                                        historyTab === 'monthly'
+                                            ? 'bg-white text-amber-900 shadow-xs ring-1 ring-slate-200/60 font-extrabold'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Calendar className="h-4 w-4" />
+                                    <span>Tab 2: Rata-rata Bulanan (Jan - Des)</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ============================================================== */}
+                        {/* TABULASI 1: TABEL HISTORIS PERKEMBANGAN HARGA PRODUSEN (HARIAN)*/}
+                        {/* ============================================================== */}
+                        {historyTab === 'daily' && (
+                            <div>
+                                {/* Header & Export Actions */}
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                                    <div>
+                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900">
+                                            <Clock className="h-3.5 w-3.5 text-amber-600" />
+                                            <span>Data Historis 6 Komoditas Produsen</span>
+                                        </div>
                                 <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-900 tracking-tight">
                                     Tabel Historis Perkembangan Harga Produsen
                                 </h3>
@@ -2179,29 +2496,48 @@ export default function HargaProdusen({
                                                     {/* Nilai Harga Tiap Komoditas */}
                                                     {(historyCommodities.length > 0 ? historyCommodities : (commodities || [])).map((c) => {
                                                         const pVal = row.prices[c.id];
-                                                        const isAbove = row.is_above_hap?.[c.id] ?? row.is_above_het?.[c.id];
+                                                        const hapVal = row.haps?.[c.id] ?? historyCommodityHaps[c.id];
+                                                        const isBelow = (row.is_below_hap?.[c.id] !== undefined)
+                                                            ? row.is_below_hap[c.id]
+                                                            : (pVal !== null && hapVal !== null && Number(hapVal) > 0 && Number(pVal) < Number(hapVal));
+                                                        const isAbove = (row.is_above_hap?.[c.id] !== undefined)
+                                                            ? row.is_above_hap[c.id]
+                                                            : (pVal !== null && hapVal !== null && Number(hapVal) > 0 && Number(pVal) > Number(hapVal));
                                                         const diff = row.diffs?.[c.id];
 
                                                         return (
                                                             <td
                                                                 key={c.id ?? c.name}
-                                                                className={`px-3.5 py-2.5 text-right font-semibold border-r border-slate-100 whitespace-nowrap ${
-                                                                    isAbove
-                                                                        ? 'bg-amber-50 text-amber-950 font-bold'
+                                                                className={`px-3.5 py-2.5 text-right font-semibold border-r border-slate-100 whitespace-nowrap transition-colors ${
+                                                                    isBelow
+                                                                        ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200 shadow-2xs'
+                                                                        : isAbove
+                                                                        ? 'bg-emerald-50 text-emerald-900 font-bold border-emerald-200'
                                                                         : 'text-slate-800'
                                                                 }`}
+                                                                title={
+                                                                    pVal
+                                                                        ? isBelow
+                                                                            ? `Rp ${pVal.toLocaleString('id-ID')} - DI BAWAH HAP (HAP: Rp ${hapVal ? hapVal.toLocaleString('id-ID') : '-'})`
+                                                                            : isAbove
+                                                                            ? `Rp ${pVal.toLocaleString('id-ID')} - DI ATAS HAP (HAP: Rp ${hapVal ? hapVal.toLocaleString('id-ID') : '-'})`
+                                                                            : `Rp ${pVal.toLocaleString('id-ID')} (HAP: Rp ${hapVal ? hapVal.toLocaleString('id-ID') : '-'})`
+                                                                        : 'Data tidak tersedia'
+                                                                }
                                                             >
-                                                                <div className="flex items-center justify-end gap-1">
+                                                                <div className="flex items-center justify-end gap-1 font-mono">
                                                                     {diff === 'up' && (
-                                                                        <ArrowUp className="h-3 w-3 text-rose-600 stroke-[2.5]" />
+                                                                        <ArrowUp className="h-3 w-3 text-emerald-600 stroke-[2.5]" />
                                                                     )}
                                                                     {diff === 'down' && (
-                                                                        <ArrowDown className="h-3 w-3 text-emerald-600 stroke-[2.5]" />
+                                                                        <ArrowDown className="h-3 w-3 text-rose-600 stroke-[2.5]" />
                                                                     )}
                                                                     {diff === 'stable' && (
                                                                         <Minus className="h-3 w-3 text-slate-300 stroke-[2]" />
                                                                     )}
-                                                                    <span>{formatCurrency(pVal)}</span>
+                                                                    <span className={isBelow ? 'font-black text-rose-950' : isAbove ? 'font-black text-emerald-900' : ''}>
+                                                                        {formatCurrency(pVal)}
+                                                                    </span>
                                                                 </div>
                                                             </td>
                                                         );
@@ -2222,7 +2558,7 @@ export default function HargaProdusen({
                                                     return (
                                                         <td
                                                             key={c.id ?? c.name}
-                                                            className="px-3.5 py-2.5 text-right font-black text-slate-900 border-r border-slate-200 whitespace-nowrap"
+                                                            className="px-3.5 py-2.5 text-right font-black text-slate-900 border-r border-slate-200 whitespace-nowrap font-mono"
                                                         >
                                                             {formatCurrency(avg)}
                                                         </td>
@@ -2243,7 +2579,7 @@ export default function HargaProdusen({
                                                     return (
                                                         <td
                                                             key={c.id ?? c.name}
-                                                            className="px-3.5 py-2 text-right text-[11px] font-bold text-emerald-700 border-r border-slate-200 whitespace-nowrap"
+                                                            className="px-3.5 py-2 text-right text-[11px] font-bold text-emerald-700 border-r border-slate-200 whitespace-nowrap font-mono"
                                                         >
                                                             {formatCurrency(hapVal)}
                                                         </td>
@@ -2262,11 +2598,11 @@ export default function HargaProdusen({
                                                 {(historyCommodities.length > 0 ? historyCommodities : (commodities || [])).map((c) => {
                                                     const avg = historyPeriodAvgs[c.id];
                                                     const hapVal = historyCommodityHaps[c.id] ?? (historyRows[0]?.haps?.[c.id] ?? null);
-                                                    const res = getChangeColorAndText(avg, hapVal ? Number(hapVal) : null);
+                                                    const res = getHapChangeColorAndText(avg, hapVal ? Number(hapVal) : null);
                                                     return (
                                                         <td
                                                             key={c.id ?? c.name}
-                                                            className={`px-3.5 py-2 text-right text-[11px] border-r border-slate-200 whitespace-nowrap ${res.bgClass}`}
+                                                            className={`px-3.5 py-2 text-right text-[11px] border-r border-slate-200 whitespace-nowrap font-mono ${res.bgClass}`}
                                                         >
                                                             {res.text}
                                                         </td>
@@ -2318,11 +2654,552 @@ export default function HargaProdusen({
                                                 })}
                                             </tr>
                                         </tbody>
-                                    </table>
+                                     </table>
+                                </div>
+                            )}
+
+                            {/* Keterangan Warna Sel & Trend (Tab 1 Harian) */}
+                            {!historyError && historyRows.length > 0 && (
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-xl bg-slate-50 border border-slate-200/80 px-3.5 py-2.5 text-[11px]">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="font-extrabold text-slate-700">Keterangan Warna Sel:</span>
+                                        <div className="inline-flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded border border-rose-300 bg-rose-100" />
+                                            <span className="font-bold text-rose-900">Di Bawah HAP (Merah / Peringatan Produsen)</span>
+                                        </div>
+                                        <div className="inline-flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded border border-emerald-300 bg-emerald-50" />
+                                            <span className="font-bold text-emerald-900">Di Atas HAP (Hijau / Menguntungkan Produsen)</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2.5 text-slate-500 font-medium">
+                                        <span>Perubahan vs Kemarin:</span>
+                                        <span className="inline-flex items-center gap-0.5 text-emerald-700 font-bold"><ArrowUp className="h-3 w-3 stroke-[2.5]" /> Naik</span>
+                                        <span className="inline-flex items-center gap-0.5 text-rose-700 font-bold"><ArrowDown className="h-3 w-3 stroke-[2.5]" /> Turun</span>
+                                        <span className="inline-flex items-center gap-0.5 text-slate-400 font-bold"><Minus className="h-3 w-3 stroke-[2]" /> Tetap</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
+                )}
+
+                {/* ============================================================== */}
+                {/* TABULASI 2: TABEL HISTORIS RATA-RATA BULANAN (JAN - DES)       */}
+                {/* ============================================================== */}
+                {historyTab === 'monthly' && (
+                    <div>
+                        {/* Header & Export Actions */}
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
+                            <div>
+                                <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900">
+                                    <Calendar className="h-3.5 w-3.5 text-amber-600" />
+                                    <span>Data Rata-rata Bulanan Komoditas Produsen</span>
+                                </div>
+                                <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-900 tracking-tight">
+                                    Tabel Historis Harga Rata-rata Bulanan Semua Komoditi
+                                </h3>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                    Rata-rata bulanan (Januari s/d Desember) tahun{' '}
+                                    <strong className="text-slate-800">{monthlyHistYear}</strong> di{' '}
+                                    <strong className="text-slate-800">Sentra Produsen &amp; Penggilingan Kabupaten Indramayu</strong>
+                                </p>
+                            </div>
+
+                            {/* Export Buttons */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadMonthlyHistoryExcel}
+                                    disabled={monthlyLoading || monthlyCommodityRows.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                    title="Download data rata-rata bulanan dalam format Excel (.xlsx)"
+                                >
+                                    <FileSpreadsheet className="h-4 w-4" />
+                                    <span>Download Excel</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadMonthlyPdf}
+                                    disabled={monthlyLoading || monthlyCommodityRows.length === 0}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                                    title="Cetak atau unduh dokumen PDF format Landscape"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    <span>Download PDF</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filter & Controls Bar */}
+                        <div className="mt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 p-3.5">
+                            {/* Year Selector & View Mode Toggle */}
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-slate-600">Tahun:</span>
+                                    <div className="relative inline-flex items-center">
+                                        <Calendar className="absolute left-2.5 h-3.5 w-3.5 text-amber-600 pointer-events-none" />
+                                        <select
+                                            value={monthlyHistYear}
+                                            onChange={(e) => handleMonthlyYearChange(Number(e.target.value))}
+                                            className="rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-amber-600 focus:outline-none cursor-pointer"
+                                        >
+                                            {monthlyAvailableYears.map((yr) => (
+                                                <option key={yr} value={yr}>
+                                                    Tahun {yr}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* View Mode Toggle */}
+                                <div className="flex items-center rounded-xl bg-white border border-slate-200 p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMonthlyViewMode('by_commodity')}
+                                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                            monthlyViewMode === 'by_commodity'
+                                                ? 'bg-amber-700 text-white shadow-2xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Matriks (Komoditas × Bulan)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setMonthlyViewMode('by_month')}
+                                        className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                            monthlyViewMode === 'by_month'
+                                                ? 'bg-amber-700 text-white shadow-2xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Kalender (Bulan × Komoditas)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Quick Search & HAP Status Legend */}
+                            <div className="flex flex-wrap items-center gap-3">
+                                {monthlyViewMode === 'by_commodity' && (
+                                    <div className="relative min-w-[200px]">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={monthlySearchQuery}
+                                            onChange={(e) => setMonthlySearchQuery(e.target.value)}
+                                            placeholder="Cari komoditas produsen..."
+                                            className="w-full rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-amber-600 focus:outline-none"
+                                        />
+                                        {monthlySearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setMonthlySearchQuery('')}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Status HAP Indicator Legend */}
+                                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-1.5 text-[11px] border border-slate-200/80 shadow-2xs">
+                                    <span className="font-bold text-slate-600">Status HAP:</span>
+                                    <span className="inline-flex items-center gap-1.5 font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                                        <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                        Di Bawah HAP
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                        Sesuai / Di Atas HAP
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Table Display */}
+                        <div className="mt-5 relative">
+                            {monthlyLoading && (
+                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/70 backdrop-blur-2xs rounded-2xl min-h-[300px]">
+                                    <div className="flex items-center gap-2.5 rounded-xl bg-white px-4 py-2.5 shadow-md border border-slate-100 text-xs font-bold text-amber-900">
+                                        <RefreshCw className="h-4 w-4 animate-spin text-amber-600" />
+                                        <span>Memuat data rata-rata bulanan produsen...</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {monthlyError ? (
+                                <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-6 text-center text-xs text-rose-700">
+                                    <p className="font-bold">{monthlyError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => fetchMonthlyHistoryData()}
+                                        className="mt-2 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 cursor-pointer"
+                                    >
+                                        Muat Ulang
+                                    </button>
+                                </div>
+                            ) : monthlyCommodityRows.length === 0 && !monthlyLoading ? (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
+                                    Tidak ada data harga rata-rata bulanan produsen yang tersedia untuk tahun {monthlyHistYear}.
+                                </div>
+                            ) : monthlyViewMode === 'by_commodity' ? (
+                                /* ============================================== */
+                                /* MODE 1: MATRIKS (BARIS: KOMODITAS, KOLOM: BULAN) */
+                                /* ============================================== */
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[620px] overflow-y-auto">
+                                    <table className="w-full border-collapse text-left text-xs">
+                                        <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                            <tr>
+                                                {/* Kolom 1: No (Sticky) */}
+                                                <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[45px] border-r border-slate-200">
+                                                    No
+                                                </th>
+                                                {/* Kolom 2: Komoditas (Sticky) */}
+                                                <th className="sticky left-[45px] z-40 bg-slate-100 px-3.5 py-3 text-left font-extrabold text-slate-700 min-w-[210px] border-r border-slate-200 shadow-xs">
+                                                    Komoditas
+                                                </th>
+                                                {/* Kolom 3: HAP Acuan (Sticky) */}
+                                                <th className="sticky left-[255px] z-40 bg-slate-100 px-3 py-3 text-right font-extrabold text-slate-700 min-w-[120px] border-r-2 border-slate-300 shadow-xs">
+                                                    HAP Acuan
+                                                </th>
+                                                {/* Kolom 4 s/d 15: 12 Bulan (Jan - Des) */}
+                                                {monthlyMonths.map((m) => (
+                                                    <th
+                                                        key={m.num}
+                                                        className="px-3 py-3 text-right min-w-[105px] border-r border-slate-200/60 whitespace-nowrap"
+                                                    >
+                                                        <div className="font-extrabold text-slate-800">
+                                                            {m.name}
+                                                        </div>
+                                                        <div className="text-[10px] font-normal text-slate-400">
+                                                            {monthlyHistYear}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                {/* Kolom 16: Rata-rata Tahunan */}
+                                                <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[125px] border-l-2 border-slate-300 shadow-xs">
+                                                    Rata-rata
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {filteredMonthlyCommodityRows.map((row, idx) => {
+                                                const isYearlyBelow =
+                                                    row.yearly_average !== null &&
+                                                    row.current_hap !== null &&
+                                                    row.current_hap > 0 &&
+                                                    row.yearly_average < row.current_hap;
+                                                const isYearlyAbove =
+                                                    row.yearly_average !== null &&
+                                                    row.current_hap !== null &&
+                                                    row.current_hap > 0 &&
+                                                    row.yearly_average > row.current_hap;
+
+                                                return (
+                                                    <tr
+                                                        key={row.id || row.key}
+                                                        className="group hover:bg-amber-50/30 transition-colors"
+                                                    >
+                                                        {/* No (Sticky) */}
+                                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-amber-50/40 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            {idx + 1}
+                                                        </td>
+                                                        {/* Komoditas (Sticky) */}
+                                                        <td className="sticky left-[45px] z-20 bg-white group-hover:bg-amber-50/40 px-3.5 py-2.5 border-r border-slate-200 shadow-xs whitespace-nowrap">
+                                                            <div className="font-bold text-slate-900 text-xs line-clamp-1" title={row.name}>
+                                                                {row.name}
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span className="text-[10px] text-slate-400 font-normal">
+                                                                    Rp/{row.unit}
+                                                                </span>
+                                                                {row.category && (
+                                                                    <span className="rounded bg-amber-50 px-1.5 py-0.2 text-[9px] font-medium text-amber-800 border border-amber-200/60">
+                                                                        {row.category}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        {/* HAP Acuan (Sticky) */}
+                                                        <td className="sticky left-[255px] z-20 bg-white group-hover:bg-amber-50/40 px-3 py-2.5 text-right border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-mono font-bold text-slate-700">
+                                                            {row.current_hap ? formatCurrency(row.current_hap) : '-'}
+                                                        </td>
+                                                        {/* 12 Bulan (Jan - Des) */}
+                                                        {monthlyMonths.map((m) => {
+                                                            const price = row.monthly_prices[m.num];
+                                                            const isBelow = !!row.is_below_hap[m.num];
+                                                            const hap = row.monthly_haps[m.num] ?? row.current_hap;
+                                                            const isAbove = !isBelow && price !== null && Number(price) > 0 && hap !== null && Number(price) > Number(hap);
+
+                                                            return (
+                                                                <td
+                                                                    key={m.num}
+                                                                    className={`px-3 py-2 text-right border-r whitespace-nowrap transition-colors ${
+                                                                        isBelow
+                                                                            ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200 shadow-2xs'
+                                                                            : isAbove
+                                                                            ? 'bg-emerald-50 text-emerald-900 font-bold border-emerald-200'
+                                                                            : 'border-slate-100 font-semibold text-slate-800'
+                                                                    }`}
+                                                                    title={
+                                                                        price
+                                                                            ? isBelow
+                                                                                ? `Rp ${price.toLocaleString('id-ID')} - DI BAWAH HAP (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                                : isAbove
+                                                                                ? `Rp ${price.toLocaleString('id-ID')} - DI ATAS HAP (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                                : `Rp ${price.toLocaleString('id-ID')} (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                            : 'Data tidak tersedia'
+                                                                    }
+                                                                >
+                                                                    {price !== null && price !== undefined && Number(price) > 0 ? (
+                                                                        <div className="inline-flex items-center justify-end gap-1 font-mono">
+                                                                            {isBelow && (
+                                                                                <span title="Di Bawah HAP">
+                                                                                    <ArrowDown className="h-3 w-3 stroke-[2.5] text-rose-600 shrink-0" />
+                                                                                </span>
+                                                                            )}
+                                                                            {isAbove && (
+                                                                                <span title="Di Atas HAP">
+                                                                                    <ArrowUp className="h-3 w-3 stroke-[2.5] text-emerald-600 shrink-0" />
+                                                                                </span>
+                                                                            )}
+                                                                            <span className={isBelow ? 'font-black text-rose-950' : isAbove ? 'font-black text-emerald-900' : 'text-slate-800'}>
+                                                                                {formatCurrency(Number(price))}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300 font-normal">
+                                                                            -
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        {/* Rata-rata Tahunan */}
+                                                        <td
+                                                            className={`sticky right-0 z-20 px-3.5 py-2.5 text-right border-l-2 border-slate-300 shadow-xs whitespace-nowrap font-mono font-black ${
+                                                                isYearlyBelow
+                                                                    ? 'bg-rose-100 text-rose-950'
+                                                                    : isYearlyAbove
+                                                                    ? 'bg-emerald-50 text-emerald-900'
+                                                                    : 'bg-slate-50 group-hover:bg-slate-100 text-slate-900'
+                                                            }`}
+                                                        >
+                                                            {row.yearly_average ? formatCurrency(row.yearly_average) : '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        {/* TFoot Summary */}
+                                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+                                            {/* Baris 1: Rata-rata Semua Komoditas */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[45px] z-20 bg-slate-100 px-3.5 py-2 border-r border-slate-200 font-black text-slate-800 whitespace-nowrap shadow-xs">
+                                                    Rata-rata Semua Komoditas
+                                                </td>
+                                                <td className="sticky left-[255px] z-20 bg-slate-100 px-3 py-2 text-right border-r-2 border-slate-300 font-bold text-slate-500 whitespace-nowrap shadow-xs">
+                                                    -
+                                                </td>
+                                                {monthlyMonths.map((m) => {
+                                                    const mAvg = monthlySummary[m.num]?.average;
+                                                    return (
+                                                        <td
+                                                            key={m.num}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-900"
+                                                        >
+                                                            {mAvg ? formatCurrency(mAvg) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 2: Jumlah Komoditas di Bawah HAP */}
+                                            <tr>
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[45px] z-20 bg-slate-100 px-3.5 py-2 border-r border-slate-200 font-black text-rose-900 whitespace-nowrap shadow-xs">
+                                                    Jml Komoditas di Bawah HAP
+                                                </td>
+                                                <td className="sticky left-[255px] z-20 bg-slate-100 px-3 py-2 text-right border-r-2 border-slate-300 font-bold text-slate-500 whitespace-nowrap shadow-xs">
+                                                    -
+                                                </td>
+                                                {monthlyMonths.map((m) => {
+                                                    const cnt = monthlySummary[m.num]?.below_hap_count || 0;
+                                                    return (
+                                                        <td
+                                                            key={m.num}
+                                                            className={`px-3 py-2 text-right border-r border-slate-200 font-mono whitespace-nowrap ${
+                                                                cnt > 0 ? 'bg-rose-100/90 text-rose-900 font-black' : 'bg-slate-50 text-slate-500'
+                                                            }`}
+                                                        >
+                                                            {cnt > 0 ? `${cnt} Komoditas` : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                    -
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            ) : (
+                                /* ============================================== */
+                                /* MODE 2: KALENDER (BARIS: BULAN, KOLOM: KOMODITAS) */
+                                /* ============================================== */
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[620px] overflow-y-auto">
+                                    <table className="w-full border-collapse text-left text-xs">
+                                        <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                            <tr>
+                                                {/* Kolom 1: No */}
+                                                <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[45px] border-r border-slate-200">
+                                                    No
+                                                </th>
+                                                {/* Kolom 2: Bulan */}
+                                                <th className="sticky left-[45px] z-40 bg-slate-100 px-4 py-3 text-left font-extrabold text-slate-700 min-w-[140px] border-r-2 border-slate-300 shadow-xs">
+                                                    Bulan ({monthlyHistYear})
+                                                </th>
+                                                {/* Kolom 3 s/d N: Komoditas Produsen */}
+                                                {monthlyCommodityRows.map((c) => (
+                                                    <th
+                                                        key={c.id || c.key}
+                                                        className="px-3.5 py-3 text-right min-w-[140px] border-r border-slate-200/60 whitespace-nowrap"
+                                                        title={`${c.name} (${c.unit}) - HAP: ${c.current_hap ? formatCurrency(c.current_hap) : '-'}`}
+                                                    >
+                                                        <div className="font-extrabold text-slate-800 line-clamp-1">
+                                                            {c.name}
+                                                        </div>
+                                                        <div className="text-[10px] font-normal text-slate-400">
+                                                            Rp/{c.unit} {c.current_hap ? `(HAP: ${formatCurrency(c.current_hap)})` : ''}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                {/* Kolom Terakhir: Di Bawah HAP */}
+                                                <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-center font-extrabold text-slate-700 min-w-[120px] border-l-2 border-slate-300 shadow-xs">
+                                                    Di Bawah HAP
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {monthlyMonths.map((m, idx) => {
+                                                const belowCnt = monthlySummary[m.num]?.below_hap_count || 0;
+                                                return (
+                                                    <tr
+                                                        key={m.num}
+                                                        className="group hover:bg-amber-50/40 transition-colors"
+                                                    >
+                                                        {/* No */}
+                                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-amber-50/40 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            {idx + 1}
+                                                        </td>
+                                                        {/* Bulan */}
+                                                        <td className="sticky left-[45px] z-20 bg-white group-hover:bg-amber-50/40 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                            <div className="font-bold text-slate-900">
+                                                                {m.name}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">
+                                                                Tahun {monthlyHistYear}
+                                                            </div>
+                                                        </td>
+                                                        {/* Prices per commodity */}
+                                                        {monthlyCommodityRows.map((c) => {
+                                                            const price = c.monthly_prices[m.num];
+                                                            const isBelow = !!c.is_below_hap[m.num];
+                                                            const hap = c.monthly_haps[m.num] ?? c.current_hap;
+                                                            const isAbove = !isBelow && price !== null && Number(price) > 0 && hap !== null && Number(price) > Number(hap);
+
+                                                            return (
+                                                                <td
+                                                                    key={c.id || c.key}
+                                                                    className={`px-3 py-2 text-right border-r whitespace-nowrap transition-colors ${
+                                                                        isBelow
+                                                                            ? 'bg-rose-100/90 text-rose-950 font-bold border-rose-200'
+                                                                            : isAbove
+                                                                            ? 'bg-emerald-50 text-emerald-900 font-bold border-emerald-200'
+                                                                            : 'border-slate-100 font-semibold text-slate-800'
+                                                                    }`}
+                                                                    title={
+                                                                        price
+                                                                            ? isBelow
+                                                                                ? `Rp ${price.toLocaleString('id-ID')} - DI BAWAH HAP (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                                : isAbove
+                                                                                ? `Rp ${price.toLocaleString('id-ID')} - DI ATAS HAP (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                                : `Rp ${price.toLocaleString('id-ID')} (HAP: Rp ${hap ? hap.toLocaleString('id-ID') : '-'})`
+                                                                            : 'Data tidak tersedia'
+                                                                    }
+                                                                >
+                                                                    {price !== null && price !== undefined && Number(price) > 0 ? (
+                                                                        <div className="inline-flex items-center justify-end gap-1.5 font-mono">
+                                                                            {isBelow && (
+                                                                                <span title="Di Bawah HAP">
+                                                                                    <ArrowDown className="h-3.5 w-3.5 stroke-[2.5] text-rose-600 shrink-0" />
+                                                                                </span>
+                                                                            )}
+                                                                            {isAbove && (
+                                                                                <span title="Di Atas HAP">
+                                                                                    <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600 shrink-0" />
+                                                                                </span>
+                                                                            )}
+                                                                            <span className={isBelow ? 'font-black text-rose-950' : isAbove ? 'font-black text-emerald-900' : 'text-slate-800'}>
+                                                                                {formatCurrency(Number(price))}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300 font-normal">
+                                                                            -
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        {/* Di Bawah HAP count */}
+                                                        <td className="sticky right-0 z-20 bg-white group-hover:bg-amber-50/40 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs whitespace-nowrap font-mono">
+                                                            {belowCnt > 0 ? (
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-900 border border-rose-200">
+                                                                    {belowCnt} Komoditas
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-400 font-normal">-</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 rounded-xl bg-slate-50 border border-slate-200/80 px-3.5 py-2.5 text-[11px]">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className="font-extrabold text-slate-700">Keterangan Warna Sel:</span>
+                                    <div className="inline-flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-6 rounded border border-rose-300 bg-rose-100" />
+                                        <span className="font-bold text-rose-900">Di Bawah HAP (Merah / Peringatan Produsen)</span>
+                                    </div>
+                                    <div className="inline-flex items-center gap-1.5">
+                                        <span className="inline-block h-3.5 w-6 rounded border border-emerald-300 bg-emerald-50" />
+                                        <span className="font-bold text-emerald-900">Di Atas HAP (Hijau / Menguntungkan Produsen)</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-500 font-medium">
+                                    <span>* HAP: Harga Acuan Pembelian Bapanas RI</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
 
                     {/* Info Banner */}

@@ -952,32 +952,32 @@ export default function ProducerPricesIndex({
 
                     <Card className="rounded-2xl border-slate-200/80 shadow-xs">
                         <CardHeader className="p-4 pb-2">
-                            <CardDescription className="text-xs font-bold uppercase tracking-wider text-amber-700">
+                            <CardDescription className="text-xs font-bold uppercase tracking-wider text-emerald-700">
                                 Di Atas HAP Bapanas
                             </CardDescription>
-                            <CardTitle className="text-2xl font-black text-amber-700">
+                            <CardTitle className="text-2xl font-black text-emerald-700">
                                 {statistics.above_hap_count}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
                             <span className="text-[11px] text-slate-500">
-                                Nilai transaksi di atas batas acuan bawah
+                                Harga transaksi di atas batas acuan bawah (aman)
                             </span>
                         </CardContent>
                     </Card>
 
                     <Card className="rounded-2xl border-slate-200/80 shadow-xs">
                         <CardHeader className="p-4 pb-2">
-                            <CardDescription className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                                Sesuai / Di Bawah HAP
+                            <CardDescription className="text-xs font-bold uppercase tracking-wider text-rose-700">
+                                Di Bawah HAP (Peringatan)
                             </CardDescription>
-                            <CardTitle className="text-2xl font-black text-slate-700 dark:text-slate-200">
-                                {statistics.equal_hap_count + statistics.below_hap_count}
+                            <CardTitle className="text-2xl font-black text-rose-600">
+                                {statistics.below_hap_count}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
                             <span className="text-[11px] text-slate-500">
-                                {statistics.equal_hap_count} sesuai, {statistics.below_hap_count} di bawah acuan
+                                {statistics.below_hap_count} komoditas di bawah batas acuan pemerintah
                             </span>
                         </CardContent>
                     </Card>
@@ -1094,7 +1094,7 @@ export default function ProducerPricesIndex({
                                                                 <div
                                                                     className={`text-[11px] font-bold ${
                                                                         item.diff_hap > 0
-                                                                            ? 'text-amber-700'
+                                                                            ? 'text-emerald-700'
                                                                             : item.diff_hap < 0
                                                                             ? 'text-rose-600'
                                                                             : 'text-emerald-700'
@@ -1113,13 +1113,13 @@ export default function ProducerPricesIndex({
                                                 </td>
                                                 <td className="px-4 py-3.5 text-center">
                                                     {item.change_type === 'up' && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
                                                             <ArrowUpRight className="size-3.5" />
                                                             <span>+{formatCurrency(item.diff_yesterday)}</span>
                                                         </span>
                                                     )}
                                                     {item.change_type === 'down' && (
-                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
                                                             <ArrowDownRight className="size-3.5" />
                                                             <span>{formatCurrency(item.diff_yesterday)}</span>
                                                         </span>
@@ -1135,7 +1135,7 @@ export default function ProducerPricesIndex({
                                                 </td>
                                                 <td className="px-4 py-3.5 text-center">
                                                     {item.status === 'above' && (
-                                                        <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border border-amber-300 text-[10px] font-extrabold">
+                                                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 text-[10px] font-extrabold">
                                                             Di Atas HAP
                                                         </Badge>
                                                     )}

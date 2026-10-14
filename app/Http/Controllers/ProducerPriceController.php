@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -687,6 +688,7 @@ class ProducerPriceController extends Controller
             $commodityPriceMap = [];
             $commodityHapMap = [];
             $commodityAboveHapMap = [];
+            $commodityBelowHapMap = [];
             $commodityDiffMap = [];
 
             foreach ($commodities as $c) {
@@ -698,6 +700,7 @@ class ProducerPriceController extends Controller
                 $hapPrice = $applicableHap ? (float) $applicableHap->price : null;
 
                 $isAboveHap = ($todayPrice !== null && $hapPrice !== null && $hapPrice > 0 && $todayPrice > $hapPrice);
+                $isBelowHap = ($todayPrice !== null && $hapPrice !== null && $hapPrice > 0 && $todayPrice < $hapPrice);
 
                 $diffType = null;
                 if ($todayPrice !== null && $yestPrice !== null) {
@@ -713,6 +716,7 @@ class ProducerPriceController extends Controller
                 $commodityPriceMap[$c->id] = $todayPrice;
                 $commodityHapMap[$c->id] = $hapPrice;
                 $commodityAboveHapMap[$c->id] = $isAboveHap;
+                $commodityBelowHapMap[$c->id] = $isBelowHap;
                 $commodityDiffMap[$c->id] = $diffType;
             }
 
@@ -724,6 +728,7 @@ class ProducerPriceController extends Controller
                 'haps' => $commodityHapMap,
                 'hets' => $commodityHapMap,
                 'is_above_hap' => $commodityAboveHapMap,
+                'is_below_hap' => $commodityBelowHapMap,
                 'is_above_het' => $commodityAboveHapMap,
                 'diffs' => $commodityDiffMap,
             ];
@@ -807,6 +812,248 @@ class ProducerPriceController extends Controller
         );
 
         $filename = "rekap_historis_harga_produsen_{$payload['start_date']}_sd_{$payload['end_date']}.xlsx";
+
+        return response($xlsxContent, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Resolve monthly historical producer price data (Jan - Dec) for the specified year.
+     *
+     * @return array{
+     *     market: array{name: string, description: string},
+     *     year: int,
+     *     available_years: array<int, int>,
+     *     months: array<int, array{num: int, name: string, short: string}>,
+     *     commodities: Collection<int, ProducerCommodity>,
+     *     commodity_rows: array<int, array{
+     *         id: int,
+     *         key: string,
+     *         name: string,
+     *         category: string,
+     *         unit: string,
+     *         current_hap: float|null,
+     *         current_het: float|null,
+     *         monthly_prices: array<int, float|null>,
+     *         monthly_haps: array<int, float|null>,
+     *         monthly_hets: array<int, float|null>,
+     *         is_below_hap: array<int, bool>,
+     *         is_above_hap: array<int, bool>,
+     *         yearly_average: float|null,
+     *     }>,
+     *     month_summary: array<int, array{
+     *         average: float|null,
+     *         below_hap_count: int,
+     *         above_hap_count: int,
+     *         recorded_count: int,
+     *     }>,
+     * }
+     */
+    protected function getMonthlyHistoryPricePayload(Request $request): array
+    {
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $yearSql = $isSqlite ? "strftime('%Y', recorded_date)" : 'YEAR(recorded_date)';
+
+        // Available recorded years
+        $availableYears = ProducerPrice::selectRaw("DISTINCT {$yearSql} as yr")
+            ->orderByDesc('yr')
+            ->pluck('yr')
+            ->map(fn ($y) => (int) $y)
+            ->filter(fn ($y) => $y > 0)
+            ->values()
+            ->all();
+
+        $currentYear = (int) now()->format('Y');
+        if (empty($availableYears)) {
+            $availableYears = [$currentYear];
+        }
+
+        $requestedYear = (int) $request->query('year');
+        if ($requestedYear > 2000 && $requestedYear < 2100) {
+            $year = $requestedYear;
+            if (! in_array($year, $availableYears, true)) {
+                $availableYears[] = $year;
+                rsort($availableYears);
+            }
+        } else {
+            $year = $availableYears[0];
+        }
+
+        $commodities = ProducerCommodity::where('is_active', true)->with(['haps'])->orderBy('order')->get();
+
+        $startOfYear = Carbon::createFromDate($year, 1, 1)->startOfYear()->format('Y-m-d');
+        $endOfYear = Carbon::createFromDate($year, 12, 31)->endOfYear()->format('Y-m-d');
+
+        $prices = ProducerPrice::whereBetween('recorded_date', [$startOfYear, $endOfYear])
+            ->get();
+
+        $monthNames = [
+            1 => ['name' => 'Januari', 'short' => 'Jan'],
+            2 => ['name' => 'Februari', 'short' => 'Feb'],
+            3 => ['name' => 'Maret', 'short' => 'Mar'],
+            4 => ['name' => 'April', 'short' => 'Apr'],
+            5 => ['name' => 'Mei', 'short' => 'Mei'],
+            6 => ['name' => 'Juni', 'short' => 'Jun'],
+            7 => ['name' => 'Juli', 'short' => 'Jul'],
+            8 => ['name' => 'Agustus', 'short' => 'Agu'],
+            9 => ['name' => 'September', 'short' => 'Sep'],
+            10 => ['name' => 'Oktober', 'short' => 'Okt'],
+            11 => ['name' => 'November', 'short' => 'Nov'],
+            12 => ['name' => 'Desember', 'short' => 'Des'],
+        ];
+
+        $months = [];
+        foreach ($monthNames as $mNum => $mInfo) {
+            $months[] = [
+                'num' => $mNum,
+                'name' => $mInfo['name'],
+                'short' => $mInfo['short'],
+            ];
+        }
+
+        // Group prices by month number (1..12)
+        $groupedByMonth = [];
+        foreach ($prices as $pRec) {
+            $m = (int) Carbon::parse($pRec->recorded_date)->format('n');
+            $groupedByMonth[$m][] = $pRec;
+        }
+
+        $commodityRows = [];
+        $monthCommodityPrices = array_fill(1, 12, []);
+        $monthBelowHapCounts = array_fill(1, 12, 0);
+        $monthAboveHapCounts = array_fill(1, 12, 0);
+
+        foreach ($commodities as $c) {
+            $key = $c->key;
+            $monthlyPrices = [];
+            $monthlyHaps = [];
+            $isBelowHap = [];
+            $isAboveHap = [];
+            $validPricesForYear = [];
+
+            $latestHapRecord = $c->hapAt(sprintf('%04d-12-31', $year)) ?? $c->haps->first();
+            $currentHapPrice = $latestHapRecord ? (float) $latestHapRecord->price : null;
+
+            for ($m = 1; $m <= 12; $m++) {
+                $monthRecs = $groupedByMonth[$m] ?? [];
+                $vals = collect($monthRecs)->pluck($key)->filter(fn ($v) => $v !== null && $v !== '');
+                $avgPrice = $vals->count() > 0 ? round((float) $vals->avg(), 0) : null;
+
+                $midDate = sprintf('%04d-%02d-15', $year, $m);
+                $hapRecord = $c->hapAt($midDate) ?? $latestHapRecord;
+                $hapPrice = $hapRecord ? (float) $hapRecord->price : null;
+
+                $below = ($avgPrice !== null && $hapPrice !== null && $hapPrice > 0 && $avgPrice < $hapPrice);
+                $above = ($avgPrice !== null && $hapPrice !== null && $hapPrice > 0 && $avgPrice > $hapPrice);
+
+                $monthlyPrices[$m] = $avgPrice;
+                $monthlyHaps[$m] = $hapPrice;
+                $isBelowHap[$m] = $below;
+                $isAboveHap[$m] = $above;
+
+                if ($avgPrice !== null) {
+                    $validPricesForYear[] = $avgPrice;
+                    $monthCommodityPrices[$m][] = $avgPrice;
+                }
+
+                if ($below) {
+                    $monthBelowHapCounts[$m]++;
+                }
+                if ($above) {
+                    $monthAboveHapCounts[$m]++;
+                }
+            }
+
+            $yearlyAvg = ! empty($validPricesForYear)
+                ? round(array_sum($validPricesForYear) / count($validPricesForYear), 0)
+                : null;
+
+            $commodityRows[] = [
+                'id' => $c->id,
+                'key' => $key,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+                'current_hap' => $currentHapPrice,
+                'current_het' => $currentHapPrice,
+                'monthly_prices' => $monthlyPrices,
+                'monthly_haps' => $monthlyHaps,
+                'monthly_hets' => $monthlyHaps,
+                'is_below_hap' => $isBelowHap,
+                'is_above_hap' => $isAboveHap,
+                'yearly_average' => $yearlyAvg,
+            ];
+        }
+
+        $monthSummary = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $pricesInMonth = $monthCommodityPrices[$m];
+            $monthAvg = ! empty($pricesInMonth) ? round(array_sum($pricesInMonth) / count($pricesInMonth), 0) : null;
+            $monthSummary[$m] = [
+                'average' => $monthAvg,
+                'below_hap_count' => $monthBelowHapCounts[$m],
+                'above_hap_count' => $monthAboveHapCounts[$m],
+                'recorded_count' => count($pricesInMonth),
+            ];
+        }
+
+        return [
+            'market' => [
+                'name' => 'Kabupaten Indramayu',
+                'description' => 'Sentra Produsen & Penggilingan Padi Indramayu',
+            ],
+            'year' => $year,
+            'available_years' => $availableYears,
+            'months' => $months,
+            'commodities' => $commodities,
+            'commodity_rows' => $commodityRows,
+            'month_summary' => $monthSummary,
+        ];
+    }
+
+    /**
+     * Get historical monthly producer price data in JSON format for the interactive table.
+     */
+    public function monthlyHistoryData(Request $request): JsonResponse
+    {
+        $payload = $this->getMonthlyHistoryPricePayload($request);
+
+        return response()->json([
+            'market' => $payload['market'],
+            'year' => $payload['year'],
+            'available_years' => $payload['available_years'],
+            'months' => $payload['months'],
+            'commodities' => $payload['commodities']->map(fn ($c) => [
+                'id' => $c->id,
+                'key' => $c->key,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+            ]),
+            'commodity_rows' => $payload['commodity_rows'],
+            'month_summary' => $payload['month_summary'],
+        ]);
+    }
+
+    /**
+     * Download historical monthly producer price data as Excel (.xlsx).
+     */
+    public function monthlyHistoryExcel(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $payload = $this->getMonthlyHistoryPricePayload($request);
+        $marketName = 'Kabupaten Indramayu';
+
+        $xlsxContent = $excelService->generateProducerMonthlyHistoricalXlsx(
+            marketName: $marketName,
+            year: $payload['year'],
+            commodities: $payload['commodities'],
+            commodityRows: $payload['commodity_rows'],
+            monthSummary: $payload['month_summary']
+        );
+
+        $filename = "rekap_historis_bulanan_harga_produsen_{$payload['year']}.xlsx";
 
         return response($xlsxContent, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
