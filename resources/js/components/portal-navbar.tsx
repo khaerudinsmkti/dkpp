@@ -5,6 +5,7 @@ import {
     Layers,
     Menu,
     PieChart,
+    ShieldCheck,
     Store,
     TrendingUp,
     Wheat,
@@ -13,7 +14,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { dashboard, login, register } from '@/routes';
 
-export type PortalActivePage = 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
+export type PortalActivePage = 'ikp' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
 
 interface PortalNavbarProps {
     activePage: PortalActivePage;
@@ -45,6 +46,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
         };
     }, []);
 
+    const isIkpActive = activePage === 'ikp';
     const isHargaActive =
         activePage === 'harga-konsumen' || activePage === 'harga-produsen';
     const isNeracaActive = activePage === 'neraca-pangan';
@@ -59,7 +61,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                 <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                     {/* Logo & Brand Identity */}
                     <Link
-                        href="/harga-konsumen"
+                        href="/ikp"
                         className="group flex items-center gap-3 transition-transform"
                     >
                         <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#006565] via-[#005555] to-[#003838] text-white shadow-md shadow-[#006565]/25 ring-1 ring-white/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-[#006565]/35">
@@ -89,6 +91,21 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
 
                     {/* Desktop Navigation Links Island */}
                     <nav className="hidden items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5 backdrop-blur-md md:flex dark:border-slate-800 dark:bg-slate-800/80">
+                        {/* 0. Menu Utama: IKP (Indeks Ketahanan Pangan) */}
+                        <Link
+                            href="/ikp"
+                            className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                                isIkpActive
+                                    ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
+                                    : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
+                            }`}
+                        >
+                            <ShieldCheck className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                            <span>IKP</span>
+                            {isIkpActive && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            )}
+                        </Link>
                         {/* 1. Dropdown Menu: Harga Pangan */}
                         <div className="relative" ref={hargaMenuRef}>
                             <button
@@ -326,6 +343,27 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                     Live Harian
                                 </span>
                             </div>
+
+                            {/* Menu 0: IKP (Indeks Ketahanan Pangan) in Mobile */}
+                            <Link
+                                href="/ikp"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all ${
+                                    isIkpActive
+                                        ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                        : 'text-slate-700 border border-slate-200/80 bg-slate-50/80 hover:bg-white hover:text-[#006565] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <ShieldCheck className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                    <span>Indeks Ketahanan Pangan (IKP)</span>
+                                </div>
+                                {isIkpActive && (
+                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                        Aktif
+                                    </span>
+                                )}
+                            </Link>
 
                             {/* Menu 1: Harga Pangan Dropdown in Mobile */}
                             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-800/80">

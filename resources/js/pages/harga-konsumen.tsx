@@ -38,8 +38,8 @@ import {
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import PortalFooter from '@/components/portal-footer';
 import PortalNavbar from '@/components/portal-navbar';
-import { dashboard, login, register } from '@/routes';
 import {
     Area,
     AreaChart,
@@ -2620,8 +2620,9 @@ export default function HargaKonsumen({
                                                 >
                                                     <defs>
                                                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#006565" stopOpacity={0.25} />
-                                                            <stop offset="95%" stopColor="#006565" stopOpacity={0.0} />
+                                                            <stop offset="0%" stopColor="#1C8379" stopOpacity={0.85} />
+                                                            <stop offset="50%" stopColor="#3AAB91" stopOpacity={0.55} />
+                                                            <stop offset="100%" stopColor="#58CEA7" stopOpacity={0.25} />
                                                         </linearGradient>
                                                         <linearGradient id="colorHet" x1="0" y1="0" x2="0" y2="1">
                                                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
@@ -2670,14 +2671,14 @@ export default function HargaKonsumen({
                                                     <Area
                                                         type="monotone"
                                                         dataKey="price"
-                                                        stroke="#006565"
+                                                        stroke="#1C8379"
                                                         strokeWidth={2.5}
                                                         fillOpacity={1}
                                                         fill="url(#colorPrice)"
                                                         name="price"
                                                         connectNulls
-                                                        dot={{ r: 3, fill: '#006565' }}
-                                                        activeDot={{ r: 5 }}
+                                                        dot={{ r: 4, fill: '#f59e0b', stroke: '#ffffff', strokeWidth: 2 }}
+                                                        activeDot={{ r: 6, fill: '#d97706', stroke: '#ffffff', strokeWidth: 2 }}
                                                     />
                                                     <Area
                                                         type="monotone"
@@ -3392,51 +3393,8 @@ export default function HargaKonsumen({
                     </div>
                 </main>
 
-                {/* ============================================================== */}
-                {/* 3. FOOTER                                                      */}
-                {/* ============================================================== */}
-                <footer className="border-t border-slate-200 bg-white text-slate-600">
-                    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#006565] text-white">
-                                    <Wheat className="h-5 w-5" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-base font-extrabold text-slate-900">
-                                        DKPP KABUPATEN INDRAMAYU
-                                    </span>
-                                    <span className="text-[10px] font-semibold tracking-wider text-[#006565] uppercase">
-                                        Dinas Ketahanan Pangan dan Pertanian
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600">
-                                <Link href="/harga-konsumen" className="text-[#006565] font-bold">
-                                    Harga Konsumen
-                                </Link>
-                                <span className="text-slate-300">•</span>
-                                <Link href="/harga-produsen" className="hover:text-[#006565] transition-colors">
-                                    Harga Produsen
-                                </Link>
-                                <span className="text-slate-300">•</span>
-                                <Link href={login()} className="hover:text-[#006565] transition-colors">
-                                    Portal Petugas
-                                </Link>
-                            </div>
-                        </div>
-
-                        <div className="mt-8 flex flex-col items-center justify-between border-t border-slate-100 pt-6 text-xs text-slate-400 sm:flex-row">
-                            <div>
-                                &copy; 2026 Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu. Lumbung Padi Nasional.
-                            </div>
-                            <div className="mt-2 font-medium sm:mt-0">
-                                Sistem Informasi Ketahanan Pangan Terpadu
-                            </div>
-                        </div>
-                    </div>
-                </footer>
+                {/* Public Portal Footer */}
+                <PortalFooter />
             </div>
         </>
     );
