@@ -17,7 +17,8 @@ void createInertiaApp({
                 name === 'harga-produsen' ||
                 name === 'neraca-pangan' ||
                 name === 'pph' ||
-                name === 'ikp':
+                name === 'ikp' ||
+                name === 'skpg':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Apple, FileSpreadsheet, LayoutGrid, Layers, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Apple, FileSpreadsheet, LayoutGrid, Layers, MapPin, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -46,6 +46,12 @@ const navGroups: NavGroup[] = [
                 href: '/ikp-scores',
                 icon: ShieldCheck,
                 badge: 'IKP vs Renstra',
+            },
+            {
+                title: 'Kerawanan Pangan (SKPG)',
+                href: '/skpg-admin',
+                icon: MapPin,
+                badge: '31 Kecamatan',
             },
             {
                 title: 'Harga Konsumen',

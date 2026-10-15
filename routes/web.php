@@ -13,6 +13,7 @@ use App\Http\Controllers\PphScoreDetailController;
 use App\Http\Controllers\ProducerCommodityController;
 use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
+use App\Http\Controllers\SkpgController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
@@ -240,8 +241,19 @@ Route::redirect('/skor-pph', '/pph');
 
 Route::get('/ikp', [IkpScoreController::class, 'publicIndex'])->name('ikp');
 
+// Modul Publik SKPG (Sistem Peringatan Dini Kerawanan Pangan dan Gizi)
+Route::get('/skpg', [SkpgController::class, 'publicIndex'])->name('skpg');
+Route::get('/api/skpg/geojson', [SkpgController::class, 'geojson'])->name('skpg.geojson');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul SKPG (Sistem Peringatan Dini Kerawanan Pangan dan Gizi)
+    Route::get('/skpg-admin', [SkpgController::class, 'index'])->name('skpg.index');
+    Route::post('/skpg-admin', [SkpgController::class, 'store'])->name('skpg.store');
+    Route::post('/skpg-admin/bulk', [SkpgController::class, 'bulkStore'])->name('skpg.bulk-store');
+    Route::put('/skpg-admin/{skpg}', [SkpgController::class, 'update'])->name('skpg.update');
+    Route::delete('/skpg-admin/{skpg}', [SkpgController::class, 'destroy'])->name('skpg.destroy');
 
     // Modul IKP (Indeks Ketahanan Pangan)
     Route::get('/ikp-scores', [IkpScoreController::class, 'index'])->name('ikp-scores.index');
