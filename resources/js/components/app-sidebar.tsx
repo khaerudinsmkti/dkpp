@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Apple, FileSpreadsheet, LayoutGrid, Layers, MapPin, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Apple, FileSpreadsheet, LayoutGrid, Layers, MapPin, Package, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -15,6 +15,7 @@ import {
 import { dashboard } from '@/routes';
 import { index as commoditiesIndex } from '@/routes/commodities';
 import { index as consumerPricesIndex } from '@/routes/consumer-prices';
+import { index as cppdIndex } from '@/routes/cppd';
 import { index as foodBalanceCommoditiesIndex } from '@/routes/food-balance-commodities';
 import { index as foodBalancesIndex } from '@/routes/food-balances';
 import { index as hetsIndex } from '@/routes/hets';
@@ -52,6 +53,12 @@ const navGroups: NavGroup[] = [
                 href: '/skpg-admin',
                 icon: MapPin,
                 badge: '31 Kecamatan',
+            },
+            {
+                title: 'Cadangan Pangan (CPPD)',
+                href: cppdIndex(),
+                icon: Package,
+                badge: 'Stok & Distribusi',
             },
             {
                 title: 'Harga Konsumen',

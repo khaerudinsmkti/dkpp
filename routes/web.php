@@ -3,6 +3,7 @@
 use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
+use App\Http\Controllers\CppdController;
 use App\Http\Controllers\FoodBalanceCommodityController;
 use App\Http\Controllers\FoodBalanceController;
 use App\Http\Controllers\IkpScoreController;
@@ -245,8 +246,18 @@ Route::get('/ikp', [IkpScoreController::class, 'publicIndex'])->name('ikp');
 Route::get('/skpg', [SkpgController::class, 'publicIndex'])->name('skpg');
 Route::get('/api/skpg/geojson', [SkpgController::class, 'geojson'])->name('skpg.geojson');
 
+Route::get('/cppd', [CppdController::class, 'publicIndex'])->name('cppd');
+Route::get('/cppd/export-excel', [CppdController::class, 'exportExcel'])->name('cppd.export-excel');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul CPPD (Cadangan Pangan Pemerintah Daerah)
+    Route::get('/cppd-admin', [CppdController::class, 'index'])->name('cppd.index');
+    Route::post('/cppd-admin', [CppdController::class, 'store'])->name('cppd.store');
+    Route::put('/cppd-admin/{cppd}', [CppdController::class, 'update'])->name('cppd.update');
+    Route::delete('/cppd-admin/{cppd}', [CppdController::class, 'destroy'])->name('cppd.destroy');
+    Route::post('/cppd-admin/initial-stock', [CppdController::class, 'setInitialStock'])->name('cppd.initial-stock');
 
     // Modul SKPG (Sistem Peringatan Dini Kerawanan Pangan dan Gizi)
     Route::get('/skpg-admin', [SkpgController::class, 'index'])->name('skpg.index');

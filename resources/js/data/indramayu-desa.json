@@ -1,0 +1,2382 @@
+{
+    "kecamatan_list": [
+        "ANJATAN",
+        "ARAHAN",
+        "BALONGAN",
+        "BANGODUA",
+        "BONGAS",
+        "CANTIGI",
+        "CIKEDUNG",
+        "GABUSWETAN",
+        "GANTAR",
+        "HAURGEULIS",
+        "INDRAMAYU",
+        "JATIBARANG",
+        "JUNTINYUAT",
+        "KANDANGHAUR",
+        "KARANGAMPEL",
+        "KEDOKAN BUNDER",
+        "KERTASEMAYA",
+        "KRANGKENG",
+        "KROYA",
+        "LELEA",
+        "LOHBENER",
+        "LOSARANG",
+        "PASEKAN",
+        "PATROL",
+        "SINDANG",
+        "SLIYEG",
+        "SUKAGUMIWANG",
+        "SUKRA",
+        "TERISI",
+        "TUKDANA",
+        "WIDASARI"
+    ],
+    "desa_by_kecamatan": {
+        "ANJATAN": [
+            "ANJATAN",
+            "ANJATAN BARU",
+            "ANJATAN UTARA",
+            "BUGIS",
+            "BUGISTUA",
+            "CILANDAK",
+            "CILANDAK LOR",
+            "KEDUNGWUNGU",
+            "KOPYAH",
+            "LEMPUYANG",
+            "MANGUNJAYA",
+            "SALAMDARMA",
+            "WANGUK"
+        ],
+        "ARAHAN": [
+            "ARAHAN KIDUL",
+            "ARAHAN LOR",
+            "CIDEMPET",
+            "LINGGAJATI",
+            "PRANGGONG",
+            "SUKADADI",
+            "SUKASARI",
+            "TAWANGSARI"
+        ],
+        "BALONGAN": [
+            "BALONGAN",
+            "GELARMENDALA",
+            "MAJAKERTA",
+            "RAWADALEM",
+            "SUDIMAMPIR",
+            "SUDIMAMPIRLOR",
+            "SUKAREJA",
+            "SUKAURIP",
+            "TEGALSEMBADRA",
+            "TEGALURUNG"
+        ],
+        "BANGODUA": [
+            "BANGODUA",
+            "BEDUYUT",
+            "KARANGGETAS",
+            "MALANGSARI",
+            "MULYASARI",
+            "RANCASARI",
+            "TEGALGIRANG",
+            "WANASARI"
+        ],
+        "BONGAS": [
+            "BONGAS",
+            "CIPAAT",
+            "CIPEDANG",
+            "KERTAJAYA",
+            "KERTAMULYA",
+            "MARGAMULYA",
+            "PLAWANGAN",
+            "SIDAMULYA"
+        ],
+        "CANTIGI": [
+            "CANGKRING",
+            "CANTIGI KULON",
+            "CANTIGI WETAN",
+            "CEMARA",
+            "LAMARANTARUNG",
+            "PANYINGKIRAN KIDUL",
+            "PANYINGKIRAN LOR"
+        ],
+        "CIKEDUNG": [
+            "AMIS",
+            "CIKEDUNG",
+            "CIKEDUNG LOR",
+            "JAMBAK",
+            "JATISURA",
+            "LOYANG",
+            "MUNDAKJAYA"
+        ],
+        "GABUSWETAN": [
+            "BABAKANJAYA",
+            "DRUNTEN KULON",
+            "DRUNTEN WETAN",
+            "GABUSKULON",
+            "GABUSWETAN",
+            "KEDOKANGABUS",
+            "KEDUNGDAWA",
+            "RANCAHAN",
+            "RANCAMULYA",
+            "SEKARMULYA"
+        ],
+        "GANTAR": [
+            "BALERAJA",
+            "BANTARWARU",
+            "GANTAR",
+            "MEKARJAYA",
+            "MEKARWARU",
+            "SANCA",
+            "SITURAJA"
+        ],
+        "HAURGEULIS": [
+            "CIPANCUH",
+            "HAURGEULIS",
+            "HAURKOLOT",
+            "KARANGTUMARITIS",
+            "KERTANEGARA",
+            "MEKARJATI",
+            "SIDADADI",
+            "SUKAJATI",
+            "SUMBERMULYA",
+            "WANAKAYA"
+        ],
+        "INDRAMAYU": [
+            "BOJONGSARI",
+            "DUKUH",
+            "KARANGANYAR",
+            "KARANGMALANG",
+            "KARANGSONG",
+            "KEPANDEAN",
+            "LEMAHABANG",
+            "LEMAHMEKAR",
+            "MARGADADI",
+            "PABEANUDIK",
+            "PAOMAN",
+            "PEKANDANGAN",
+            "PEKANDANGAN JAYA",
+            "PLUMBON",
+            "SINGAJAYA",
+            "SINGARAJA",
+            "TAMBAK",
+            "TELUKAGUNG"
+        ],
+        "JATIBARANG": [
+            "BULAK",
+            "BULAK LOR",
+            "JATIBARANG",
+            "JATIBARANG BARU",
+            "JATISAWIT",
+            "JATISAWIT LOR",
+            "KALIMATI",
+            "KEBULEN",
+            "KRASAK",
+            "LOBENER",
+            "LOBENER LOR",
+            "MALANGSEMIRANG",
+            "PAWIDEAN",
+            "PILANGSARI",
+            "SUKALILA"
+        ],
+        "JUNTINYUAT": [
+            "DADAP",
+            "JUNTIKEBON",
+            "JUNTIKEDOKAN",
+            "JUNTINYUAT",
+            "JUNTIWEDEN",
+            "LIMBANGAN",
+            "LOMBANG",
+            "PONDOH",
+            "SAMBIMAYA",
+            "SEGERAN",
+            "SEGERAN KIDUL",
+            "TINUMPUK"
+        ],
+        "KANDANGHAUR": [
+            "BULAK",
+            "CURUG",
+            "ERETAN KULON",
+            "ERETAN WETAN",
+            "ILIR",
+            "KARANGANYAR",
+            "KARANGMULYA",
+            "KERTAWINANGUN",
+            "PAREAN GIRANG",
+            "PRANTI",
+            "SOGE",
+            "WIRAKANAN",
+            "WIRAPANJUNAN"
+        ],
+        "KARANGAMPEL": [
+            "BENDA",
+            "DUKUHJERUK",
+            "DUKUHTENGAH",
+            "KAPLONGANLOR",
+            "KARANGAMPEL",
+            "KARANGAMPEL KIDUL",
+            "MUNDU",
+            "PRINGGACALA",
+            "SENDANG",
+            "TANJUNGPURA",
+            "TANJUNGSARI"
+        ],
+        "KEDOKAN BUNDER": [
+            "CANGKINGAN",
+            "JAYALAKSANA",
+            "JAYAWINANGUN",
+            "KAPLONGAN",
+            "KEDOKAN AGUNG",
+            "KEDOKANBUNDER",
+            "KEDOKANBUNDER WETAN"
+        ],
+        "KERTASEMAYA": [
+            "JAMBE",
+            "JENGKOK",
+            "KERTASEMAYA",
+            "KLIWED",
+            "LARANGANJAMBE",
+            "LEMAHAYU",
+            "MANGUNTARA",
+            "SUKAWERA",
+            "TEGALWIRANGRONG",
+            "TENAJAR",
+            "TENAJAR KIDUL",
+            "TENAJAR LOR",
+            "TULUNGAGUNG"
+        ],
+        "KRANGKENG": [
+            "DUKUHJATI",
+            "KALIANYAR",
+            "KAPRINGAN",
+            "KEDUNGWUNGU",
+            "KRANGKENG",
+            "LUWUNGGESIK",
+            "PURWAJAYA",
+            "SINGAKERTA",
+            "SRENGSENG",
+            "TANJAKAN",
+            "TEGALMULYA"
+        ],
+        "KROYA": [
+            "JAYAMULYA",
+            "KROYA",
+            "SUKAMELANG",
+            "SUKASLAMET",
+            "SUMBERJAYA",
+            "SUMBON",
+            "TANJUNGKERTA",
+            "TEMIYANG",
+            "TEMIYANGSARI"
+        ],
+        "LELEA": [
+            "CEMPEH",
+            "LANGGENGSARI",
+            "LELEA",
+            "NUNUK",
+            "PANGAUBAN",
+            "TAMANSARI",
+            "TELAGASARI",
+            "TEMPEL",
+            "TEMPELKULON",
+            "TUGU",
+            "TUNGGULPAYUNG"
+        ],
+        "LOHBENER": [
+            "BOJONGSLAWI",
+            "KIAJARAN KULON",
+            "KIJARAN WETAN",
+            "LANGUT",
+            "LANJAN",
+            "LARANGAN",
+            "LEGOK",
+            "LOHBENER",
+            "PAMAYAHAN",
+            "RAMBATAN KULON",
+            "SINDANGKERTA",
+            "WARU"
+        ],
+        "LOSARANG": [
+            "CEMARA KULON",
+            "JANGGA",
+            "JUMBLENG",
+            "KRIMUN",
+            "LOSARANG",
+            "MUNTUR",
+            "PANGKALAN",
+            "PEGAGAN",
+            "PUNTANG",
+            "RAJAIYANG",
+            "RANJENG",
+            "SANTING"
+        ],
+        "PASEKAN": [
+            "BRONDONG",
+            "KARANGANYAR",
+            "PABEANILIR",
+            "PAGIRIKAN",
+            "PASEKAN",
+            "TOTORAN"
+        ],
+        "PATROL": [
+            "ARJASARI",
+            "BUGEL",
+            "LIMPAS",
+            "MEKARSARI",
+            "PATROL",
+            "PATROL BARU",
+            "PATROLLOR",
+            "SUKAHAJI"
+        ],
+        "SINDANG": [
+            "BABADAN",
+            "DERMAYU",
+            "KENANGA",
+            "PANYINDANGAN KULON",
+            "PANYINDANGAN WETAN",
+            "PENGANJANG",
+            "RAMBATAN WETAN",
+            "SINDANG",
+            "TERUSAN",
+            "WANANTARA"
+        ],
+        "SLIYEG": [
+            "GADINGAN",
+            "LONGOK",
+            "MAJASARI",
+            "MAJASIH",
+            "MEKARGADING",
+            "SLEMAN",
+            "SLEMAN LOR",
+            "SLIYEG",
+            "SLIYEGLOR",
+            "SUDIKAMPIRAN",
+            "TAMBI",
+            "TAMBI LOR",
+            "TUGU",
+            "TUGU KIDUL"
+        ],
+        "SUKAGUMIWANG": [
+            "BONDAN",
+            "CADANGPINGGAN",
+            "CIBEBER",
+            "GEDANGAN",
+            "GUNUNGSARI",
+            "SUKAGUMIWANG",
+            "TERSANA"
+        ],
+        "SUKRA": [
+            "BOGOR",
+            "KARANGLAYUNG",
+            "SUKRA",
+            "SUKRAWETAN",
+            "SUMURADEM",
+            "SUMURADEM TIMUR",
+            "TEGALTAMAN",
+            "UJUNGGEBANG"
+        ],
+        "TERISI": [
+            "CIBERENG",
+            "CIKAWUNG",
+            "JATIMULYA",
+            "JATIMUNGGUL",
+            "KARANGASEM",
+            "KENDAYAKAN",
+            "MANGGUNGAN",
+            "PLOSOKEREP",
+            "RAJASINGA"
+        ],
+        "TUKDANA": [
+            "BODAS",
+            "CANGKO",
+            "GADEL",
+            "KARANGKERTA",
+            "KERTICALA",
+            "LAJER",
+            "MEKARSARI",
+            "PAGEDANGAN",
+            "RANCAJAWAT",
+            "SUKADANA",
+            "SUKAMULYA",
+            "SUKAPERNA",
+            "TUKDANA"
+        ],
+        "WIDASARI": [
+            "BANGKALOA ILIR",
+            "BUNDER",
+            "KALENSARI",
+            "KASMARAN",
+            "KONGSIJAYA",
+            "LEUWIGEDE",
+            "UJUNGARIS",
+            "UJUNGJAYA",
+            "UJUNGPENDOKJAYA",
+            "WIDASARI"
+        ]
+    },
+    "desa_centroids": {
+        "HAURGEULIS": {
+            "HAURKOLOT": {
+                "lon": 107.954063,
+                "lat": -6.475384,
+                "svgX": 150,
+                "svgY": 808.6
+            },
+            "HAURGEULIS": {
+                "lon": 107.954301,
+                "lat": -6.464708,
+                "svgX": 150.3,
+                "svgY": 793
+            },
+            "SUKAJATI": {
+                "lon": 107.938562,
+                "lat": -6.464499,
+                "svgX": 127.5,
+                "svgY": 792.7
+            },
+            "WANAKAYA": {
+                "lon": 107.916207,
+                "lat": -6.459148,
+                "svgX": 95.1,
+                "svgY": 784.9
+            },
+            "KARANGTUMARITIS": {
+                "lon": 107.896189,
+                "lat": -6.452827,
+                "svgX": 66.1,
+                "svgY": 775.7
+            },
+            "KERTANEGARA": {
+                "lon": 107.922848,
+                "lat": -6.450987,
+                "svgX": 104.7,
+                "svgY": 773
+            },
+            "CIPANCUH": {
+                "lon": 107.941514,
+                "lat": -6.446893,
+                "svgX": 131.8,
+                "svgY": 767
+            },
+            "MEKARJATI": {
+                "lon": 107.958132,
+                "lat": -6.450679,
+                "svgX": 155.9,
+                "svgY": 772.5
+            },
+            "SIDADADI": {
+                "lon": 107.968071,
+                "lat": -6.432728,
+                "svgX": 170.3,
+                "svgY": 746.3
+            },
+            "SUMBERMULYA": {
+                "lon": 107.945797,
+                "lat": -6.422997,
+                "svgX": 138,
+                "svgY": 732.1
+            }
+        },
+        "GANTAR": {
+            "BANTARWARU": {
+                "lon": 107.880137,
+                "lat": -6.568189,
+                "svgX": 42.8,
+                "svgY": 943.9
+            },
+            "SANCA": {
+                "lon": 107.948687,
+                "lat": -6.586407,
+                "svgX": 142.2,
+                "svgY": 970.5
+            },
+            "MEKARJAYA": {
+                "lon": 107.996782,
+                "lat": -6.535242,
+                "svgX": 211.9,
+                "svgY": 895.9
+            },
+            "GANTAR": {
+                "lon": 107.981431,
+                "lat": -6.499706,
+                "svgX": 189.7,
+                "svgY": 844
+            },
+            "SITURAJA": {
+                "lon": 107.95072,
+                "lat": -6.503853,
+                "svgX": 145.1,
+                "svgY": 850.1
+            },
+            "BALERAJA": {
+                "lon": 107.919811,
+                "lat": -6.502681,
+                "svgX": 100.3,
+                "svgY": 848.4
+            },
+            "MEKARWARU": {
+                "lon": 107.911873,
+                "lat": -6.570582,
+                "svgX": 88.8,
+                "svgY": 947.4
+            }
+        },
+        "KROYA": {
+            "SUKASLAMET": {
+                "lon": 108.01913,
+                "lat": -6.552667,
+                "svgX": 244.3,
+                "svgY": 921.3
+            },
+            "TANJUNGKERTA": {
+                "lon": 108.027482,
+                "lat": -6.510992,
+                "svgX": 256.4,
+                "svgY": 860.5
+            },
+            "KROYA": {
+                "lon": 108.062438,
+                "lat": -6.514257,
+                "svgX": 307.1,
+                "svgY": 865.3
+            },
+            "SUMBON": {
+                "lon": 108.085903,
+                "lat": -6.50056,
+                "svgX": 341.1,
+                "svgY": 845.3
+            },
+            "SUKAMELANG": {
+                "lon": 108.063557,
+                "lat": -6.467971,
+                "svgX": 308.7,
+                "svgY": 797.8
+            },
+            "TEMIYANG": {
+                "lon": 108.04189,
+                "lat": -6.479903,
+                "svgX": 277.3,
+                "svgY": 815.2
+            },
+            "TEMIYANGSARI": {
+                "lon": 108.014128,
+                "lat": -6.482078,
+                "svgX": 237.1,
+                "svgY": 818.3
+            },
+            "JAYAMULYA": {
+                "lon": 107.983047,
+                "lat": -6.450378,
+                "svgX": 192,
+                "svgY": 772.1
+            },
+            "SUMBERJAYA": {
+                "lon": 108.018509,
+                "lat": -6.446615,
+                "svgX": 243.4,
+                "svgY": 766.6
+            }
+        },
+        "GABUSWETAN": {
+            "KEDUNGDAWA": {
+                "lon": 108.02675,
+                "lat": -6.433238,
+                "svgX": 255.4,
+                "svgY": 747.1
+            },
+            "BABAKANJAYA": {
+                "lon": 108.035823,
+                "lat": -6.450603,
+                "svgX": 268.5,
+                "svgY": 772.4
+            },
+            "GABUSKULON": {
+                "lon": 108.056613,
+                "lat": -6.430424,
+                "svgX": 298.7,
+                "svgY": 743
+            },
+            "SEKARMULYA": {
+                "lon": 108.082593,
+                "lat": -6.456159,
+                "svgX": 336.3,
+                "svgY": 780.5
+            },
+            "KEDOKANGABUS": {
+                "lon": 108.1092,
+                "lat": -6.460726,
+                "svgX": 374.9,
+                "svgY": 787.2
+            },
+            "RANCAMULYA": {
+                "lon": 108.093325,
+                "lat": -6.439126,
+                "svgX": 351.9,
+                "svgY": 755.7
+            },
+            "RANCAHAN": {
+                "lon": 108.101025,
+                "lat": -6.416973,
+                "svgX": 363,
+                "svgY": 723.4
+            },
+            "GABUSWETAN": {
+                "lon": 108.081728,
+                "lat": -6.41687,
+                "svgX": 335.1,
+                "svgY": 723.2
+            },
+            "DRUNTEN WETAN": {
+                "lon": 108.05677,
+                "lat": -6.391156,
+                "svgX": 298.9,
+                "svgY": 685.7
+            },
+            "DRUNTEN KULON": {
+                "lon": 108.038405,
+                "lat": -6.407251,
+                "svgX": 272.3,
+                "svgY": 709.2
+            }
+        },
+        "CIKEDUNG": {
+            "LOYANG": {
+                "lon": 108.144661,
+                "lat": -6.531686,
+                "svgX": 426.3,
+                "svgY": 890.7
+            },
+            "AMIS": {
+                "lon": 108.158139,
+                "lat": -6.555015,
+                "svgX": 445.8,
+                "svgY": 924.7
+            },
+            "JATISURA": {
+                "lon": 108.193895,
+                "lat": -6.567816,
+                "svgX": 497.7,
+                "svgY": 943.4
+            },
+            "JAMBAK": {
+                "lon": 108.196137,
+                "lat": -6.497584,
+                "svgX": 500.9,
+                "svgY": 841
+            },
+            "CIKEDUNG": {
+                "lon": 108.173142,
+                "lat": -6.496595,
+                "svgX": 467.6,
+                "svgY": 839.5
+            },
+            "CIKEDUNG LOR": {
+                "lon": 108.195839,
+                "lat": -6.473225,
+                "svgX": 500.5,
+                "svgY": 805.4
+            },
+            "MUNDAKJAYA": {
+                "lon": 108.17913,
+                "lat": -6.460761,
+                "svgX": 476.3,
+                "svgY": 787.2
+            }
+        },
+        "TERISI": {
+            "CIKAWUNG": {
+                "lon": 108.034513,
+                "lat": -6.607779,
+                "svgX": 266.6,
+                "svgY": 1001.7
+            },
+            "JATIMUNGGUL": {
+                "lon": 108.111987,
+                "lat": -6.538796,
+                "svgX": 378.9,
+                "svgY": 901.1
+            },
+            "JATIMULYA": {
+                "lon": 108.144373,
+                "lat": -6.498488,
+                "svgX": 425.9,
+                "svgY": 842.3
+            },
+            "PLOSOKEREP": {
+                "lon": 108.127975,
+                "lat": -6.468209,
+                "svgX": 402.1,
+                "svgY": 798.1
+            },
+            "RAJASINGA": {
+                "lon": 108.151454,
+                "lat": -6.471539,
+                "svgX": 436.2,
+                "svgY": 803
+            },
+            "KARANGASEM": {
+                "lon": 108.165305,
+                "lat": -6.47155,
+                "svgX": 456.2,
+                "svgY": 803
+            },
+            "CIBERENG": {
+                "lon": 108.173564,
+                "lat": -6.454393,
+                "svgX": 468.2,
+                "svgY": 777.9
+            },
+            "KENDAYAKAN": {
+                "lon": 108.147319,
+                "lat": -6.446808,
+                "svgX": 430.2,
+                "svgY": 766.9
+            },
+            "MANGGUNGAN": {
+                "lon": 108.126233,
+                "lat": -6.441524,
+                "svgX": 399.6,
+                "svgY": 759.2
+            }
+        },
+        "LELEA": {
+            "TUNGGULPAYUNG": {
+                "lon": 108.21805,
+                "lat": -6.531931,
+                "svgX": 532.7,
+                "svgY": 891.1
+            },
+            "TUGU": {
+                "lon": 108.223119,
+                "lat": -6.498654,
+                "svgX": 540.1,
+                "svgY": 842.5
+            },
+            "NUNUK": {
+                "lon": 108.219194,
+                "lat": -6.479928,
+                "svgX": 534.4,
+                "svgY": 815.2
+            },
+            "TEMPEL": {
+                "lon": 108.210398,
+                "lat": -6.457886,
+                "svgX": 521.6,
+                "svgY": 783
+            },
+            "PANGAUBAN": {
+                "lon": 108.229861,
+                "lat": -6.449689,
+                "svgX": 549.8,
+                "svgY": 771.1
+            },
+            "TELAGASARI": {
+                "lon": 108.233633,
+                "lat": -6.459747,
+                "svgX": 555.3,
+                "svgY": 785.8
+            },
+            "LANGGENGSARI": {
+                "lon": 108.246386,
+                "lat": -6.460017,
+                "svgX": 573.8,
+                "svgY": 786.2
+            },
+            "TAMANSARI": {
+                "lon": 108.251507,
+                "lat": -6.440978,
+                "svgX": 581.2,
+                "svgY": 758.4
+            },
+            "LELEA": {
+                "lon": 108.245697,
+                "lat": -6.423336,
+                "svgX": 572.8,
+                "svgY": 732.6
+            },
+            "CEMPEH": {
+                "lon": 108.214513,
+                "lat": -6.41924,
+                "svgX": 527.6,
+                "svgY": 726.7
+            },
+            "TEMPELKULON": {
+                "lon": 108.206242,
+                "lat": -6.447029,
+                "svgX": 515.6,
+                "svgY": 767.2
+            }
+        },
+        "BANGODUA": {
+            "MULYASARI": {
+                "lon": 108.240121,
+                "lat": -6.529728,
+                "svgX": 564.7,
+                "svgY": 887.8
+            },
+            "BANGODUA": {
+                "lon": 108.333486,
+                "lat": -6.533825,
+                "svgX": 700.1,
+                "svgY": 893.8
+            },
+            "BEDUYUT": {
+                "lon": 108.338202,
+                "lat": -6.52568,
+                "svgX": 706.9,
+                "svgY": 881.9
+            },
+            "KARANGGETAS": {
+                "lon": 108.30168,
+                "lat": -6.513997,
+                "svgX": 654,
+                "svgY": 864.9
+            },
+            "TEGALGIRANG": {
+                "lon": 108.291566,
+                "lat": -6.501877,
+                "svgX": 639.3,
+                "svgY": 847.2
+            },
+            "WANASARI": {
+                "lon": 108.274652,
+                "lat": -6.515241,
+                "svgX": 614.8,
+                "svgY": 866.7
+            },
+            "MALANGSARI": {
+                "lon": 108.248039,
+                "lat": -6.50131,
+                "svgX": 576.2,
+                "svgY": 846.4
+            },
+            "RANCASARI": {
+                "lon": 108.234325,
+                "lat": -6.520113,
+                "svgX": 556.3,
+                "svgY": 873.8
+            }
+        },
+        "TUKDANA": {
+            "BODAS": {
+                "lon": 108.285963,
+                "lat": -6.610408,
+                "svgX": 631.2,
+                "svgY": 1005.5
+            },
+            "GADEL": {
+                "lon": 108.278182,
+                "lat": -6.58898,
+                "svgX": 619.9,
+                "svgY": 974.3
+            },
+            "RANCAJAWAT": {
+                "lon": 108.288705,
+                "lat": -6.57524,
+                "svgX": 635.1,
+                "svgY": 954.2
+            },
+            "KERTICALA": {
+                "lon": 108.276776,
+                "lat": -6.563265,
+                "svgX": 617.8,
+                "svgY": 936.8
+            },
+            "SUKAMULYA": {
+                "lon": 108.240164,
+                "lat": -6.557298,
+                "svgX": 564.8,
+                "svgY": 928.1
+            },
+            "KARANGKERTA": {
+                "lon": 108.273465,
+                "lat": -6.55415,
+                "svgX": 613,
+                "svgY": 923.5
+            },
+            "CANGKO": {
+                "lon": 108.297404,
+                "lat": -6.559422,
+                "svgX": 647.8,
+                "svgY": 931.2
+            },
+            "PAGEDANGAN": {
+                "lon": 108.317404,
+                "lat": -6.556366,
+                "svgX": 676.7,
+                "svgY": 926.7
+            },
+            "SUKAPERNA": {
+                "lon": 108.322392,
+                "lat": -6.545676,
+                "svgX": 684,
+                "svgY": 911.1
+            },
+            "SUKADANA": {
+                "lon": 108.296822,
+                "lat": -6.537245,
+                "svgX": 646.9,
+                "svgY": 898.8
+            },
+            "TUKDANA": {
+                "lon": 108.283785,
+                "lat": -6.541695,
+                "svgX": 628,
+                "svgY": 905.3
+            },
+            "LAJER": {
+                "lon": 108.279722,
+                "lat": -6.530836,
+                "svgX": 622.1,
+                "svgY": 889.5
+            },
+            "MEKARSARI": {
+                "lon": 108.27106,
+                "lat": -6.53384,
+                "svgX": 609.6,
+                "svgY": 893.8
+            }
+        },
+        "WIDASARI": {
+            "BANGKALOA ILIR": {
+                "lon": 108.290428,
+                "lat": -6.483912,
+                "svgX": 637.6,
+                "svgY": 821
+            },
+            "WIDASARI": {
+                "lon": 108.283368,
+                "lat": -6.481986,
+                "svgX": 627.4,
+                "svgY": 818.2
+            },
+            "KALENSARI": {
+                "lon": 108.257773,
+                "lat": -6.492411,
+                "svgX": 590.3,
+                "svgY": 833.4
+            },
+            "BUNDER": {
+                "lon": 108.251568,
+                "lat": -6.480958,
+                "svgX": 581.3,
+                "svgY": 816.7
+            },
+            "UJUNGARIS": {
+                "lon": 108.271614,
+                "lat": -6.462745,
+                "svgX": 610.4,
+                "svgY": 790.1
+            },
+            "KONGSIJAYA": {
+                "lon": 108.284796,
+                "lat": -6.46855,
+                "svgX": 629.5,
+                "svgY": 798.6
+            },
+            "UJUNGJAYA": {
+                "lon": 108.272925,
+                "lat": -6.450011,
+                "svgX": 612.3,
+                "svgY": 771.6
+            },
+            "UJUNGPENDOKJAYA": {
+                "lon": 108.275567,
+                "lat": -6.440725,
+                "svgX": 616.1,
+                "svgY": 758
+            },
+            "LEUWIGEDE": {
+                "lon": 108.280887,
+                "lat": -6.433357,
+                "svgX": 623.8,
+                "svgY": 747.3
+            },
+            "KASMARAN": {
+                "lon": 108.266245,
+                "lat": -6.429285,
+                "svgX": 602.6,
+                "svgY": 741.3
+            }
+        },
+        "KERTASEMAYA": {
+            "TULUNGAGUNG": {
+                "lon": 108.355424,
+                "lat": -6.542277,
+                "svgX": 731.9,
+                "svgY": 906.2
+            },
+            "JENGKOK": {
+                "lon": 108.368613,
+                "lat": -6.540846,
+                "svgX": 751,
+                "svgY": 904.1
+            },
+            "TEGALWIRANGRONG": {
+                "lon": 108.383476,
+                "lat": -6.541437,
+                "svgX": 772.5,
+                "svgY": 904.9
+            },
+            "MANGUNTARA": {
+                "lon": 108.396597,
+                "lat": -6.530305,
+                "svgX": 791.6,
+                "svgY": 888.7
+            },
+            "JAMBE": {
+                "lon": 108.394896,
+                "lat": -6.519333,
+                "svgX": 789.1,
+                "svgY": 872.7
+            },
+            "LEMAHAYU": {
+                "lon": 108.387535,
+                "lat": -6.529962,
+                "svgX": 778.4,
+                "svgY": 888.2
+            },
+            "TENAJAR KIDUL": {
+                "lon": 108.362361,
+                "lat": -6.523253,
+                "svgX": 741.9,
+                "svgY": 878.4
+            },
+            "KERTASEMAYA": {
+                "lon": 108.355439,
+                "lat": -6.527317,
+                "svgX": 731.9,
+                "svgY": 884.3
+            },
+            "KLIWED": {
+                "lon": 108.344813,
+                "lat": -6.514158,
+                "svgX": 716.5,
+                "svgY": 865.1
+            },
+            "TENAJAR": {
+                "lon": 108.366181,
+                "lat": -6.511812,
+                "svgX": 747.5,
+                "svgY": 861.7
+            },
+            "LARANGANJAMBE": {
+                "lon": 108.389491,
+                "lat": -6.50848,
+                "svgX": 781.3,
+                "svgY": 856.8
+            },
+            "TENAJAR LOR": {
+                "lon": 108.361172,
+                "lat": -6.4944,
+                "svgX": 740.2,
+                "svgY": 836.3
+            },
+            "SUKAWERA": {
+                "lon": 108.32949,
+                "lat": -6.517831,
+                "svgX": 694.3,
+                "svgY": 870.5
+            }
+        },
+        "SUKAGUMIWANG": {
+            "CIBEBER": {
+                "lon": 108.301059,
+                "lat": -6.612715,
+                "svgX": 653.1,
+                "svgY": 1008.9
+            },
+            "BONDAN": {
+                "lon": 108.315098,
+                "lat": -6.606172,
+                "svgX": 673.4,
+                "svgY": 999.4
+            },
+            "GUNUNGSARI": {
+                "lon": 108.325444,
+                "lat": -6.580097,
+                "svgX": 688.4,
+                "svgY": 961.3
+            },
+            "SUKAGUMIWANG": {
+                "lon": 108.326241,
+                "lat": -6.572406,
+                "svgX": 689.6,
+                "svgY": 950.1
+            },
+            "TERSANA": {
+                "lon": 108.338799,
+                "lat": -6.557476,
+                "svgX": 707.8,
+                "svgY": 928.3
+            },
+            "CADANGPINGGAN": {
+                "lon": 108.348326,
+                "lat": -6.563193,
+                "svgX": 721.6,
+                "svgY": 936.7
+            },
+            "GEDANGAN": {
+                "lon": 108.347369,
+                "lat": -6.5499,
+                "svgX": 720.2,
+                "svgY": 917.3
+            }
+        },
+        "KRANGKENG": {
+            "PURWAJAYA": {
+                "lon": 108.465684,
+                "lat": -6.561794,
+                "svgX": 891.7,
+                "svgY": 934.6
+            },
+            "KAPRINGAN": {
+                "lon": 108.46112,
+                "lat": -6.542629,
+                "svgX": 885.1,
+                "svgY": 906.7
+            },
+            "SINGAKERTA": {
+                "lon": 108.493496,
+                "lat": -6.538163,
+                "svgX": 932,
+                "svgY": 900.1
+            },
+            "DUKUHJATI": {
+                "lon": 108.479113,
+                "lat": -6.524499,
+                "svgX": 911.2,
+                "svgY": 880.2
+            },
+            "TEGALMULYA": {
+                "lon": 108.453395,
+                "lat": -6.520132,
+                "svgX": 873.9,
+                "svgY": 873.8
+            },
+            "KEDUNGWUNGU": {
+                "lon": 108.452363,
+                "lat": -6.509818,
+                "svgX": 872.4,
+                "svgY": 858.8
+            },
+            "SRENGSENG": {
+                "lon": 108.48191,
+                "lat": -6.509362,
+                "svgX": 915.2,
+                "svgY": 858.1
+            },
+            "LUWUNGGESIK": {
+                "lon": 108.513038,
+                "lat": -6.513306,
+                "svgX": 960.4,
+                "svgY": 863.9
+            },
+            "KALIANYAR": {
+                "lon": 108.505729,
+                "lat": -6.501769,
+                "svgX": 949.8,
+                "svgY": 847.1
+            },
+            "KRANGKENG": {
+                "lon": 108.499877,
+                "lat": -6.488378,
+                "svgX": 941.3,
+                "svgY": 827.5
+            },
+            "TANJAKAN": {
+                "lon": 108.503779,
+                "lat": -6.476853,
+                "svgX": 947,
+                "svgY": 810.7
+            }
+        },
+        "KARANGAMPEL": {
+            "KAPLONGANLOR": {
+                "lon": 108.453047,
+                "lat": -6.484935,
+                "svgX": 873.4,
+                "svgY": 822.5
+            },
+            "TANJUNGPURA": {
+                "lon": 108.469063,
+                "lat": -6.484927,
+                "svgX": 896.6,
+                "svgY": 822.5
+            },
+            "TANJUNGSARI": {
+                "lon": 108.471593,
+                "lat": -6.477006,
+                "svgX": 900.3,
+                "svgY": 810.9
+            },
+            "PRINGGACALA": {
+                "lon": 108.469822,
+                "lat": -6.470354,
+                "svgX": 897.7,
+                "svgY": 801.2
+            },
+            "BENDA": {
+                "lon": 108.464871,
+                "lat": -6.463138,
+                "svgX": 890.5,
+                "svgY": 790.7
+            },
+            "SENDANG": {
+                "lon": 108.458086,
+                "lat": -6.454729,
+                "svgX": 880.7,
+                "svgY": 778.4
+            },
+            "KARANGAMPEL KIDUL": {
+                "lon": 108.449791,
+                "lat": -6.472301,
+                "svgX": 868.7,
+                "svgY": 804.1
+            },
+            "KARANGAMPEL": {
+                "lon": 108.44661,
+                "lat": -6.457705,
+                "svgX": 864.1,
+                "svgY": 782.8
+            },
+            "DUKUHJERUK": {
+                "lon": 108.432902,
+                "lat": -6.476096,
+                "svgX": 844.2,
+                "svgY": 809.6
+            },
+            "DUKUHTENGAH": {
+                "lon": 108.434715,
+                "lat": -6.46182,
+                "svgX": 846.8,
+                "svgY": 788.8
+            },
+            "MUNDU": {
+                "lon": 108.41981,
+                "lat": -6.470402,
+                "svgX": 825.2,
+                "svgY": 801.3
+            }
+        },
+        "KEDOKAN BUNDER": {
+            "KEDOKANBUNDER WETAN": {
+                "lon": 108.423634,
+                "lat": -6.515656,
+                "svgX": 830.8,
+                "svgY": 867.3
+            },
+            "KAPLONGAN": {
+                "lon": 108.447481,
+                "lat": -6.495976,
+                "svgX": 865.3,
+                "svgY": 838.6
+            },
+            "KEDOKAN AGUNG": {
+                "lon": 108.423563,
+                "lat": -6.500467,
+                "svgX": 830.7,
+                "svgY": 845.2
+            },
+            "KEDOKANBUNDER": {
+                "lon": 108.415151,
+                "lat": -6.488315,
+                "svgX": 818.5,
+                "svgY": 827.4
+            },
+            "JAYAWINANGUN": {
+                "lon": 108.405487,
+                "lat": -6.505139,
+                "svgX": 804.4,
+                "svgY": 852
+            },
+            "CANGKINGAN": {
+                "lon": 108.396716,
+                "lat": -6.494907,
+                "svgX": 791.7,
+                "svgY": 837
+            },
+            "JAYALAKSANA": {
+                "lon": 108.389276,
+                "lat": -6.486348,
+                "svgX": 780.9,
+                "svgY": 824.6
+            }
+        },
+        "JUNTINYUAT": {
+            "SEGERAN KIDUL": {
+                "lon": 108.391226,
+                "lat": -6.468431,
+                "svgX": 783.8,
+                "svgY": 798.4
+            },
+            "SEGERAN": {
+                "lon": 108.400486,
+                "lat": -6.452822,
+                "svgX": 797.2,
+                "svgY": 775.7
+            },
+            "JUNTIWEDEN": {
+                "lon": 108.420258,
+                "lat": -6.446623,
+                "svgX": 825.9,
+                "svgY": 766.6
+            },
+            "JUNTIKEBON": {
+                "lon": 108.434453,
+                "lat": -6.443758,
+                "svgX": 846.4,
+                "svgY": 762.4
+            },
+            "DADAP": {
+                "lon": 108.45676,
+                "lat": -6.444717,
+                "svgX": 878.8,
+                "svgY": 763.8
+            },
+            "JUNTINYUAT": {
+                "lon": 108.438883,
+                "lat": -6.428049,
+                "svgX": 852.9,
+                "svgY": 739.5
+            },
+            "JUNTIKEDOKAN": {
+                "lon": 108.424001,
+                "lat": -6.423663,
+                "svgX": 831.3,
+                "svgY": 733.1
+            },
+            "PONDOH": {
+                "lon": 108.399836,
+                "lat": -6.432043,
+                "svgX": 796.3,
+                "svgY": 745.3
+            },
+            "SAMBIMAYA": {
+                "lon": 108.386712,
+                "lat": -6.437612,
+                "svgX": 777.2,
+                "svgY": 753.5
+            },
+            "TINUMPUK": {
+                "lon": 108.391562,
+                "lat": -6.414452,
+                "svgX": 784.3,
+                "svgY": 719.7
+            },
+            "LOMBANG": {
+                "lon": 108.412607,
+                "lat": -6.411678,
+                "svgX": 814.8,
+                "svgY": 715.6
+            },
+            "LIMBANGAN": {
+                "lon": 108.407624,
+                "lat": -6.399325,
+                "svgX": 807.5,
+                "svgY": 697.6
+            }
+        },
+        "SLIYEG": {
+            "SLEMAN": {
+                "lon": 108.332488,
+                "lat": -6.48455,
+                "svgX": 698.6,
+                "svgY": 821.9
+            },
+            "TAMBI": {
+                "lon": 108.346531,
+                "lat": -6.481231,
+                "svgX": 719,
+                "svgY": 817.1
+            },
+            "SUDIKAMPIRAN": {
+                "lon": 108.374921,
+                "lat": -6.480339,
+                "svgX": 760.1,
+                "svgY": 815.8
+            },
+            "TAMBI LOR": {
+                "lon": 108.351179,
+                "lat": -6.476062,
+                "svgX": 725.7,
+                "svgY": 809.6
+            },
+            "SLEMAN LOR": {
+                "lon": 108.329392,
+                "lat": -6.46442,
+                "svgX": 694.1,
+                "svgY": 792.6
+            },
+            "MAJASARI": {
+                "lon": 108.337811,
+                "lat": -6.456771,
+                "svgX": 706.3,
+                "svgY": 781.4
+            },
+            "MAJASIH": {
+                "lon": 108.337014,
+                "lat": -6.444217,
+                "svgX": 705.2,
+                "svgY": 763.1
+            },
+            "SLIYEG": {
+                "lon": 108.360422,
+                "lat": -6.466732,
+                "svgX": 739.1,
+                "svgY": 795.9
+            },
+            "GADINGAN": {
+                "lon": 108.368003,
+                "lat": -6.462603,
+                "svgX": 750.1,
+                "svgY": 789.9
+            },
+            "MEKARGADING": {
+                "lon": 108.368618,
+                "lat": -6.452203,
+                "svgX": 751,
+                "svgY": 774.8
+            },
+            "SLIYEGLOR": {
+                "lon": 108.343873,
+                "lat": -6.437363,
+                "svgX": 715.1,
+                "svgY": 753.1
+            },
+            "TUGU KIDUL": {
+                "lon": 108.362006,
+                "lat": -6.434602,
+                "svgX": 741.4,
+                "svgY": 749.1
+            },
+            "TUGU": {
+                "lon": 108.362007,
+                "lat": -6.422029,
+                "svgX": 741.4,
+                "svgY": 730.7
+            },
+            "LONGOK": {
+                "lon": 108.34531,
+                "lat": -6.404884,
+                "svgX": 717.2,
+                "svgY": 705.7
+            }
+        },
+        "JATIBARANG": {
+            "SUKALILA": {
+                "lon": 108.334996,
+                "lat": -6.509389,
+                "svgX": 702.3,
+                "svgY": 858.2
+            },
+            "PILANGSARI": {
+                "lon": 108.320353,
+                "lat": -6.501363,
+                "svgX": 681,
+                "svgY": 846.5
+            },
+            "JATIBARANG BARU": {
+                "lon": 108.306671,
+                "lat": -6.48213,
+                "svgX": 661.2,
+                "svgY": 818.4
+            },
+            "BULAK": {
+                "lon": 108.316125,
+                "lat": -6.476317,
+                "svgX": 674.9,
+                "svgY": 809.9
+            },
+            "BULAK LOR": {
+                "lon": 108.318173,
+                "lat": -6.460175,
+                "svgX": 677.9,
+                "svgY": 786.4
+            },
+            "JATIBARANG": {
+                "lon": 108.303287,
+                "lat": -6.467208,
+                "svgX": 656.3,
+                "svgY": 796.6
+            },
+            "KEBULEN": {
+                "lon": 108.302804,
+                "lat": -6.45474,
+                "svgX": 655.6,
+                "svgY": 778.5
+            },
+            "PAWIDEAN": {
+                "lon": 108.308018,
+                "lat": -6.438438,
+                "svgX": 663.1,
+                "svgY": 754.7
+            },
+            "JATISAWIT": {
+                "lon": 108.302755,
+                "lat": -6.426209,
+                "svgX": 655.5,
+                "svgY": 736.8
+            },
+            "JATISAWIT LOR": {
+                "lon": 108.300431,
+                "lat": -6.418858,
+                "svgX": 652.1,
+                "svgY": 726.1
+            },
+            "KRASAK": {
+                "lon": 108.306198,
+                "lat": -6.41323,
+                "svgX": 660.5,
+                "svgY": 717.9
+            },
+            "KALIMATI": {
+                "lon": 108.313837,
+                "lat": -6.407616,
+                "svgX": 671.6,
+                "svgY": 709.7
+            },
+            "MALANGSEMIRANG": {
+                "lon": 108.336777,
+                "lat": -6.399346,
+                "svgX": 704.8,
+                "svgY": 697.6
+            },
+            "LOBENER": {
+                "lon": 108.308821,
+                "lat": -6.401338,
+                "svgX": 664.3,
+                "svgY": 700.6
+            },
+            "LOBENER LOR": {
+                "lon": 108.304111,
+                "lat": -6.393743,
+                "svgX": 657.5,
+                "svgY": 689.5
+            }
+        },
+        "BALONGAN": {
+            "TEGALSEMBADRA": {
+                "lon": 108.375234,
+                "lat": -6.388131,
+                "svgX": 760.6,
+                "svgY": 681.3
+            },
+            "SUKAREJA": {
+                "lon": 108.38357,
+                "lat": -6.378534,
+                "svgX": 772.7,
+                "svgY": 667.3
+            },
+            "SUKAURIP": {
+                "lon": 108.37752,
+                "lat": -6.371729,
+                "svgX": 763.9,
+                "svgY": 657.4
+            },
+            "RAWADALEM": {
+                "lon": 108.361533,
+                "lat": -6.376068,
+                "svgX": 740.7,
+                "svgY": 663.7
+            },
+            "GELARMENDALA": {
+                "lon": 108.350687,
+                "lat": -6.381996,
+                "svgX": 725,
+                "svgY": 672.3
+            },
+            "TEGALURUNG": {
+                "lon": 108.368298,
+                "lat": -6.35949,
+                "svgX": 750.5,
+                "svgY": 639.5
+            },
+            "BALONGAN": {
+                "lon": 108.379114,
+                "lat": -6.357998,
+                "svgX": 766.2,
+                "svgY": 637.3
+            },
+            "SUDIMAMPIR": {
+                "lon": 108.374637,
+                "lat": -6.417898,
+                "svgX": 759.7,
+                "svgY": 724.7
+            },
+            "SUDIMAMPIRLOR": {
+                "lon": 108.371454,
+                "lat": -6.399681,
+                "svgX": 755.1,
+                "svgY": 698.1
+            },
+            "MAJAKERTA": {
+                "lon": 108.397623,
+                "lat": -6.390444,
+                "svgX": 793,
+                "svgY": 684.7
+            }
+        },
+        "INDRAMAYU": {
+            "TELUKAGUNG": {
+                "lon": 108.303822,
+                "lat": -6.38609,
+                "svgX": 657.1,
+                "svgY": 678.3
+            },
+            "PLUMBON": {
+                "lon": 108.315685,
+                "lat": -6.382737,
+                "svgX": 674.3,
+                "svgY": 673.4
+            },
+            "DUKUH": {
+                "lon": 108.320589,
+                "lat": -6.374427,
+                "svgX": 681.4,
+                "svgY": 661.3
+            },
+            "PEKANDANGAN JAYA": {
+                "lon": 108.326413,
+                "lat": -6.370397,
+                "svgX": 689.8,
+                "svgY": 655.4
+            },
+            "SINGARAJA": {
+                "lon": 108.357991,
+                "lat": -6.349016,
+                "svgX": 735.6,
+                "svgY": 624.2
+            },
+            "SINGAJAYA": {
+                "lon": 108.349672,
+                "lat": -6.345317,
+                "svgX": 723.5,
+                "svgY": 618.8
+            },
+            "PEKANDANGAN": {
+                "lon": 108.329036,
+                "lat": -6.357,
+                "svgX": 693.6,
+                "svgY": 635.9
+            },
+            "BOJONGSARI": {
+                "lon": 108.318143,
+                "lat": -6.347376,
+                "svgX": 677.8,
+                "svgY": 621.8
+            },
+            "KEPANDEAN": {
+                "lon": 108.325565,
+                "lat": -6.345388,
+                "svgX": 688.6,
+                "svgY": 618.9
+            },
+            "KARANGMALANG": {
+                "lon": 108.330217,
+                "lat": -6.342196,
+                "svgX": 695.3,
+                "svgY": 614.3
+            },
+            "KARANGANYAR": {
+                "lon": 108.332716,
+                "lat": -6.338223,
+                "svgX": 698.9,
+                "svgY": 608.5
+            },
+            "LEMAHMEKAR": {
+                "lon": 108.332985,
+                "lat": -6.334269,
+                "svgX": 699.3,
+                "svgY": 602.7
+            },
+            "LEMAHABANG": {
+                "lon": 108.327469,
+                "lat": -6.329656,
+                "svgX": 691.3,
+                "svgY": 596
+            },
+            "MARGADADI": {
+                "lon": 108.332483,
+                "lat": -6.326096,
+                "svgX": 698.6,
+                "svgY": 590.8
+            },
+            "PAOMAN": {
+                "lon": 108.32433,
+                "lat": -6.320717,
+                "svgX": 686.8,
+                "svgY": 582.9
+            },
+            "KARANGSONG": {
+                "lon": 108.349845,
+                "lat": -6.315197,
+                "svgX": 723.8,
+                "svgY": 574.9
+            },
+            "PABEANUDIK": {
+                "lon": 108.342432,
+                "lat": -6.306214,
+                "svgX": 713,
+                "svgY": 561.8
+            },
+            "TAMBAK": {
+                "lon": 108.351701,
+                "lat": -6.320445,
+                "svgX": 726.5,
+                "svgY": 582.5
+            }
+        },
+        "SINDANG": {
+            "PANYINDANGAN KULON": {
+                "lon": 108.282229,
+                "lat": -6.341284,
+                "svgX": 625.8,
+                "svgY": 612.9
+            },
+            "RAMBATAN WETAN": {
+                "lon": 108.293526,
+                "lat": -6.359922,
+                "svgX": 642.1,
+                "svgY": 640.1
+            },
+            "PANYINDANGAN WETAN": {
+                "lon": 108.305133,
+                "lat": -6.364444,
+                "svgX": 659,
+                "svgY": 646.7
+            },
+            "KENANGA": {
+                "lon": 108.31461,
+                "lat": -6.358686,
+                "svgX": 672.7,
+                "svgY": 638.3
+            },
+            "TERUSAN": {
+                "lon": 108.311033,
+                "lat": -6.346745,
+                "svgX": 667.5,
+                "svgY": 620.9
+            },
+            "DERMAYU": {
+                "lon": 108.309023,
+                "lat": -6.336725,
+                "svgX": 664.6,
+                "svgY": 606.3
+            },
+            "SINDANG": {
+                "lon": 108.305119,
+                "lat": -6.327995,
+                "svgX": 658.9,
+                "svgY": 593.6
+            },
+            "PENGANJANG": {
+                "lon": 108.317491,
+                "lat": -6.32291,
+                "svgX": 676.9,
+                "svgY": 586.1
+            },
+            "BABADAN": {
+                "lon": 108.295612,
+                "lat": -6.309334,
+                "svgX": 645.2,
+                "svgY": 566.3
+            },
+            "WANANTARA": {
+                "lon": 108.302503,
+                "lat": -6.317885,
+                "svgX": 655.1,
+                "svgY": 578.8
+            }
+        },
+        "CANTIGI": {
+            "CANGKRING": {
+                "lon": 108.219138,
+                "lat": -6.289961,
+                "svgX": 534.3,
+                "svgY": 538.1
+            },
+            "CANTIGI KULON": {
+                "lon": 108.234775,
+                "lat": -6.332356,
+                "svgX": 557,
+                "svgY": 599.9
+            },
+            "CANTIGI WETAN": {
+                "lon": 108.246765,
+                "lat": -6.336176,
+                "svgX": 574.3,
+                "svgY": 605.5
+            },
+            "PANYINGKIRAN LOR": {
+                "lon": 108.26401,
+                "lat": -6.331039,
+                "svgX": 599.3,
+                "svgY": 598
+            },
+            "PANYINGKIRAN KIDUL": {
+                "lon": 108.26245,
+                "lat": -6.337096,
+                "svgX": 597.1,
+                "svgY": 606.8
+            },
+            "LAMARANTARUNG": {
+                "lon": 108.246539,
+                "lat": -6.295953,
+                "svgX": 574,
+                "svgY": 546.8
+            },
+            "CEMARA": {
+                "lon": 108.204439,
+                "lat": -6.314798,
+                "svgX": 513,
+                "svgY": 574.3
+            }
+        },
+        "PASEKAN": {
+            "PAGIRIKAN": {
+                "lon": 108.283983,
+                "lat": -6.265882,
+                "svgX": 628.3,
+                "svgY": 503
+            },
+            "PASEKAN": {
+                "lon": 108.28899,
+                "lat": -6.289629,
+                "svgX": 635.6,
+                "svgY": 537.6
+            },
+            "BRONDONG": {
+                "lon": 108.345284,
+                "lat": -6.290364,
+                "svgX": 717.2,
+                "svgY": 538.7
+            },
+            "PABEANILIR": {
+                "lon": 108.325096,
+                "lat": -6.27187,
+                "svgX": 687.9,
+                "svgY": 511.7
+            },
+            "TOTORAN": {
+                "lon": 108.298401,
+                "lat": -6.265662,
+                "svgX": 649.2,
+                "svgY": 502.6
+            },
+            "KARANGANYAR": {
+                "lon": 108.277871,
+                "lat": -6.275946,
+                "svgX": 619.4,
+                "svgY": 517.6
+            }
+        },
+        "LOHBENER": {
+            "KIAJARAN KULON": {
+                "lon": 108.215461,
+                "lat": -6.393554,
+                "svgX": 529,
+                "svgY": 689.2
+            },
+            "KIJARAN WETAN": {
+                "lon": 108.229959,
+                "lat": -6.395667,
+                "svgX": 550,
+                "svgY": 692.3
+            },
+            "LANJAN": {
+                "lon": 108.23165,
+                "lat": -6.415398,
+                "svgX": 552.4,
+                "svgY": 721.1
+            },
+            "LANGUT": {
+                "lon": 108.241674,
+                "lat": -6.396157,
+                "svgX": 567,
+                "svgY": 693
+            },
+            "LARANGAN": {
+                "lon": 108.256748,
+                "lat": -6.401776,
+                "svgX": 588.8,
+                "svgY": 701.2
+            },
+            "WARU": {
+                "lon": 108.262025,
+                "lat": -6.4183,
+                "svgX": 596.5,
+                "svgY": 725.3
+            },
+            "LEGOK": {
+                "lon": 108.281835,
+                "lat": -6.418247,
+                "svgX": 625.2,
+                "svgY": 725.2
+            },
+            "BOJONGSLAWI": {
+                "lon": 108.29088,
+                "lat": -6.429493,
+                "svgX": 638.3,
+                "svgY": 741.6
+            },
+            "LOHBENER": {
+                "lon": 108.278816,
+                "lat": -6.403509,
+                "svgX": 620.8,
+                "svgY": 703.7
+            },
+            "PAMAYAHAN": {
+                "lon": 108.277033,
+                "lat": -6.393605,
+                "svgX": 618.2,
+                "svgY": 689.3
+            },
+            "SINDANGKERTA": {
+                "lon": 108.276829,
+                "lat": -6.386287,
+                "svgX": 617.9,
+                "svgY": 678.6
+            },
+            "RAMBATAN KULON": {
+                "lon": 108.291036,
+                "lat": -6.373248,
+                "svgX": 638.5,
+                "svgY": 659.6
+            }
+        },
+        "ARAHAN": {
+            "SUKASARI": {
+                "lon": 108.251793,
+                "lat": -6.381438,
+                "svgX": 581.6,
+                "svgY": 671.5
+            },
+            "ARAHAN KIDUL": {
+                "lon": 108.271423,
+                "lat": -6.371091,
+                "svgX": 610.1,
+                "svgY": 656.4
+            },
+            "ARAHAN LOR": {
+                "lon": 108.274581,
+                "lat": -6.360219,
+                "svgX": 614.7,
+                "svgY": 640.6
+            },
+            "LINGGAJATI": {
+                "lon": 108.260968,
+                "lat": -6.358704,
+                "svgX": 594.9,
+                "svgY": 638.4
+            },
+            "TAWANGSARI": {
+                "lon": 108.231249,
+                "lat": -6.36486,
+                "svgX": 551.8,
+                "svgY": 647.3
+            },
+            "SUKADADI": {
+                "lon": 108.225673,
+                "lat": -6.358782,
+                "svgX": 543.8,
+                "svgY": 638.5
+            },
+            "PRANGGONG": {
+                "lon": 108.22195,
+                "lat": -6.347789,
+                "svgX": 538.4,
+                "svgY": 622.4
+            },
+            "CIDEMPET": {
+                "lon": 108.254423,
+                "lat": -6.351628,
+                "svgX": 585.4,
+                "svgY": 628
+            }
+        },
+        "LOSARANG": {
+            "RANJENG": {
+                "lon": 108.126041,
+                "lat": -6.425064,
+                "svgX": 399.3,
+                "svgY": 735.2
+            },
+            "KRIMUN": {
+                "lon": 108.160044,
+                "lat": -6.387824,
+                "svgX": 448.6,
+                "svgY": 680.8
+            },
+            "PUNTANG": {
+                "lon": 108.157467,
+                "lat": -6.420703,
+                "svgX": 444.9,
+                "svgY": 728.8
+            },
+            "PEGAGAN": {
+                "lon": 108.160344,
+                "lat": -6.438164,
+                "svgX": 449,
+                "svgY": 754.3
+            },
+            "RAJAIYANG": {
+                "lon": 108.190461,
+                "lat": -6.426902,
+                "svgX": 492.7,
+                "svgY": 737.8
+            },
+            "JANGGA": {
+                "lon": 108.17905,
+                "lat": -6.399362,
+                "svgX": 476.2,
+                "svgY": 697.7
+            },
+            "JUMBLENG": {
+                "lon": 108.180112,
+                "lat": -6.395066,
+                "svgX": 477.7,
+                "svgY": 691.4
+            },
+            "PANGKALAN": {
+                "lon": 108.200936,
+                "lat": -6.390568,
+                "svgX": 507.9,
+                "svgY": 684.8
+            },
+            "LOSARANG": {
+                "lon": 108.156043,
+                "lat": -6.381407,
+                "svgX": 442.8,
+                "svgY": 671.5
+            },
+            "MUNTUR": {
+                "lon": 108.14466,
+                "lat": -6.38576,
+                "svgX": 426.3,
+                "svgY": 677.8
+            },
+            "SANTING": {
+                "lon": 108.136175,
+                "lat": -6.385783,
+                "svgX": 414,
+                "svgY": 677.9
+            },
+            "CEMARA KULON": {
+                "lon": 108.170966,
+                "lat": -6.341672,
+                "svgX": 464.4,
+                "svgY": 613.5
+            }
+        },
+        "KANDANGHAUR": {
+            "CURUG": {
+                "lon": 108.069191,
+                "lat": -6.370386,
+                "svgX": 316.9,
+                "svgY": 655.4
+            },
+            "PRANTI": {
+                "lon": 108.077498,
+                "lat": -6.380868,
+                "svgX": 328.9,
+                "svgY": 670.7
+            },
+            "WIRAKANAN": {
+                "lon": 108.090089,
+                "lat": -6.389402,
+                "svgX": 347.2,
+                "svgY": 683.1
+            },
+            "KARANGMULYA": {
+                "lon": 108.11252,
+                "lat": -6.400697,
+                "svgX": 379.7,
+                "svgY": 699.6
+            },
+            "KARANGANYAR": {
+                "lon": 108.117828,
+                "lat": -6.37764,
+                "svgX": 387.4,
+                "svgY": 666
+            },
+            "WIRAPANJUNAN": {
+                "lon": 108.108009,
+                "lat": -6.371692,
+                "svgX": 373.2,
+                "svgY": 657.3
+            },
+            "PAREAN GIRANG": {
+                "lon": 108.120344,
+                "lat": -6.352079,
+                "svgX": 391.1,
+                "svgY": 628.7
+            },
+            "BULAK": {
+                "lon": 108.10341,
+                "lat": -6.352059,
+                "svgX": 366.5,
+                "svgY": 628.7
+            },
+            "ILIR": {
+                "lon": 108.090937,
+                "lat": -6.345787,
+                "svgX": 348.4,
+                "svgY": 619.5
+            },
+            "SOGE": {
+                "lon": 108.058431,
+                "lat": -6.339257,
+                "svgX": 301.3,
+                "svgY": 610
+            },
+            "ERETAN WETAN": {
+                "lon": 108.088769,
+                "lat": -6.332208,
+                "svgX": 345.3,
+                "svgY": 599.7
+            },
+            "ERETAN KULON": {
+                "lon": 108.060955,
+                "lat": -6.319925,
+                "svgX": 305,
+                "svgY": 581.8
+            },
+            "KERTAWINANGUN": {
+                "lon": 108.0522,
+                "lat": -6.329012,
+                "svgX": 292.3,
+                "svgY": 595
+            }
+        },
+        "BONGAS": {
+            "CIPEDANG": {
+                "lon": 108.00199,
+                "lat": -6.410966,
+                "svgX": 219.5,
+                "svgY": 714.6
+            },
+            "SIDAMULYA": {
+                "lon": 108.015103,
+                "lat": -6.394459,
+                "svgX": 238.5,
+                "svgY": 690.5
+            },
+            "MARGAMULYA": {
+                "lon": 108.041417,
+                "lat": -6.373654,
+                "svgX": 276.6,
+                "svgY": 660.2
+            },
+            "KERTAJAYA": {
+                "lon": 108.02613,
+                "lat": -6.374082,
+                "svgX": 254.5,
+                "svgY": 660.8
+            },
+            "BONGAS": {
+                "lon": 108.001015,
+                "lat": -6.38428,
+                "svgX": 218.1,
+                "svgY": 675.7
+            },
+            "CIPAAT": {
+                "lon": 107.987127,
+                "lat": -6.37916,
+                "svgX": 197.9,
+                "svgY": 668.2
+            },
+            "KERTAMULYA": {
+                "lon": 108.021421,
+                "lat": -6.36136,
+                "svgX": 247.6,
+                "svgY": 642.2
+            },
+            "PLAWANGAN": {
+                "lon": 108.041498,
+                "lat": -6.348559,
+                "svgX": 276.7,
+                "svgY": 623.6
+            }
+        },
+        "ANJATAN": {
+            "MANGUNJAYA": {
+                "lon": 107.902493,
+                "lat": -6.401027,
+                "svgX": 75.2,
+                "svgY": 700.1
+            },
+            "BUGISTUA": {
+                "lon": 107.919086,
+                "lat": -6.410296,
+                "svgX": 99.3,
+                "svgY": 713.6
+            },
+            "BUGIS": {
+                "lon": 107.932708,
+                "lat": -6.379727,
+                "svgX": 119,
+                "svgY": 669
+            },
+            "SALAMDARMA": {
+                "lon": 107.940759,
+                "lat": -6.402401,
+                "svgX": 130.7,
+                "svgY": 702.1
+            },
+            "KEDUNGWUNGU": {
+                "lon": 107.96707,
+                "lat": -6.402065,
+                "svgX": 168.8,
+                "svgY": 701.6
+            },
+            "WANGUK": {
+                "lon": 107.980524,
+                "lat": -6.406354,
+                "svgX": 188.3,
+                "svgY": 707.9
+            },
+            "LEMPUYANG": {
+                "lon": 107.966057,
+                "lat": -6.382785,
+                "svgX": 167.4,
+                "svgY": 673.5
+            },
+            "KOPYAH": {
+                "lon": 107.968738,
+                "lat": -6.366205,
+                "svgX": 171.3,
+                "svgY": 649.3
+            },
+            "ANJATAN BARU": {
+                "lon": 107.945109,
+                "lat": -6.358722,
+                "svgX": 137,
+                "svgY": 638.4
+            },
+            "ANJATAN": {
+                "lon": 107.958549,
+                "lat": -6.350637,
+                "svgX": 156.5,
+                "svgY": 626.6
+            },
+            "CILANDAK": {
+                "lon": 107.931558,
+                "lat": -6.352911,
+                "svgX": 117.4,
+                "svgY": 629.9
+            },
+            "CILANDAK LOR": {
+                "lon": 107.940885,
+                "lat": -6.3297,
+                "svgX": 130.9,
+                "svgY": 596
+            },
+            "ANJATAN UTARA": {
+                "lon": 107.9666,
+                "lat": -6.335359,
+                "svgX": 168.2,
+                "svgY": 604.3
+            }
+        },
+        "SUKRA": {
+            "BOGOR": {
+                "lon": 107.924282,
+                "lat": -6.333121,
+                "svgX": 106.8,
+                "svgY": 601
+            },
+            "SUKRA": {
+                "lon": 107.927686,
+                "lat": -6.301239,
+                "svgX": 111.7,
+                "svgY": 554.5
+            },
+            "UJUNGGEBANG": {
+                "lon": 107.924811,
+                "lat": -6.270042,
+                "svgX": 107.6,
+                "svgY": 509
+            },
+            "TEGALTAMAN": {
+                "lon": 107.951473,
+                "lat": -6.27876,
+                "svgX": 146.2,
+                "svgY": 521.7
+            },
+            "SUKRAWETAN": {
+                "lon": 107.94504,
+                "lat": -6.298013,
+                "svgX": 136.9,
+                "svgY": 549.8
+            },
+            "SUMURADEM": {
+                "lon": 107.96622,
+                "lat": -6.29612,
+                "svgX": 167.6,
+                "svgY": 547.1
+            },
+            "SUMURADEM TIMUR": {
+                "lon": 107.971481,
+                "lat": -6.30401,
+                "svgX": 175.2,
+                "svgY": 558.6
+            },
+            "KARANGLAYUNG": {
+                "lon": 107.958068,
+                "lat": -6.298828,
+                "svgX": 155.8,
+                "svgY": 551
+            }
+        },
+        "PATROL": {
+            "LIMPAS": {
+                "lon": 107.978427,
+                "lat": -6.340942,
+                "svgX": 185.3,
+                "svgY": 612.4
+            },
+            "PATROL": {
+                "lon": 107.994234,
+                "lat": -6.329097,
+                "svgX": 208.2,
+                "svgY": 595.2
+            },
+            "ARJASARI": {
+                "lon": 108.010621,
+                "lat": -6.347722,
+                "svgX": 232,
+                "svgY": 622.3
+            },
+            "SUKAHAJI": {
+                "lon": 108.019682,
+                "lat": -6.319035,
+                "svgX": 245.1,
+                "svgY": 580.5
+            },
+            "BUGEL": {
+                "lon": 108.014719,
+                "lat": -6.32168,
+                "svgX": 237.9,
+                "svgY": 584.3
+            },
+            "PATROLLOR": {
+                "lon": 107.997945,
+                "lat": -6.301544,
+                "svgX": 213.6,
+                "svgY": 555
+            },
+            "PATROL BARU": {
+                "lon": 107.992713,
+                "lat": -6.299303,
+                "svgX": 206,
+                "svgY": 551.7
+            },
+            "MEKARSARI": {
+                "lon": 107.982131,
+                "lat": -6.287669,
+                "svgX": 190.7,
+                "svgY": 534.7
+            }
+        }
+    }
+}

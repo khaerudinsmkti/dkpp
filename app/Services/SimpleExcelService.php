@@ -3041,4 +3041,198 @@ class SimpleExcelService
 
         return Skpg::STATUS_AMAN;
     }
+
+    /**
+     * Export CPPD transactions history to Excel (.xlsx).
+     *
+     * @param  array<int, array{tanggal: string, status: string, status_label: string, kecamatan: string, desa: string, jumlah: float, keterangan: ?string}>  $transactions
+     * @param  array{stok_awal: float, total_pengadaan: float, total_penyaluran: float, total_addendum: float, stok_akhir: float}  $summary
+     */
+    public function exportCppdXlsx(array $transactions, int $year, array $summary): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_cppd_exp_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file export CPPD.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="CPPD '.$year.'" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="6">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FFE11D48"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF059669"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FFD97706"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="7">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFD1FAE5"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEF3C7"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFCBD5E1"/></left>'
+            .'<right style="thin"><color rgb="FFCBD5E1"/></right>'
+            .'<top style="thin"><color rgb="FFCBD5E1"/></top>'
+            .'<bottom style="thin"><color rgb="FFCBD5E1"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="7">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="5" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="14" customWidth="1"/>'
+            .'<col min="3" max="3" width="16" customWidth="1"/>'
+            .'<col min="4" max="4" width="22" customWidth="1"/>'
+            .'<col min="5" max="5" width="22" customWidth="1"/>'
+            .'<col min="6" max="6" width="18" customWidth="1"/>'
+            .'<col min="7" max="7" width="35" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>';
+
+        // Row 1: Title
+        $sheetXml .= '<row r="1" ht="24" customHeight="1">'
+            .'<c r="A1" s="3" t="inlineStr"><is><t>LAPORAN RIWAYAT TRANSAKSI CADANGAN PANGAN PEMERINTAH DAERAH (CPPD)</t></is></c>'
+            .'</row>';
+
+        // Row 2: Subtitle
+        $sheetXml .= '<row r="2" ht="18" customHeight="1">'
+            .'<c r="A2" s="0" t="inlineStr"><is><t>Pemerintah Kabupaten Indramayu - Dinas Ketahanan Pangan dan Pertanian | Tahun Anggaran '.$year.'</t></is></c>'
+            .'</row>';
+
+        // Row 4-9: Ringkasan Neraca
+        $sheetXml .= '<row r="4" ht="18" customHeight="1">'
+            .'<c r="A4" s="1" t="inlineStr"><is><t>Metrik Ringkasan Neraca</t></is></c>'
+            .'<c r="B4" s="1" t="inlineStr"><is><t>Jumlah (Kg)</t></is></c>'
+            .'</row>'
+            .'<row r="5"><c r="A5" s="2" t="inlineStr"><is><t>Stok Awal Tahun</t></is></c><c r="B5" s="2"><v>'.(float) ($summary['stok_awal'] ?? 0).'</v></c></row>'
+            .'<row r="6"><c r="A6" s="2" t="inlineStr"><is><t>Total Pengadaan</t></is></c><c r="B6" s="2"><v>'.(float) ($summary['total_pengadaan'] ?? 0).'</v></c></row>'
+            .'<row r="7"><c r="A7" s="2" t="inlineStr"><is><t>Total Penyaluran</t></is></c><c r="B7" s="2"><v>'.(float) ($summary['total_penyaluran'] ?? 0).'</v></c></row>'
+            .'<row r="8"><c r="A8" s="2" t="inlineStr"><is><t>Total Addendum</t></is></c><c r="B8" s="2"><v>'.(float) ($summary['total_addendum'] ?? 0).'</v></c></row>'
+            .'<row r="9"><c r="A9" s="1" t="inlineStr"><is><t>Stok Akhir CPPD</t></is></c><c r="B9" s="1"><v>'.(float) ($summary['stok_akhir'] ?? 0).'</v></c></row>';
+
+        // Row 11: Table Header
+        $sheetXml .= '<row r="11" ht="24" customHeight="1">'
+            .'<c r="A11" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B11" s="1" t="inlineStr"><is><t>Tanggal</t></is></c>'
+            .'<c r="C11" s="1" t="inlineStr"><is><t>Jenis Mutasi</t></is></c>'
+            .'<c r="D11" s="1" t="inlineStr"><is><t>Kecamatan</t></is></c>'
+            .'<c r="E11" s="1" t="inlineStr"><is><t>Desa</t></is></c>'
+            .'<c r="F11" s="1" t="inlineStr"><is><t>Volume (Kg)</t></is></c>'
+            .'<c r="G11" s="1" t="inlineStr"><is><t>Keterangan</t></is></c>'
+            .'</row>';
+
+        $rowIdx = 12;
+        $totalVolume = 0;
+        foreach ($transactions as $idx => $t) {
+            $no = $idx + 1;
+            $tgl = htmlspecialchars((string) ($t['tanggal'] ?? ''), ENT_XML1, 'UTF-8');
+            $status = (string) ($t['status'] ?? '');
+            $statusLabel = htmlspecialchars((string) ($t['status_label'] ?? ucfirst($status)), ENT_XML1, 'UTF-8');
+            $statusStyle = match ($status) {
+                'penyaluran' => 4,
+                'pengadaan' => 5,
+                'addendum' => 6,
+                default => 2,
+            };
+            $kec = htmlspecialchars((string) ($t['kecamatan'] ?? ''), ENT_XML1, 'UTF-8');
+            $desa = htmlspecialchars((string) ($t['desa'] ?? ''), ENT_XML1, 'UTF-8');
+            $volume = (float) ($t['jumlah'] ?? 0);
+            $totalVolume += $volume;
+            $ket = htmlspecialchars((string) ($t['keterangan'] ?? ''), ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$no.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$tgl.'</t></is></c>'
+                .'<c r="C'.$rowIdx.'" s="'.$statusStyle.'" t="inlineStr"><is><t>'.$statusLabel.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$kec.'</t></is></c>'
+                .'<c r="E'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$desa.'</t></is></c>'
+                .'<c r="F'.$rowIdx.'" s="2"><v>'.$volume.'</v></c>'
+                .'<c r="G'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ket.'</t></is></c>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        // Summary row
+        $sheetXml .= '<row r="'.$rowIdx.'" ht="20" customHeight="1">'
+            .'<c r="A'.$rowIdx.'" s="1" t="inlineStr"><is><t>Total</t></is></c>'
+            .'<c r="B'.$rowIdx.'" s="1"/>'
+            .'<c r="C'.$rowIdx.'" s="1"/>'
+            .'<c r="D'.$rowIdx.'" s="1"/>'
+            .'<c r="E'.$rowIdx.'" s="1"/>'
+            .'<c r="F'.$rowIdx.'" s="1"><v>'.$totalVolume.'</v></c>'
+            .'<c r="G'.$rowIdx.'" s="1" t="inlineStr"><is><t>Akumulasi Volume Transaksi</t></is></c>'
+            .'</row>';
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file export CPPD XLSX.');
+        }
+
+        return $content;
+    }
 }

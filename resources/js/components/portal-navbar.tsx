@@ -5,6 +5,7 @@ import {
     Layers,
     MapPin,
     Menu,
+    Package,
     PieChart,
     ShieldCheck,
     Store,
@@ -14,7 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { dashboard, login, register } from '@/routes';
 
-export type PortalActivePage = 'ikp' | 'skpg' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
+export type PortalActivePage = 'ikp' | 'skpg' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
 
 interface PortalNavbarProps {
     activePage: PortalActivePage;
@@ -48,6 +49,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
 
     const isIkpActive = activePage === 'ikp';
     const isSkpgActive = activePage === 'skpg';
+    const isCppdActive = activePage === 'cppd';
     const isNeracaActive = activePage === 'neraca-pangan';
     const isPphActive = activePage === 'pph';
     const isHargaKonsumenActive = activePage === 'harga-konsumen';
@@ -55,6 +57,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
     const isAnyActive =
         isIkpActive ||
         isSkpgActive ||
+        isCppdActive ||
         isNeracaActive ||
         isPphActive ||
         isHargaKonsumenActive ||
@@ -214,6 +217,49 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                             </div>
                                             <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
                                                 Sistem Peringatan Dini Kerawanan Pangan (Peta 31 Kec.)
+                                            </p>
+                                        </div>
+                                    </Link>
+
+                                    {/* Submenu: CPPD */}
+                                    <Link
+                                        href="/cppd"
+                                        onClick={() => setDropdownMenuOpen(false)}
+                                        className={`group mt-1 flex items-start gap-3 rounded-xl p-2.5 transition-all ${
+                                            isCppdActive
+                                                ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/40 text-slate-900 border border-emerald-500/25 dark:from-emerald-950/40 dark:to-teal-950/20 dark:text-white dark:border-emerald-500/30'
+                                                : 'hover:bg-slate-50 border border-transparent dark:hover:bg-slate-800'
+                                        }`}
+                                    >
+                                        <div
+                                            className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
+                                                isCppdActive
+                                                    ? 'bg-gradient-to-br from-[#006565] to-emerald-700 text-white'
+                                                    : 'bg-emerald-100 text-[#006565] group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-emerald-400'
+                                            }`}
+                                        >
+                                            <Package className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <span
+                                                    className={`text-xs font-bold ${
+                                                        isCppdActive
+                                                            ? 'text-[#006565] dark:text-emerald-400'
+                                                            : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-emerald-400'
+                                                    }`}
+                                                >
+                                                    CPPD
+                                                </span>
+                                                {isCppdActive && (
+                                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                                        Aktif
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
+                                                Cadangan Pangan Pemerintah Daerah (Stok &amp; Penyaluran)
                                             </p>
                                         </div>
                                     </Link>
@@ -532,6 +578,27 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                 <span>SKPG (Peta 31 Kec.)</span>
                                             </div>
                                             {isSkpgActive && (
+                                                <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                                    Aktif
+                                                </span>
+                                            )}
+                                        </Link>
+
+                                        {/* Submenu: CPPD */}
+                                        <Link
+                                            href="/cppd"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                                                isCppdActive
+                                                    ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                                    : 'text-slate-700 hover:bg-white hover:text-[#006565] dark:text-slate-300 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <Package className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                                <span>CPPD (Cadangan Pangan)</span>
+                                            </div>
+                                            {isCppdActive && (
                                                 <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
                                                     Aktif
                                                 </span>

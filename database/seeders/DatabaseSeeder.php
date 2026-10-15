@@ -33,6 +33,7 @@ class DatabaseSeeder extends Seeder
             ProducerPriceSeeder::class,
             FoodBalanceSeeder::class,
             SkpgSeeder::class,
+            CppdSeeder::class,
         ]);
     }
 }
