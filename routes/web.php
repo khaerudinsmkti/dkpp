@@ -250,6 +250,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Modul SKPG (Sistem Peringatan Dini Kerawanan Pangan dan Gizi)
     Route::get('/skpg-admin', [SkpgController::class, 'index'])->name('skpg.index');
+    Route::get('/skpg-admin/template', [SkpgController::class, 'downloadTemplate'])->name('skpg.template');
+    Route::get('/skpg-admin/export', [SkpgController::class, 'exportExcel'])->name('skpg.export');
+    Route::post('/skpg-admin/import', [SkpgController::class, 'import'])->name('skpg.import');
     Route::post('/skpg-admin', [SkpgController::class, 'store'])->name('skpg.store');
     Route::post('/skpg-admin/bulk', [SkpgController::class, 'bulkStore'])->name('skpg.bulk-store');
     Route::put('/skpg-admin/{skpg}', [SkpgController::class, 'update'])->name('skpg.update');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Skpg;
+use App\Services\SimpleExcelService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class SkpgController extends Controller
 {
@@ -428,6 +430,137 @@ class SkpgController extends Controller
         $monthName = $this->getMonthName($month);
 
         return back()->with('success', "Berhasil menyimpan dan memperbarui data bulk SKPG 31 kecamatan periode {$monthName} {$year}.");
+    }
+
+    /**
+     * Download Excel or CSV template for SKPG input.
+     */
+    public function downloadTemplate(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $year = (int) $request->query('year', now()->year);
+        $month = (int) $request->query('month', now()->month);
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+
+        // Optionally fetch existing records for this period
+        $existing = Skpg::where('year', $year)
+            ->where('month', $month)
+            ->get()
+            ->keyBy(fn (Skpg $item) => Skpg::normalizeName($item->kecamatan))
+            ->toArray();
+
+        $filenameBase = "template_skpg_indramayu_{$year}_{$month}";
+
+        if ($format === 'csv') {
+            $csv = $excelService->generateSkpgCsvTemplate($year, $month, $existing);
+
+            return response($csv, 200, [
+                'Content-Type' => 'text/csv; charset=UTF-8',
+                'Content-Disposition' => "attachment; filename=\"{$filenameBase}.csv\"",
+            ]);
+        }
+
+        $xlsx = $excelService->generateSkpgXlsxTemplate($year, $month, $existing);
+
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filenameBase}.xlsx\"",
+        ]);
+    }
+
+    /**
+     * Export current month SKPG data to Excel.
+     */
+    public function exportExcel(Request $request, SimpleExcelService $excelService): SymfonyResponse
+    {
+        $year = (int) $request->query('year', now()->year);
+        $month = (int) $request->query('month', now()->month);
+
+        $records = Skpg::where('year', $year)
+            ->where('month', $month)
+            ->get()
+            ->toArray();
+
+        $xlsx = $excelService->exportSkpgXlsx($year, $month, $records);
+        $filename = "data_skpg_indramayu_{$year}_{$month}.xlsx";
+
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Import SKPG data from uploaded Excel or CSV.
+     */
+    public function import(Request $request, SimpleExcelService $excelService): RedirectResponse
+    {
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+            'year' => ['required', 'integer', 'min:2000', 'max:2100'],
+            'month' => ['required', 'integer', 'min:1', 'max:12'],
+        ]);
+
+        $file = $request->file('file');
+        if (! $file) {
+            return back()->withErrors(['file' => 'Berkas tidak ditemukan.']);
+        }
+
+        $extension = $file->getClientOriginalExtension();
+        $allowed = ['xlsx', 'csv', 'txt', 'xls', 'tsv'];
+        if (! in_array(strtolower($extension), $allowed, true)) {
+            return back()->withErrors(['file' => 'Format berkas tidak didukung. Harap unggah berkas .xlsx, .csv, atau .tsv.']);
+        }
+
+        try {
+            $rawRows = $excelService->parseFile($file->getRealPath(), $extension);
+        } catch (\Throwable $e) {
+            return back()->withErrors(['file' => 'Gagal membaca berkas: '.$e->getMessage()]);
+        }
+
+        $matchedResult = $excelService->matchSkpgRows($rawRows);
+        $matchedRows = $matchedResult['matched'];
+
+        if (empty($matchedRows)) {
+            return back()->withErrors(['file' => 'Tidak ada baris data kecamatan yang cocok ditemukan dalam berkas Excel. Pastikan nama kecamatan atau urutan nomor sesuai template resmi SKPG.']);
+        }
+
+        $year = (int) $validated['year'];
+        $month = (int) $validated['month'];
+        $userId = $request->user()?->id;
+
+        $savedCount = 0;
+
+        DB::transaction(function () use ($matchedRows, $year, $month, $userId, &$savedCount) {
+            foreach ($matchedRows as $row) {
+                $kecName = $row['kecamatan'];
+                $code = Skpg::KECAMATAN_CODES[$kecName] ?? null;
+
+                Skpg::updateOrCreate(
+                    [
+                        'kecamatan' => $kecName,
+                        'year' => $year,
+                        'month' => $month,
+                    ],
+                    [
+                        'kode_kecamatan' => $code,
+                        'ik' => $row['ik'],
+                        'ia' => $row['ia'],
+                        'ip' => $row['ip'],
+                        'ikb' => $row['ikb'],
+                        'potensi_kering' => $row['potensi_kering'],
+                        'potensi_basah' => $row['potensi_basah'],
+                        'kondisi_iklim' => $row['kondisi_iklim'],
+                        'keterangan' => $row['keterangan'] ?? null,
+                        'created_by' => $userId,
+                    ]
+                );
+                $savedCount++;
+            }
+        });
+
+        $monthName = $this->getMonthName($month);
+
+        return back()->with('success', "Berhasil mengimpor data {$savedCount} kecamatan untuk SKPG periode {$monthName} {$year}.");
     }
 
     /**

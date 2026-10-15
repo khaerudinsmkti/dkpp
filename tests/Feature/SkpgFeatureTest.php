@@ -2,6 +2,7 @@
 
 use App\Models\Skpg;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 
 test('public page for skpg is displayed with map data, hero summary, and indicators', function () {
     $response = $this->get('/skpg');
@@ -154,4 +155,55 @@ test('public page supports climate indicators with SIAGA and AWAS status breakdo
         ->has('summary.count_siaga')
         ->has('summary.count_awas')
     );
+});
+
+test('authenticated user can download skpg xlsx and csv template', function () {
+    $user = User::factory()->create();
+
+    $xlsxRes = $this->actingAs($user)->get('/skpg-admin/template?year=2026&month=4&format=xlsx');
+    $xlsxRes->assertOk();
+    $xlsxRes->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    $csvRes = $this->actingAs($user)->get('/skpg-admin/template?year=2026&month=4&format=csv');
+    $csvRes->assertOk();
+    $csvRes->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+});
+
+test('authenticated user can export skpg records to excel', function () {
+    $user = User::factory()->create();
+
+    $res = $this->actingAs($user)->get('/skpg-admin/export?year=2026&month=4');
+    $res->assertOk();
+    $res->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+});
+
+test('authenticated user can import skpg data from csv file', function () {
+    $user = User::factory()->create();
+    $testYear = 2035;
+    $testMonth = 8;
+
+    Skpg::where('year', $testYear)->where('month', $testMonth)->delete();
+
+    $csvContent = "\xEF\xBB\xBFNo;Kecamatan;Kode BPS;IK;IA;IP;IKB;Potensi Kering;Potensi Basah;Kondisi Iklim;Keterangan\r\n";
+    $csvContent .= "1;HAURGEULIS;3212010;WASPADA;AMAN;RENTAN;WASPADA;SIAGA;AMAN;AWAS;Catatan Haurgeulis Import\r\n";
+    $csvContent .= "2;GANTAR;3212011;AMAN;AMAN;AMAN;AMAN;AMAN;AMAN;AMAN;Catatan Gantar\r\n";
+
+    $file = UploadedFile::fake()->createWithContent('import_skpg.csv', $csvContent);
+
+    $response = $this->actingAs($user)->post('/skpg-admin/import', [
+        'year' => $testYear,
+        'month' => $testMonth,
+        'file' => $file,
+    ]);
+
+    $response->assertSessionHas('success');
+
+    $haurgeulis = Skpg::where('year', $testYear)->where('month', $testMonth)->where('kecamatan', 'HAURGEULIS')->first();
+    expect($haurgeulis)->not->toBeNull();
+    expect($haurgeulis->ik)->toBe('WASPADA');
+    expect($haurgeulis->ia)->toBe('AMAN');
+    expect($haurgeulis->ip)->toBe('RENTAN');
+    expect($haurgeulis->potensi_kering)->toBe('SIAGA');
+    expect($haurgeulis->kondisi_iklim)->toBe('AWAS');
+    expect($haurgeulis->keterangan)->toBe('Catatan Haurgeulis Import');
 });

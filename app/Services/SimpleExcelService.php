@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Commodity;
 use App\Models\FoodBalanceCommodity;
 use App\Models\ProducerPrice;
+use App\Models\Skpg;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use ZipArchive;
@@ -2580,5 +2581,464 @@ class SimpleExcelService
             'skipped_count' => $skippedCount,
             'total_detected' => count($matched),
         ];
+    }
+
+    /**
+     * Generate an Excel .xlsx binary string for SKPG 31 Kecamatan template.
+     *
+     * @param  array<string, mixed>  $existingData
+     */
+    public function generateSkpgXlsxTemplate(int $year, int $month, array $existingData = []): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_skpg_tmpl_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk template Excel SKPG.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="SKPG '.$month.'-'.$year.'" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="4">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'<font><i/><sz val="9"/><color rgb="FF6B7280"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="4">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFE6F4EA"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="4">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="22" customWidth="1"/>'
+            .'<col min="3" max="3" width="14" customWidth="1"/>'
+            .'<col min="4" max="4" width="18" customWidth="1"/>'
+            .'<col min="5" max="5" width="18" customWidth="1"/>'
+            .'<col min="6" max="6" width="18" customWidth="1"/>'
+            .'<col min="7" max="7" width="18" customWidth="1"/>'
+            .'<col min="8" max="8" width="18" customWidth="1"/>'
+            .'<col min="9" max="9" width="18" customWidth="1"/>'
+            .'<col min="10" max="10" width="18" customWidth="1"/>'
+            .'<col min="11" max="11" width="30" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>'
+            .'<row r="1" ht="26" customHeight="1">'
+            .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B1" s="1" t="inlineStr"><is><t>Kecamatan</t></is></c>'
+            .'<c r="C1" s="1" t="inlineStr"><is><t>Kode BPS</t></is></c>'
+            .'<c r="D1" s="1" t="inlineStr"><is><t>IK (Ketersediaan)</t></is></c>'
+            .'<c r="E1" s="1" t="inlineStr"><is><t>IA (Akses)</t></is></c>'
+            .'<c r="F1" s="1" t="inlineStr"><is><t>IP (Pemanfaatan)</t></is></c>'
+            .'<c r="G1" s="1" t="inlineStr"><is><t>IKB (Komposit)</t></is></c>'
+            .'<c r="H1" s="1" t="inlineStr"><is><t>Potensi Kering</t></is></c>'
+            .'<c r="I1" s="1" t="inlineStr"><is><t>Potensi Basah</t></is></c>'
+            .'<c r="J1" s="1" t="inlineStr"><is><t>Kondisi Iklim</t></is></c>'
+            .'<c r="K1" s="1" t="inlineStr"><is><t>Keterangan</t></is></c>'
+            .'</row>';
+
+        $rowIdx = 2;
+        foreach (Skpg::KECAMATAN_LIST as $idx => $kecName) {
+            $orderNo = $idx + 1;
+            $code = Skpg::KECAMATAN_CODES[$kecName] ?? '';
+            $norm = Skpg::normalizeName($kecName);
+            $rec = $existingData[$norm] ?? null;
+
+            $ik = $rec['ik'] ?? Skpg::STATUS_AMAN;
+            $ia = $rec['ia'] ?? Skpg::STATUS_AMAN;
+            $ip = $rec['ip'] ?? Skpg::STATUS_AMAN;
+            $ikb = $rec['ikb'] ?? Skpg::STATUS_AMAN;
+            $potKering = $rec['potensi_kering'] ?? Skpg::STATUS_AMAN;
+            $potBasah = $rec['potensi_basah'] ?? Skpg::STATUS_AMAN;
+            $kondIklim = $rec['kondisi_iklim'] ?? Skpg::STATUS_AMAN;
+            $ket = htmlspecialchars($rec['keterangan'] ?? '', ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$orderNo.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$kecName.'</t></is></c>'
+                .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$code.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ik.'</t></is></c>'
+                .'<c r="E'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ia.'</t></is></c>'
+                .'<c r="F'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ip.'</t></is></c>'
+                .'<c r="G'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ikb.'</t></is></c>'
+                .'<c r="H'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$potKering.'</t></is></c>'
+                .'<c r="I'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$potBasah.'</t></is></c>'
+                .'<c r="J'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$kondIklim.'</t></is></c>'
+                .'<c r="K'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ket.'</t></is></c>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file template XLSX SKPG.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Generate a CSV string for SKPG template.
+     *
+     * @param  array<string, mixed>  $existingData
+     */
+    public function generateSkpgCsvTemplate(int $year, int $month, array $existingData = []): string
+    {
+        $output = "\xEF\xBB\xBF";
+        $output .= "No;Kecamatan;Kode BPS;IK;IA;IP;IKB;Potensi Kering;Potensi Basah;Kondisi Iklim;Keterangan\r\n";
+
+        foreach (Skpg::KECAMATAN_LIST as $idx => $kecName) {
+            $orderNo = $idx + 1;
+            $code = Skpg::KECAMATAN_CODES[$kecName] ?? '';
+            $norm = Skpg::normalizeName($kecName);
+            $rec = $existingData[$norm] ?? null;
+
+            $ik = $rec['ik'] ?? Skpg::STATUS_AMAN;
+            $ia = $rec['ia'] ?? Skpg::STATUS_AMAN;
+            $ip = $rec['ip'] ?? Skpg::STATUS_AMAN;
+            $ikb = $rec['ikb'] ?? Skpg::STATUS_AMAN;
+            $potKering = $rec['potensi_kering'] ?? Skpg::STATUS_AMAN;
+            $potBasah = $rec['potensi_basah'] ?? Skpg::STATUS_AMAN;
+            $kondIklim = $rec['kondisi_iklim'] ?? Skpg::STATUS_AMAN;
+            $ket = str_replace('"', '""', $rec['keterangan'] ?? '');
+
+            $line = [
+                $orderNo,
+                $kecName,
+                $code,
+                $ik,
+                $ia,
+                $ip,
+                $ikb,
+                $potKering,
+                $potBasah,
+                $kondIklim,
+                "\"{$ket}\"",
+            ];
+            $output .= implode(';', $line)."\r\n";
+        }
+
+        return $output;
+    }
+
+    /**
+     * Export completed monthly SKPG data to Excel.
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     */
+    public function exportSkpgXlsx(int $year, int $month, array $records): string
+    {
+        $byKec = [];
+        foreach ($records as $r) {
+            $norm = Skpg::normalizeName($r['kecamatan'] ?? '');
+            $byKec[$norm] = $r;
+        }
+
+        return $this->generateSkpgXlsxTemplate($year, $month, $byKec);
+    }
+
+    /**
+     * Match and parse SKPG rows from Excel/CSV.
+     * Supports full 11-column template, 8-column format (Kecamatan + 7 Status),
+     * or sequential 7 status columns.
+     *
+     * @param  array<int, array<int, mixed>>  $rawRows
+     * @return array{matched: array<int, array<string, mixed>>, skipped_count: int, total_detected: int}
+     */
+    public function matchSkpgRows(array $rawRows): array
+    {
+        if (empty($rawRows)) {
+            return [
+                'matched' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        // Clean kecamatan map for fast lookup
+        $kecLookup = [];
+        foreach (Skpg::KECAMATAN_LIST as $idx => $name) {
+            $clean = strtoupper(trim(preg_replace('/[^A-Za-z0-9]/', '', $name)));
+            $kecLookup[$clean] = $name;
+        }
+        $kecLookup['TERISI'] = 'TRISI';
+        $kecLookup['KECTERISI'] = 'TRISI';
+        $kecLookup['KECTRISI'] = 'TRISI';
+
+        // Check if row 0 or 1 is header
+        $headerKeywords = ['kecamatan', 'ketersediaan', 'komposit', 'ikb', 'akses', 'pemanfaatan', 'potensi'];
+        $dataRows = [];
+
+        foreach ($rawRows as $rIdx => $row) {
+            $rowStr = strtolower(implode(' ', array_map('strval', $row)));
+            $isHeader = false;
+            foreach ($headerKeywords as $kw) {
+                if (str_contains($rowStr, $kw)) {
+                    $isHeader = true;
+                    break;
+                }
+            }
+            if ($isHeader && $rIdx <= 2) {
+                continue;
+            }
+
+            // Check if non-empty
+            $hasContent = false;
+            foreach ($row as $cell) {
+                if (trim((string) $cell) !== '') {
+                    $hasContent = true;
+                    break;
+                }
+            }
+            if ($hasContent) {
+                $dataRows[] = $row;
+            }
+        }
+
+        if (empty($dataRows)) {
+            return [
+                'matched' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        $matched = [];
+        $skippedCount = 0;
+        $matchedKecamatans = [];
+
+        foreach ($dataRows as $rowIdx => $row) {
+            $cells = array_values(array_map(fn ($c) => trim((string) $c), $row));
+
+            // 1. Identify Kecamatan
+            $foundKec = null;
+
+            // Search by kecamatan name or code in cells
+            foreach ($cells as $cell) {
+                $cleanCell = strtoupper(trim(preg_replace('/[^A-Za-z0-9]/', '', $cell)));
+                if (isset($kecLookup[$cleanCell])) {
+                    $foundKec = $kecLookup[$cleanCell];
+                    break;
+                }
+
+                // Check BPS code match
+                if (preg_match('/^3212\d{3}$/', $cell)) {
+                    foreach (Skpg::KECAMATAN_CODES as $kName => $kCode) {
+                        if ($kCode === $cell) {
+                            $foundKec = $kName;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            // If not found by name/code, check if first cell is row number (1-31)
+            if (! $foundKec && isset($cells[0]) && is_numeric($cells[0])) {
+                $num = (int) $cells[0];
+                if ($num >= 1 && $num <= count(Skpg::KECAMATAN_LIST)) {
+                    $foundKec = Skpg::KECAMATAN_LIST[$num - 1] ?? null;
+                }
+            }
+
+            // Fallback by sequential line order if still within 31
+            if (! $foundKec && $rowIdx < count(Skpg::KECAMATAN_LIST)) {
+                $candidate = Skpg::KECAMATAN_LIST[$rowIdx];
+                if (! in_array($candidate, $matchedKecamatans, true)) {
+                    $foundKec = $candidate;
+                }
+            }
+
+            if (! $foundKec) {
+                $skippedCount++;
+
+                continue;
+            }
+
+            // 2. Extract Statuses
+            // Remove row number, subdistrict name, and code cells from status candidates
+            $statusCandidates = [];
+            $keterangan = null;
+
+            foreach ($cells as $cIdx => $cell) {
+                $cleanCell = strtoupper(trim(preg_replace('/[^A-Za-z0-9]/', '', $cell)));
+
+                // Skip if this cell is the subdistrict name or code or row index
+                if ($cell === $foundKec || isset($kecLookup[$cleanCell]) && $kecLookup[$cleanCell] === $foundKec) {
+                    continue;
+                }
+                if (preg_match('/^3212\d{3}$/', $cell)) {
+                    continue;
+                }
+                if ($cIdx === 0 && is_numeric($cell) && (int) $cell <= 31) {
+                    continue;
+                }
+
+                // Check if this looks like a status value
+                $isStatus = in_array(strtoupper($cell), Skpg::ALL_STATUSES, true)
+                    || in_array(strtoupper($cell), ['HIJAU', 'KUNING', 'MERAH', 'ORANGE', 'JINGGA', 'NORMAL', '1', '2', '3', '4'], true);
+
+                if ($isStatus) {
+                    $statusCandidates[] = $cell;
+                } elseif (strlen($cell) > 2) {
+                    // Possible keterangan if cell is at the end
+                    $keterangan = $cell;
+                }
+            }
+
+            // Map the 7 statuses: IK, IA, IP, IKB, Potensi Kering, Potensi Basah, Kondisi Iklim
+            $ik = $this->normalizeFoodSecurityStatus($statusCandidates[0] ?? null);
+            $ia = $this->normalizeFoodSecurityStatus($statusCandidates[1] ?? null);
+            $ip = $this->normalizeFoodSecurityStatus($statusCandidates[2] ?? null);
+            $ikb = $this->normalizeFoodSecurityStatus($statusCandidates[3] ?? null);
+            $potKering = $this->normalizeClimateStatus($statusCandidates[4] ?? null);
+            $potBasah = $this->normalizeClimateStatus($statusCandidates[5] ?? null);
+            $kondIklim = $this->normalizeClimateStatus($statusCandidates[6] ?? null);
+
+            $matched[] = [
+                'kecamatan' => $foundKec,
+                'kode_kecamatan' => Skpg::KECAMATAN_CODES[$foundKec] ?? '',
+                'ik' => $ik,
+                'ia' => $ia,
+                'ip' => $ip,
+                'ikb' => $ikb,
+                'potensi_kering' => $potKering,
+                'potensi_basah' => $potBasah,
+                'kondisi_iklim' => $kondIklim,
+                'keterangan' => $keterangan,
+            ];
+
+            $matchedKecamatans[] = $foundKec;
+        }
+
+        return [
+            'matched' => $matched,
+            'skipped_count' => $skippedCount,
+            'total_detected' => count($matched),
+        ];
+    }
+
+    /**
+     * Normalize food security status (IK, IA, IP, IKB): AMAN, WASPADA, RENTAN.
+     */
+    public function normalizeFoodSecurityStatus(mixed $val): string
+    {
+        if ($val === null) {
+            return Skpg::STATUS_AMAN;
+        }
+
+        $upper = strtoupper(trim((string) $val));
+
+        if (in_array($upper, Skpg::STATUS_LIST, true)) {
+            return $upper;
+        }
+
+        if ($upper === '1' || str_contains($upper, 'AMAN') || str_contains($upper, 'HIJAU')) {
+            return Skpg::STATUS_AMAN;
+        }
+        if ($upper === '2' || str_contains($upper, 'WASPADA') || str_contains($upper, 'KUNING')) {
+            return Skpg::STATUS_WASPADA;
+        }
+        if ($upper === '3' || str_contains($upper, 'RENTAN') || str_contains($upper, 'MERAH')) {
+            return Skpg::STATUS_RENTAN;
+        }
+
+        return Skpg::STATUS_AMAN;
+    }
+
+    /**
+     * Normalize climate status (Potensi Kering, Potensi Basah, Kondisi Iklim): AMAN, WASPADA, SIAGA, AWAS.
+     */
+    public function normalizeClimateStatus(mixed $val): string
+    {
+        if ($val === null) {
+            return Skpg::STATUS_AMAN;
+        }
+
+        $upper = strtoupper(trim((string) $val));
+
+        if (in_array($upper, Skpg::CLIMATE_STATUS_LIST, true)) {
+            return $upper;
+        }
+
+        if ($upper === '1' || str_contains($upper, 'AMAN') || str_contains($upper, 'HIJAU') || str_contains($upper, 'NORMAL')) {
+            return Skpg::STATUS_AMAN;
+        }
+        if ($upper === '2' || str_contains($upper, 'WASPADA') || str_contains($upper, 'KUNING')) {
+            return Skpg::STATUS_WASPADA;
+        }
+        if ($upper === '3' || str_contains($upper, 'SIAGA') || str_contains($upper, 'ORANGE') || str_contains($upper, 'JINGGA')) {
+            return Skpg::STATUS_SIAGA;
+        }
+        if ($upper === '4' || str_contains($upper, 'AWAS') || str_contains($upper, 'MERAH') || str_contains($upper, 'BAHAYA')) {
+            return Skpg::STATUS_AWAS;
+        }
+
+        return Skpg::STATUS_AMAN;
     }
 }
