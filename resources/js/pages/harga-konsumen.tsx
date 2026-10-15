@@ -1998,8 +1998,8 @@ export default function HargaKonsumen({
                     <div className="pointer-events-none absolute inset-0 opacity-15 [background-image:radial-gradient(rgba(255,255,255,0.4)_1px,transparent_1px)] [background-size:24px_24px]" />
 
                     <div className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-                        {/* Top Context & Live Status Bar */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                        {/* Top Context & Live Status Bar + Hero Filter */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
                             <div className="flex flex-wrap items-center gap-2.5">
                                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/20 px-3 py-1 text-[11px] font-bold tracking-wider text-emerald-200 uppercase backdrop-blur-md">
                                     <span className="relative flex h-2 w-2">
@@ -2013,17 +2013,102 @@ export default function HargaKonsumen({
                                 </span>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-emerald-100/90">
-                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
-                                    <MapPin className="h-3.5 w-3.5 text-emerald-300" />
-                                    <span className="font-semibold text-white">
-                                        {selectedMarketName || marketName || 'Pasar Daerah Indramayu'}
-                                    </span>
-                                </span>
-                                <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
-                                    <Calendar className="h-3.5 w-3.5 text-emerald-300" />
-                                    <span>{formatIndoDate(currentDate) || 'Hari Ini'}</span>
-                                </span>
+                            {/* Hero Interactive Filter: Pasar & Tanggal */}
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <div className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-emerald-200/80 mr-1">
+                                    <Filter className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span>Filter:</span>
+                                </div>
+
+                                {/* Filter Pasar */}
+                                <div className="group relative flex items-center rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md transition-all hover:bg-white/15 hover:border-emerald-300/50 focus-within:border-emerald-300 focus-within:bg-white/20 focus-within:ring-2 focus-within:ring-emerald-400/40">
+                                    <Store className="h-4 w-4 text-emerald-300 shrink-0 mr-2 transition-transform group-hover:scale-105" />
+                                    <div className="flex flex-col">
+                                        <label
+                                            htmlFor="hero-market-select"
+                                            className="text-[9px] font-black uppercase tracking-wider text-emerald-200/80 leading-none"
+                                        >
+                                            Pasar
+                                        </label>
+                                        <select
+                                            id="hero-market-select"
+                                            value={currentMarketId}
+                                            onChange={handleMarketChange}
+                                            disabled={isFiltering}
+                                            aria-label="Pilih Pasar Pemantauan"
+                                            className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-6 appearance-none [&>option]:bg-slate-900 [&>option]:text-white mt-0.5"
+                                        >
+                                            {markets.length > 0 ? (
+                                                markets.map((m) => (
+                                                    <option
+                                                        key={m.id}
+                                                        value={m.id}
+                                                        className="bg-slate-900 text-white"
+                                                    >
+                                                        {m.name}
+                                                    </option>
+                                                ))
+                                            ) : (
+                                                <option
+                                                    value={currentMarketId}
+                                                    className="bg-slate-900 text-white"
+                                                >
+                                                    {selectedMarketName || marketName || 'Pasar Daerah Indramayu'}
+                                                </option>
+                                            )}
+                                        </select>
+                                    </div>
+                                    <ChevronDown className="pointer-events-none absolute right-2.5 bottom-2 h-3.5 w-3.5 text-emerald-200/70" />
+                                </div>
+
+                                {/* Filter Tanggal */}
+                                <div className="group relative flex items-center rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 backdrop-blur-md transition-all hover:bg-white/15 hover:border-emerald-300/50 focus-within:border-emerald-300 focus-within:bg-white/20 focus-within:ring-2 focus-within:ring-emerald-400/40">
+                                    <Calendar className="h-4 w-4 text-emerald-300 shrink-0 mr-2 transition-transform group-hover:scale-105" />
+                                    <div className="flex flex-col">
+                                        <label
+                                            htmlFor="hero-date-select"
+                                            className="text-[9px] font-black uppercase tracking-wider text-emerald-200/80 leading-none"
+                                        >
+                                            Tanggal
+                                        </label>
+                                        <input
+                                            id="hero-date-select"
+                                            type="date"
+                                            value={currentDate}
+                                            min={minDate || undefined}
+                                            max={maxDate || undefined}
+                                            onChange={handleDateChange}
+                                            disabled={isFiltering}
+                                            aria-label="Pilih Tanggal Pemantauan"
+                                            className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer [color-scheme:dark] mt-0.5"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Reset to Latest Date shortcut button if selectedDate is not latestDate */}
+                                {latestDate && currentDate !== latestDate && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCurrentDate(latestDate);
+                                            applyFilter(currentMarketId, latestDate);
+                                        }}
+                                        disabled={isFiltering}
+                                        className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/25 px-2.5 py-2 text-xs font-bold text-emerald-200 transition-all hover:bg-emerald-500/40 active:scale-95 cursor-pointer backdrop-blur-md"
+                                        title={`Kembali ke data terbaru: ${formatIndoDate(latestDate)}`}
+                                    >
+                                        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                                        <span>Hari Terbaru</span>
+                                    </button>
+                                )}
+
+                                {/* Loading Spinner Indicator */}
+                                {isFiltering && (
+                                    <div className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/20 px-2.5 py-2 text-xs font-bold text-emerald-200 backdrop-blur-md animate-pulse">
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-300" />
+                                        <span className="text-[11px]">Memuat...</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
