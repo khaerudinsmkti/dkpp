@@ -68,6 +68,8 @@ const PRIORITY_COLORS: Record<number, { color: string; label: string; short: str
     6: { color: '#047857', label: 'Prioritas 6 (Sangat Tahan)', short: 'Sangat Tahan', category: 'aman' },
 };
 
+const CARTO_API_KEY = 'cb1_4ll5_1_61de510a671abb089469524f';
+
 function normalizeKey(str: string): string {
     return (str || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -82,6 +84,7 @@ export default function FsvaMap({
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
+    const tileLayerRef = useRef<L.TileLayer | null>(null);
 
     const [isLoadingGeoJson, setIsLoadingGeoJson] = useState(true);
     const [geoJsonData, setGeoJsonData] = useState<any>(null);
@@ -144,10 +147,11 @@ export default function FsvaMap({
             maxZoom: 16,
         });
 
-        // CartoDB Voyager tile layer for crisp, modern appearance
+        // CartoDB Voyager tile layer with API Key to prevent "API KEY REQUIRED" watermark
+        // Note: CARTO raster basemaps require 'key' parameter (not just 'api_key')
         const tileUrl =
             layerStyle === 'carto'
-                ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+                ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_API_KEY}&api_key=${CARTO_API_KEY}&v=2`
                 : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
         const attribution =
@@ -157,6 +161,7 @@ export default function FsvaMap({
 
         const tiles = L.tileLayer(tileUrl, { attribution, subdomains: 'abcd', maxZoom: 19 });
         tiles.addTo(map);
+        tileLayerRef.current = tiles;
 
         mapInstanceRef.current = map;
 
@@ -165,6 +170,28 @@ export default function FsvaMap({
             mapInstanceRef.current = null;
         };
     }, []);
+
+    // Update tile layer if style toggled
+    useEffect(() => {
+        const map = mapInstanceRef.current;
+        if (!map) return;
+        if (tileLayerRef.current) {
+            map.removeLayer(tileLayerRef.current);
+        }
+        const tileUrl =
+            layerStyle === 'carto'
+                ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_API_KEY}&api_key=${CARTO_API_KEY}&v=2`
+                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+        const attribution =
+            layerStyle === 'carto'
+                ? '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+        const tiles = L.tileLayer(tileUrl, { attribution, subdomains: 'abcd', maxZoom: 19 });
+        tiles.addTo(map);
+        tileLayerRef.current = tiles;
+    }, [layerStyle]);
 
     // Render / update GeoJSON layer whenever geoJsonData, itemsMap, or activePriorityFilter changes
     useEffect(() => {
