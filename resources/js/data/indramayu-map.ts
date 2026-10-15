@@ -7,8 +7,8 @@ export interface KecamatanMapFeature {
   centroid: [number, number];
 }
 
-export const INDRAMAYU_MAP_VIEWBOX = "0 0 1000 1103";
-export const INDRAMAYU_MAINLAND_VIEWBOX = "50 480 920 620";
+export const INDRAMAYU_MAP_VIEWBOX = "-60 -50 1120 1200";
+export const INDRAMAYU_MAINLAND_VIEWBOX = "-60 360 1120 800";
 export const INDRAMAYU_MAP_WIDTH = 1000;
 export const INDRAMAYU_MAP_HEIGHT = 1103;
 

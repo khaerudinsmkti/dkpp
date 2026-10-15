@@ -135,4 +135,3 @@ test('authenticated user can bulk store all 31 kecamatan in admin panel', functi
     $count = Skpg::where('year', $testYear)->where('month', $testMonth)->count();
     expect($count)->toBe(31);
 });
-

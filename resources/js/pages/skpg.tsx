@@ -139,7 +139,6 @@ export default function SkpgPublicPage({
     const [selectedIndicator, setSelectedIndicator] = useState<string>(filters.indicator || 'ikb');
     const [selectedYear, setSelectedYear] = useState<number>(summary.year);
     const [selectedMonth, setSelectedMonth] = useState<number>(summary.month);
-    const [statusFilter, setStatusFilter] = useState<'ALL' | 'AMAN' | 'WASPADA' | 'RENTAN'>('ALL');
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedKecamatan, setSelectedKecamatan] = useState<string | null>(null);
 
@@ -171,29 +170,54 @@ export default function SkpgPublicPage({
         );
     };
 
-    // Filtered subdistrict cards
-    const filteredItems = useMemo(() => {
+    // Filter subdistrict items by search query
+    const searchFilteredItems = useMemo(() => {
+        if (!searchQuery.trim()) return kecamatanItems;
+        const q = searchQuery.toLowerCase().trim();
         return kecamatanItems.filter((item) => {
+            const matchName = item.kecamatan.toLowerCase().includes(q);
+            const matchCode = item.kode_kecamatan.toLowerCase().includes(q);
+            const matchKet = (item.keterangan || '').toLowerCase().includes(q);
+            return matchName || matchCode || matchKet;
+        });
+    }, [kecamatanItems, searchQuery]);
+
+    // Split into 3 status buckets based on the currently active indicator:
+    const amanItems = useMemo(() => {
+        return searchFilteredItems.filter((item) => {
             const currentStatus =
                 (item[selectedIndicator as keyof SkpgKecamatanItem] as string) || item.ikb || 'AMAN';
-
-            // Filter by status tab
-            if (statusFilter !== 'ALL' && currentStatus !== statusFilter) {
-                return false;
-            }
-
-            // Filter by search query
-            if (searchQuery.trim() !== '') {
-                const q = searchQuery.toLowerCase();
-                const matchName = item.kecamatan.toLowerCase().includes(q);
-                const matchCode = item.kode_kecamatan.toLowerCase().includes(q);
-                const matchKet = (item.keterangan || '').toLowerCase().includes(q);
-                if (!matchName && !matchCode && !matchKet) return false;
-            }
-
-            return true;
+            return currentStatus === 'AMAN';
         });
-    }, [kecamatanItems, selectedIndicator, statusFilter, searchQuery]);
+    }, [searchFilteredItems, selectedIndicator]);
+
+    const waspadaItems = useMemo(() => {
+        return searchFilteredItems.filter((item) => {
+            const currentStatus =
+                (item[selectedIndicator as keyof SkpgKecamatanItem] as string) || item.ikb || 'AMAN';
+            return currentStatus === 'WASPADA';
+        });
+    }, [searchFilteredItems, selectedIndicator]);
+
+    const rentanItems = useMemo(() => {
+        return searchFilteredItems.filter((item) => {
+            const currentStatus =
+                (item[selectedIndicator as keyof SkpgKecamatanItem] as string) || item.ikb || 'AMAN';
+            return currentStatus === 'RENTAN';
+        });
+    }, [searchFilteredItems, selectedIndicator]);
+
+    const handleFocusKecamatan = (name: string) => {
+        if (selectedKecamatan?.toUpperCase() === name.toUpperCase()) {
+            setSelectedKecamatan(null);
+        } else {
+            setSelectedKecamatan(name);
+            const mapEl = document.getElementById('peta-sebaran-skpg');
+            if (mapEl) {
+                mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    };
 
     // Active indicator metadata
     const activeIndMeta = INDICATOR_DETAILS[selectedIndicator] || INDICATOR_DETAILS.ikb;
@@ -432,7 +456,7 @@ export default function SkpgPublicPage({
                 </div>
 
                 {/* INTERACTIVE GEOSPATIAL MAP */}
-                <section>
+                <section id="peta-sebaran-skpg">
                     <SkpgMap
                         items={kecamatanItems}
                         selectedIndicator={selectedIndicator}
@@ -442,8 +466,9 @@ export default function SkpgPublicPage({
                     />
                 </section>
 
-                {/* CARD STATUS DENGAN LIST DAFTAR KECAMATAN */}
-                <section className="space-y-5">
+                {/* CARD STATUS DENGAN LIST DAFTAR KECAMATAN (3 CARDS: AMAN, WASPADA, RENTAN) */}
+                <section className="space-y-6">
+                    {/* Header Bar & Global Search */}
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div className="flex items-center gap-2">
@@ -453,226 +478,451 @@ export default function SkpgPublicPage({
                                 </h3>
                             </div>
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                                Menampilkan {filteredItems.length} dari 31 kecamatan di Kabupaten Indramayu.
+                                Dikelompokkan ke dalam 3 kartu status (Aman, Waspada, Rentan) untuk 31 kecamatan di Kabupaten Indramayu.
                             </p>
                         </div>
 
-                        {/* Search & Status Filter Buttons */}
-                        <div className="flex flex-wrap items-center gap-2">
-                            {/* Search box */}
-                            <div className="relative w-full sm:w-56">
-                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                                <Input
-                                    type="text"
-                                    placeholder="Cari kecamatan..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="h-9 pl-9 rounded-xl text-xs"
-                                />
-                            </div>
-
-                            {/* Status Filter Tabs */}
-                            <div className="inline-flex rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+                        {/* Search box across all 3 cards */}
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <Input
+                                type="text"
+                                placeholder="Cari nama kecamatan / kode BPS..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="h-9 pl-9 pr-8 rounded-xl text-xs bg-white dark:bg-slate-900 shadow-xs"
+                            />
+                            {searchQuery && (
                                 <button
                                     type="button"
-                                    onClick={() => setStatusFilter('ALL')}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                        statusFilter === 'ALL'
-                                            ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white'
-                                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
-                                    }`}
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                                 >
-                                    Semua ({kecamatanItems.length})
+                                    ✕
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('AMAN')}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                        statusFilter === 'AMAN'
-                                            ? 'bg-emerald-600 text-white shadow-xs'
-                                            : 'text-emerald-700 hover:text-emerald-900 dark:text-emerald-400'
-                                    }`}
-                                >
-                                    Aman ({summary.count_aman})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('WASPADA')}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                        statusFilter === 'WASPADA'
-                                            ? 'bg-amber-600 text-white shadow-xs'
-                                            : 'text-amber-700 hover:text-amber-900 dark:text-amber-400'
-                                    }`}
-                                >
-                                    Waspada ({summary.count_waspada})
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setStatusFilter('RENTAN')}
-                                    className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all ${
-                                        statusFilter === 'RENTAN'
-                                            ? 'bg-rose-600 text-white shadow-xs'
-                                            : 'text-rose-700 hover:text-rose-900 dark:text-rose-400'
-                                    }`}
-                                >
-                                    Rentan ({summary.count_rentan})
-                                </button>
-                            </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Cards Grid (3 Columns on Large) */}
-                    {filteredItems.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-                            <AlertCircle className="h-10 w-10 text-slate-400" />
-                            <h4 className="mt-3 text-sm font-bold text-slate-800 dark:text-slate-200">
-                                Tidak ada kecamatan yang cocok
-                            </h4>
-                            <p className="mt-1 text-xs text-slate-500">
-                                Coba ubah kata kunci pencarian atau reset filter status di atas.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {filteredItems.map((item) => {
-                                const currentStatus =
-                                    (item[selectedIndicator as keyof SkpgKecamatanItem] as string) || item.ikb || 'AMAN';
-                                const colors = getStatusColor(currentStatus);
-                                const isSelected = selectedKecamatan?.toUpperCase() === item.kecamatan.toUpperCase();
+                    {/* 3 Status Cards Grid */}
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+                        {/* CARD 1: KECAMATAN AMAN */}
+                        <div className="flex flex-col rounded-3xl border border-emerald-200/90 bg-emerald-50/40 p-5 shadow-sm backdrop-blur-sm dark:border-emerald-800/60 dark:bg-emerald-950/20">
+                            {/* Card 1 Header */}
+                            <div className="flex items-center justify-between border-b border-emerald-200/80 pb-4 dark:border-emerald-800/60">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-md shadow-emerald-500/20">
+                                        <CheckCircle2 className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black tracking-tight text-emerald-950 dark:text-emerald-100">
+                                            Kecamatan AMAN
+                                        </h4>
+                                        <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300/90">
+                                            Kondisi Pangan Stabil &amp; Aman
+                                        </p>
+                                    </div>
+                                </div>
+                                <Badge className="rounded-xl border border-emerald-300 bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800 shadow-xs dark:border-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                                    {amanItems.length} Kecamatan
+                                </Badge>
+                            </div>
 
-                                return (
-                                    <div
-                                        key={item.kecamatan}
-                                        onClick={() => setSelectedKecamatan(isSelected ? null : item.kecamatan)}
-                                        className={`group relative flex flex-col justify-between rounded-3xl border p-5 transition-all duration-200 cursor-pointer ${
-                                            isSelected
-                                                ? 'border-[#006565] bg-emerald-50/50 shadow-lg ring-2 ring-[#006565]/30 dark:border-emerald-500 dark:bg-emerald-950/20'
-                                                : 'border-slate-200/90 bg-white shadow-sm hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700'
-                                        }`}
-                                    >
-                                        <div>
-                                            {/* Top Card Row: Title & Primary Status Badge */}
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="flex h-2 w-2 rounded-full bg-[#006565] dark:bg-emerald-400" />
-                                                        <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">
-                                                            KODE: {item.kode_kecamatan}
+                            {/* Card 1 Subdistrict List */}
+                            <div className="mt-4 max-h-[520px] space-y-2.5 overflow-y-auto pr-1">
+                                {amanItems.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-emerald-200 bg-white/70 p-8 text-center dark:border-emerald-900 dark:bg-slate-900/60">
+                                        <Info className="h-7 w-7 text-emerald-400" />
+                                        <p className="mt-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                            Tidak ada kecamatan aman
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500">
+                                            {searchQuery
+                                                ? 'Tidak ada hasil untuk pencarian ini.'
+                                                : 'Seluruh kecamatan berada di kategori status lain.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    amanItems.map((item) => {
+                                        const isSelected = selectedKecamatan?.toUpperCase() === item.kecamatan.toUpperCase();
+                                        return (
+                                            <div
+                                                key={item.kecamatan}
+                                                onClick={() => handleFocusKecamatan(item.kecamatan)}
+                                                className={`group rounded-2xl border p-3.5 transition-all duration-200 cursor-pointer ${
+                                                    isSelected
+                                                        ? 'border-[#006565] bg-white shadow-lg ring-2 ring-[#006565] dark:border-emerald-500 dark:bg-slate-900'
+                                                        : 'border-white/90 bg-white/95 shadow-xs hover:border-emerald-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+                                                                BPS: {item.kode_kecamatan}
+                                                            </span>
+                                                            {isSelected && (
+                                                                <Badge className="bg-[#006565] text-white text-[9px] px-1.5 py-0 font-bold dark:bg-emerald-600">
+                                                                    Aktif di Peta
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <h5 className="mt-0.5 text-sm font-black text-slate-900 group-hover:text-[#006565] transition-colors dark:text-white dark:group-hover:text-emerald-400">
+                                                            {item.kecamatan}
+                                                        </h5>
+                                                    </div>
+
+                                                    <Badge className="rounded-xl border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
+                                                        AMAN
+                                                    </Badge>
+                                                </div>
+
+                                                {/* Sub-Indicators matrix */}
+                                                <div className="mt-2.5 grid grid-cols-4 gap-1 rounded-xl bg-slate-50 p-2 border border-slate-100 text-[10px] dark:bg-slate-800/60 dark:border-slate-800">
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IKB</span>
+                                                        <span className={`font-black ${getStatusColor(item.ikb).textClass}`}>
+                                                            {item.ikb}
                                                         </span>
                                                     </div>
-                                                    <h4 className="mt-0.5 text-base font-black tracking-tight text-slate-900 group-hover:text-[#006565] transition-colors dark:text-white dark:group-hover:text-emerald-400">
-                                                        {item.kecamatan}
-                                                    </h4>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IK</span>
+                                                        <span className={`font-black ${getStatusColor(item.ik).textClass}`}>
+                                                            {item.ik}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IA</span>
+                                                        <span className={`font-black ${getStatusColor(item.ia).textClass}`}>
+                                                            {item.ia}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IP</span>
+                                                        <span className={`font-black ${getStatusColor(item.ip).textClass}`}>
+                                                            {item.ip}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Kering</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_kering).textClass}`}>
+                                                            {item.potensi_kering}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Basah</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_basah).textClass}`}>
+                                                            {item.potensi_basah}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-2 text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Iklim</span>
+                                                        <span className={`font-black ${getStatusColor(item.kondisi_iklim).textClass}`}>
+                                                            {item.kondisi_iklim}
+                                                        </span>
+                                                    </div>
                                                 </div>
 
-                                                {/* Main Status Badge */}
-                                                <Badge
-                                                    className={`rounded-xl px-2.5 py-1 text-xs font-black uppercase tracking-wider border shadow-xs ${colors.bgClass}`}
-                                                >
-                                                    <span
-                                                        className="mr-1.5 h-2 w-2 rounded-full"
-                                                        style={{ backgroundColor: colors.fill }}
-                                                    />
-                                                    {currentStatus}
-                                                </Badge>
-                                            </div>
+                                                {item.keterangan && (
+                                                    <p className="mt-2 text-[10px] text-slate-500 italic line-clamp-1 dark:text-slate-400">
+                                                        "{item.keterangan}"
+                                                    </p>
+                                                )}
 
-                                            {/* Notes / Description */}
-                                            <p className="mt-2.5 text-xs text-slate-600 line-clamp-2 dark:text-slate-400">
-                                                {item.keterangan ||
-                                                    'Situasi ketersediaan dan ketahanan pangan terpantau kondusif.'}
-                                            </p>
-
-                                            {/* Sub-Indicators Chips Matrix */}
-                                            <div className="mt-4 grid grid-cols-4 gap-1.5 rounded-2xl bg-slate-50 p-2.5 border border-slate-100 dark:bg-slate-800/60 dark:border-slate-800">
-                                                <div className="text-center">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        IKB
+                                                <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500 dark:border-slate-800">
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {summary.month_name} {summary.year}
                                                     </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.ikb).textClass}`}
-                                                    >
-                                                        {item.ikb}
-                                                    </span>
-                                                </div>
-                                                <div className="text-center">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        IK
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.ik).textClass}`}
-                                                    >
-                                                        {item.ik}
-                                                    </span>
-                                                </div>
-                                                <div className="text-center">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        IA
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.ia).textClass}`}
-                                                    >
-                                                        {item.ia}
-                                                    </span>
-                                                </div>
-                                                <div className="text-center">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        IP
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.ip).textClass}`}
-                                                    >
-                                                        {item.ip}
-                                                    </span>
-                                                </div>
-                                                <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        Kering
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.potensi_kering).textClass}`}
-                                                    >
-                                                        {item.potensi_kering}
-                                                    </span>
-                                                </div>
-                                                <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        Basah
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.potensi_basah).textClass}`}
-                                                    >
-                                                        {item.potensi_basah}
-                                                    </span>
-                                                </div>
-                                                <div className="col-span-2 text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
-                                                    <span className="block text-[9px] font-black uppercase text-slate-400">
-                                                        Iklim
-                                                    </span>
-                                                    <span
-                                                        className={`text-[11px] font-extrabold ${getStatusColor(item.kondisi_iklim).textClass}`}
-                                                    >
-                                                        {item.kondisi_iklim}
+                                                    <span className="inline-flex items-center gap-1 text-[#006565] group-hover:underline dark:text-emerald-400">
+                                                        <span>{isSelected ? 'Batal Sorot' : 'Sorot di Peta'}</span>
+                                                        <MapPin className="h-3 w-3" />
                                                     </span>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        {/* Card Footer action button */}
-                                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between dark:border-slate-800">
-                                            <span className="text-[11px] font-semibold text-slate-500">
-                                                {summary.month_name} {summary.year}
-                                            </span>
-                                            <span className="text-xs font-black text-[#006565] group-hover:underline dark:text-emerald-400 flex items-center gap-1">
-                                                <span>{isSelected ? 'Sedang Dipilih' : 'Sorot di Peta'}</span>
-                                                <MapPin className="h-3 w-3" />
-                                            </span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
-                    )}
+
+                        {/* CARD 2: KECAMATAN WASPADA */}
+                        <div className="flex flex-col rounded-3xl border border-amber-200/90 bg-amber-50/40 p-5 shadow-sm backdrop-blur-sm dark:border-amber-800/60 dark:bg-amber-950/20">
+                            {/* Card 2 Header */}
+                            <div className="flex items-center justify-between border-b border-amber-200/80 pb-4 dark:border-amber-800/60">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md shadow-amber-500/20">
+                                        <ShieldAlert className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black tracking-tight text-amber-950 dark:text-amber-100">
+                                            KECAMATAN WASPADA
+                                        </h4>
+                                        <p className="text-[11px] font-medium text-amber-700 dark:text-amber-300/90">
+                                            Perlu Pemantauan Berkala
+                                        </p>
+                                    </div>
+                                </div>
+                                <Badge className="rounded-xl border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800 shadow-xs dark:border-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                                    {waspadaItems.length} Kecamatan
+                                </Badge>
+                            </div>
+
+                            {/* Card 2 Subdistrict List */}
+                            <div className="mt-4 max-h-[520px] space-y-2.5 overflow-y-auto pr-1">
+                                {waspadaItems.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-amber-200 bg-white/70 p-8 text-center dark:border-amber-900 dark:bg-slate-900/60">
+                                        <CheckCircle2 className="h-7 w-7 text-amber-500" />
+                                        <p className="mt-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                            Tidak ada kecamatan waspada
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500">
+                                            {searchQuery
+                                                ? 'Tidak ada hasil untuk pencarian ini.'
+                                                : 'Seluruh kecamatan dalam kondisi aman atau berada di kategori lain.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    waspadaItems.map((item) => {
+                                        const isSelected = selectedKecamatan?.toUpperCase() === item.kecamatan.toUpperCase();
+                                        return (
+                                            <div
+                                                key={item.kecamatan}
+                                                onClick={() => handleFocusKecamatan(item.kecamatan)}
+                                                className={`group rounded-2xl border p-3.5 transition-all duration-200 cursor-pointer ${
+                                                    isSelected
+                                                        ? 'border-amber-500 bg-white shadow-lg ring-2 ring-amber-500 dark:border-amber-500 dark:bg-slate-900'
+                                                        : 'border-white/90 bg-white/95 shadow-xs hover:border-amber-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+                                                                BPS: {item.kode_kecamatan}
+                                                            </span>
+                                                            {isSelected && (
+                                                                <Badge className="bg-amber-600 text-white text-[9px] px-1.5 py-0 font-bold">
+                                                                    Aktif di Peta
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <h5 className="mt-0.5 text-sm font-black text-slate-900 group-hover:text-amber-600 transition-colors dark:text-white dark:group-hover:text-amber-400">
+                                                            {item.kecamatan}
+                                                        </h5>
+                                                    </div>
+
+                                                    <Badge className="rounded-xl border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-800 dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300">
+                                                        WASPADA
+                                                    </Badge>
+                                                </div>
+
+                                                {/* Sub-Indicators matrix */}
+                                                <div className="mt-2.5 grid grid-cols-4 gap-1 rounded-xl bg-slate-50 p-2 border border-slate-100 text-[10px] dark:bg-slate-800/60 dark:border-slate-800">
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IKB</span>
+                                                        <span className={`font-black ${getStatusColor(item.ikb).textClass}`}>
+                                                            {item.ikb}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IK</span>
+                                                        <span className={`font-black ${getStatusColor(item.ik).textClass}`}>
+                                                            {item.ik}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IA</span>
+                                                        <span className={`font-black ${getStatusColor(item.ia).textClass}`}>
+                                                            {item.ia}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IP</span>
+                                                        <span className={`font-black ${getStatusColor(item.ip).textClass}`}>
+                                                            {item.ip}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Kering</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_kering).textClass}`}>
+                                                            {item.potensi_kering}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Basah</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_basah).textClass}`}>
+                                                            {item.potensi_basah}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-2 text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Iklim</span>
+                                                        <span className={`font-black ${getStatusColor(item.kondisi_iklim).textClass}`}>
+                                                            {item.kondisi_iklim}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {item.keterangan && (
+                                                    <p className="mt-2 text-[10px] text-slate-500 italic line-clamp-1 dark:text-slate-400">
+                                                        "{item.keterangan}"
+                                                    </p>
+                                                )}
+
+                                                <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500 dark:border-slate-800">
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {summary.month_name} {summary.year}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 text-amber-600 group-hover:underline dark:text-amber-400">
+                                                        <span>{isSelected ? 'Batal Sorot' : 'Sorot di Peta'}</span>
+                                                        <MapPin className="h-3 w-3" />
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        {/* CARD 3: KECAMATAN RENTAN */}
+                        <div className="flex flex-col rounded-3xl border border-rose-200/90 bg-rose-50/40 p-5 shadow-sm backdrop-blur-sm dark:border-rose-800/60 dark:bg-rose-950/20">
+                            {/* Card 3 Header */}
+                            <div className="flex items-center justify-between border-b border-rose-200/80 pb-4 dark:border-rose-800/60">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500 text-white shadow-md shadow-rose-500/20">
+                                        <AlertTriangle className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black tracking-tight text-rose-950 dark:text-rose-100">
+                                            KECAMATAN RENTAN
+                                        </h4>
+                                        <p className="text-[11px] font-medium text-rose-700 dark:text-rose-300/90">
+                                            Prioritas Tindakan &amp; Intervensi
+                                        </p>
+                                    </div>
+                                </div>
+                                <Badge className="rounded-xl border border-rose-300 bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-800 shadow-xs dark:border-rose-800 dark:bg-rose-900/60 dark:text-rose-200">
+                                    {rentanItems.length} Kecamatan
+                                </Badge>
+                            </div>
+
+                            {/* Card 3 Subdistrict List */}
+                            <div className="mt-4 max-h-[520px] space-y-2.5 overflow-y-auto pr-1">
+                                {rentanItems.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-rose-200 bg-white/70 p-8 text-center dark:border-rose-900 dark:bg-slate-900/60">
+                                        <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+                                        <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                                            Nol Kecamatan Rentan
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500">
+                                            {searchQuery
+                                                ? 'Tidak ada hasil untuk pencarian ini.'
+                                                : 'Alhamdulillah pada indikator ini tidak ada kecamatan berstatus rentan.'}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    rentanItems.map((item) => {
+                                        const isSelected = selectedKecamatan?.toUpperCase() === item.kecamatan.toUpperCase();
+                                        return (
+                                            <div
+                                                key={item.kecamatan}
+                                                onClick={() => handleFocusKecamatan(item.kecamatan)}
+                                                className={`group rounded-2xl border p-3.5 transition-all duration-200 cursor-pointer ${
+                                                    isSelected
+                                                        ? 'border-rose-500 bg-white shadow-lg ring-2 ring-rose-500 dark:border-rose-500 dark:bg-slate-900'
+                                                        : 'border-white/90 bg-white/95 shadow-xs hover:border-rose-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/90 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+                                                                BPS: {item.kode_kecamatan}
+                                                            </span>
+                                                            {isSelected && (
+                                                                <Badge className="bg-rose-600 text-white text-[9px] px-1.5 py-0 font-bold">
+                                                                    Aktif di Peta
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <h5 className="mt-0.5 text-sm font-black text-slate-900 group-hover:text-rose-600 transition-colors dark:text-white dark:group-hover:text-rose-400">
+                                                            {item.kecamatan}
+                                                        </h5>
+                                                    </div>
+
+                                                    <Badge className="rounded-xl border border-rose-300 bg-rose-100 px-2.5 py-0.5 text-[10px] font-black text-rose-800 dark:border-rose-800 dark:bg-rose-950/70 dark:text-rose-300">
+                                                        RENTAN
+                                                    </Badge>
+                                                </div>
+
+                                                {/* Sub-Indicators matrix */}
+                                                <div className="mt-2.5 grid grid-cols-4 gap-1 rounded-xl bg-slate-50 p-2 border border-slate-100 text-[10px] dark:bg-slate-800/60 dark:border-slate-800">
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IKB</span>
+                                                        <span className={`font-black ${getStatusColor(item.ikb).textClass}`}>
+                                                            {item.ikb}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IK</span>
+                                                        <span className={`font-black ${getStatusColor(item.ik).textClass}`}>
+                                                            {item.ik}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IA</span>
+                                                        <span className={`font-black ${getStatusColor(item.ia).textClass}`}>
+                                                            {item.ia}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <span className="block text-[8px] font-bold text-slate-400">IP</span>
+                                                        <span className={`font-black ${getStatusColor(item.ip).textClass}`}>
+                                                            {item.ip}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Kering</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_kering).textClass}`}>
+                                                            {item.potensi_kering}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Basah</span>
+                                                        <span className={`font-black ${getStatusColor(item.potensi_basah).textClass}`}>
+                                                            {item.potensi_basah}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-2 text-center pt-1 border-t border-slate-200/60 dark:border-slate-700">
+                                                        <span className="block text-[8px] font-bold text-slate-400">Iklim</span>
+                                                        <span className={`font-black ${getStatusColor(item.kondisi_iklim).textClass}`}>
+                                                            {item.kondisi_iklim}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {item.keterangan && (
+                                                    <p className="mt-2 text-[10px] text-slate-500 italic line-clamp-1 dark:text-slate-400">
+                                                        "{item.keterangan}"
+                                                    </p>
+                                                )}
+
+                                                <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500 dark:border-slate-800">
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {summary.month_name} {summary.year}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 text-rose-600 group-hover:underline dark:text-rose-400">
+                                                        <span>{isSelected ? 'Batal Sorot' : 'Sorot di Peta'}</span>
+                                                        <MapPin className="h-3 w-3" />
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 {/* Educational Alert: What is SKPG */}
