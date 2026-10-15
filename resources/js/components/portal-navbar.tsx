@@ -3,6 +3,7 @@ import {
     ArrowRight,
     ChevronDown,
     Layers,
+    LayoutGrid,
     MapPin,
     Menu,
     Package,
@@ -26,7 +27,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [dropdownMenuOpen, setDropdownMenuOpen] = useState(false);
-    const [mobileDataOpen, setMobileDataOpen] = useState(true);
+    const [mobileDataOpen, setMobileDataOpen] = useState(false);
 
     const dropdownMenuRef = useRef<HTMLDivElement>(null);
 
@@ -54,14 +55,11 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
     const isPphActive = activePage === 'pph';
     const isHargaKonsumenActive = activePage === 'harga-konsumen';
     const isHargaProdusenActive = activePage === 'harga-produsen';
-    const isAnyActive =
-        isIkpActive ||
+    const isOtherActive =
         isSkpgActive ||
-        isCppdActive ||
-        isNeracaActive ||
-        isPphActive ||
         isHargaKonsumenActive ||
-        isHargaProdusenActive;
+        isHargaProdusenActive ||
+        isPphActive;
 
     return (
         <header className="sticky top-0 z-50 transition-all">
@@ -101,8 +99,56 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                     </Link>
 
                     {/* Desktop Navigation Links Island */}
-                    <nav className="hidden items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1.5 backdrop-blur-md md:flex dark:border-slate-800 dark:bg-slate-800/80">
-                        {/* Dropdown Menu: Data Pangan */}
+                    <nav className="hidden items-center gap-1 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur-md md:flex lg:gap-1.5 lg:p-1.5 dark:border-slate-800 dark:bg-slate-800/80">
+                        {/* 1. Menu Utama: IKP */}
+                        <Link
+                            href="/ikp"
+                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer lg:px-3.5 ${
+                                isIkpActive
+                                    ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
+                                    : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
+                            }`}
+                        >
+                            <ShieldCheck className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                            <span>IKP</span>
+                            {isIkpActive && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            )}
+                        </Link>
+
+                        {/* 2. Menu Utama: Neraca Pangan */}
+                        <Link
+                            href="/neraca-pangan"
+                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer lg:px-3.5 ${
+                                isNeracaActive
+                                    ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
+                                    : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
+                            }`}
+                        >
+                            <Layers className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                            <span>Neraca Pangan</span>
+                            {isNeracaActive && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            )}
+                        </Link>
+
+                        {/* 3. Menu Utama: CPPD */}
+                        <Link
+                            href="/cppd"
+                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer lg:px-3.5 ${
+                                isCppdActive
+                                    ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
+                                    : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
+                            }`}
+                        >
+                            <Package className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                            <span>CPPD</span>
+                            {isCppdActive && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            )}
+                        </Link>
+
+                        {/* 4. Dropdown Menu: Menu Lainnya (Mega Menu) */}
                         <div
                             className="relative"
                             ref={dropdownMenuRef}
@@ -112,15 +158,15 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                 type="button"
                                 onClick={() => setDropdownMenuOpen(!dropdownMenuOpen)}
                                 onMouseEnter={() => setDropdownMenuOpen(true)}
-                                className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer ${
-                                    isAnyActive || dropdownMenuOpen
+                                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer lg:px-3.5 ${
+                                    isOtherActive || dropdownMenuOpen
                                         ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
                                         : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
                                 }`}
                                 aria-expanded={dropdownMenuOpen}
                             >
-                                <Layers className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                <span>Data Pangan</span>
+                                <LayoutGrid className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                <span>Menu Lainnya</span>
                                 <ChevronDown
                                     className={`h-3.5 w-3.5 transition-transform duration-200 ${
                                         dropdownMenuOpen
@@ -128,76 +174,36 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                             : 'text-slate-400'
                                     }`}
                                 />
+                                {isOtherActive && (
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                )}
                             </button>
 
                             {dropdownMenuOpen && (
-                                <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2.5 w-[680px] max-w-[calc(100vw-2rem)] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="absolute right-0 lg:left-1/2 lg:-translate-x-1/2 top-full pt-2.5 w-[620px] max-w-[calc(100vw-2rem)] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                                     <div className="rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-2xl backdrop-blur-xl ring-1 ring-slate-900/5 dark:border-slate-700 dark:bg-slate-900/95">
                                         {/* Mega Menu Top Header */}
                                         <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
                                             <div className="flex items-center gap-2">
                                                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-[#006565] dark:bg-emerald-950/60 dark:text-emerald-400">
-                                                    <Layers className="h-3.5 w-3.5" />
+                                                    <LayoutGrid className="h-3.5 w-3.5" />
                                                 </span>
                                                 <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                                    Katalog Data &amp; Pemantauan Pangan
+                                                    Modul Pemantauan Lainnya
                                                 </span>
                                             </div>
                                             <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-extrabold text-[#006565] border border-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
-                                                7 Modul Terintegrasi
+                                                4 Modul Terintegrasi
                                             </span>
                                         </div>
 
                                         {/* Mega Menu 2-Column Grid */}
                                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                                            {/* Column 1: Ketahanan & Ketersediaan */}
+                                            {/* Column 1: Kewaspadaan & Gizi */}
                                             <div className="space-y-1">
                                                 <div className="px-2 pb-1 text-[10px] font-black tracking-wider text-slate-400 uppercase dark:text-slate-500">
-                                                    Ketahanan &amp; Ketersediaan
+                                                    Kewaspadaan &amp; Gizi
                                                 </div>
-
-                                                {/* Submenu: IKP */}
-                                                <Link
-                                                    href="/ikp"
-                                                    onClick={() => setDropdownMenuOpen(false)}
-                                                    className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${
-                                                        isIkpActive
-                                                            ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/40 text-slate-900 border border-emerald-500/25 dark:from-emerald-950/40 dark:to-teal-950/20 dark:text-white dark:border-emerald-500/30'
-                                                            : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/60 dark:hover:bg-slate-800/80 dark:hover:border-slate-700/60'
-                                                    }`}
-                                                >
-                                                    <div
-                                                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
-                                                            isIkpActive
-                                                                ? 'bg-gradient-to-br from-[#006565] to-[#004e4e] text-white'
-                                                                : 'bg-emerald-100 text-[#006565] group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-emerald-400'
-                                                        }`}
-                                                    >
-                                                        <ShieldCheck className="h-4 w-4" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span
-                                                                className={`text-xs font-bold ${
-                                                                    isIkpActive
-                                                                        ? 'text-[#006565] dark:text-emerald-400'
-                                                                        : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-emerald-400'
-                                                                }`}
-                                                            >
-                                                                IKP
-                                                            </span>
-                                                            {isIkpActive && (
-                                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-                                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                                                                    Aktif
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Indeks Ketahanan Pangan Kabupaten
-                                                        </p>
-                                                    </div>
-                                                </Link>
 
                                                 {/* Submenu: SKPG */}
                                                 <Link
@@ -242,37 +248,37 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                     </div>
                                                 </Link>
 
-                                                {/* Submenu: CPPD */}
+                                                {/* Submenu: PPH */}
                                                 <Link
-                                                    href="/cppd"
+                                                    href="/pph"
                                                     onClick={() => setDropdownMenuOpen(false)}
                                                     className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${
-                                                        isCppdActive
-                                                            ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/40 text-slate-900 border border-emerald-500/25 dark:from-emerald-950/40 dark:to-teal-950/20 dark:text-white dark:border-emerald-500/30'
+                                                        isPphActive
+                                                            ? 'bg-gradient-to-r from-cyan-50/90 to-teal-50/40 text-slate-900 border border-cyan-500/25 dark:from-cyan-950/40 dark:to-teal-950/20 dark:text-white dark:border-cyan-500/30'
                                                             : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/60 dark:hover:bg-slate-800/80 dark:hover:border-slate-700/60'
                                                     }`}
                                                 >
                                                     <div
                                                         className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
-                                                            isCppdActive
-                                                                ? 'bg-gradient-to-br from-[#006565] to-emerald-700 text-white'
-                                                                : 'bg-emerald-100 text-[#006565] group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-emerald-400'
+                                                            isPphActive
+                                                                ? 'bg-gradient-to-br from-[#006565] to-cyan-700 text-white'
+                                                                : 'bg-cyan-100 text-cyan-800 group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-cyan-400'
                                                         }`}
                                                     >
-                                                        <Package className="h-4 w-4" />
+                                                        <PieChart className="h-4 w-4" />
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center justify-between">
                                                             <span
                                                                 className={`text-xs font-bold ${
-                                                                    isCppdActive
-                                                                        ? 'text-[#006565] dark:text-emerald-400'
-                                                                        : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-emerald-400'
+                                                                    isPphActive
+                                                                        ? 'text-[#006565] dark:text-cyan-400'
+                                                                        : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-cyan-400'
                                                                 }`}
                                                             >
-                                                                CPPD
+                                                                Pola Pangan Harapan (PPH)
                                                             </span>
-                                                            {isCppdActive && (
+                                                            {isPphActive && (
                                                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
                                                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
                                                                     Aktif
@@ -280,59 +286,16 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                             )}
                                                         </div>
                                                         <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Cadangan Pangan Pemda (Stok &amp; Penyaluran)
-                                                        </p>
-                                                    </div>
-                                                </Link>
-
-                                                {/* Submenu: Neraca */}
-                                                <Link
-                                                    href="/neraca-pangan"
-                                                    onClick={() => setDropdownMenuOpen(false)}
-                                                    className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${
-                                                        isNeracaActive
-                                                            ? 'bg-gradient-to-r from-teal-50/90 to-emerald-50/40 text-slate-900 border border-teal-500/25 dark:from-teal-950/40 dark:to-emerald-950/20 dark:text-white dark:border-teal-500/30'
-                                                            : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/60 dark:hover:bg-slate-800/80 dark:hover:border-slate-700/60'
-                                                    }`}
-                                                >
-                                                    <div
-                                                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
-                                                            isNeracaActive
-                                                                ? 'bg-gradient-to-br from-teal-600 to-teal-700 text-white'
-                                                                : 'bg-teal-100 text-teal-800 group-hover:bg-teal-600 group-hover:text-white dark:bg-slate-800 dark:text-teal-400'
-                                                        }`}
-                                                    >
-                                                        <Layers className="h-4 w-4" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span
-                                                                className={`text-xs font-bold ${
-                                                                    isNeracaActive
-                                                                        ? 'text-teal-800 dark:text-teal-400'
-                                                                        : 'text-slate-800 group-hover:text-teal-800 dark:text-slate-200 dark:group-hover:text-teal-400'
-                                                                }`}
-                                                            >
-                                                                Neraca Pangan
-                                                            </span>
-                                                            {isNeracaActive && (
-                                                                <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-1.5 py-0.5 text-[9px] font-extrabold text-teal-800 dark:bg-teal-900/60 dark:text-teal-300">
-                                                                    <span className="h-1.5 w-1.5 rounded-full bg-teal-600 animate-pulse" />
-                                                                    Aktif
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Neraca Pangan 11 komoditas bulanan
+                                                            Skor konsumsi &amp; mutu gizi pangan
                                                         </p>
                                                     </div>
                                                 </Link>
                                             </div>
 
-                                            {/* Column 2: Distribusi, Harga & Mutu */}
+                                            {/* Column 2: Pemantauan Harga Pasar */}
                                             <div className="space-y-1">
                                                 <div className="px-2 pb-1 text-[10px] font-black tracking-wider text-slate-400 uppercase dark:text-slate-500">
-                                                    Harga Pasar &amp; Konsumsi
+                                                    Pemantauan Harga Pasar
                                                 </div>
 
                                                 {/* Submenu: Harga Konsumen */}
@@ -420,69 +383,6 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                         </p>
                                                     </div>
                                                 </Link>
-
-                                                {/* Submenu: PPH */}
-                                                <Link
-                                                    href="/pph"
-                                                    onClick={() => setDropdownMenuOpen(false)}
-                                                    className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${
-                                                        isPphActive
-                                                            ? 'bg-gradient-to-r from-cyan-50/90 to-teal-50/40 text-slate-900 border border-cyan-500/25 dark:from-cyan-950/40 dark:to-teal-950/20 dark:text-white dark:border-cyan-500/30'
-                                                            : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/60 dark:hover:bg-slate-800/80 dark:hover:border-slate-700/60'
-                                                    }`}
-                                                >
-                                                    <div
-                                                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
-                                                            isPphActive
-                                                                ? 'bg-gradient-to-br from-[#006565] to-cyan-700 text-white'
-                                                                : 'bg-cyan-100 text-cyan-800 group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-cyan-400'
-                                                        }`}
-                                                    >
-                                                        <PieChart className="h-4 w-4" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span
-                                                                className={`text-xs font-bold ${
-                                                                    isPphActive
-                                                                        ? 'text-[#006565] dark:text-cyan-400'
-                                                                        : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-cyan-400'
-                                                                }`}
-                                                            >
-                                                                Pola Pangan Harapan (PPH)
-                                                            </span>
-                                                            {isPphActive && (
-                                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-                                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                                                                    Aktif
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Skor konsumsi &amp; mutu gizi pangan
-                                                        </p>
-                                                    </div>
-                                                </Link>
-
-                                                {/* Highlight Box / Symmetrical Slot */}
-                                                <div className="flex items-center gap-3 rounded-xl p-2.5 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 dark:from-emerald-950/30 dark:via-teal-950/20 dark:border-emerald-500/30">
-                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#006565] to-emerald-700 text-white shadow-xs">
-                                                        <Wheat className="h-4 w-4 text-emerald-100" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-xs font-bold text-[#006565] dark:text-emerald-400">
-                                                                Lumbung Padi Nasional
-                                                            </span>
-                                                            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-[#006565] dark:text-emerald-300">
-                                                                Indramayu
-                                                            </span>
-                                                        </div>
-                                                        <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Pusat data terpadu &amp; stabilitas pangan
-                                                        </p>
-                                                    </div>
-                                                </div>
                                             </div>
                                         </div>
 
@@ -584,7 +484,71 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                 </span>
                             </div>
 
-                            {/* Dropdown Menu: Data Pangan in Mobile */}
+                            {/* Mobile Top-Level Menus */}
+                            {/* Menu 1: IKP */}
+                            <Link
+                                href="/ikp"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all ${
+                                    isIkpActive
+                                        ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                        : 'text-slate-700 border border-slate-200/80 bg-slate-50/80 hover:bg-white hover:text-[#006565] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <ShieldCheck className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                    <span>IKP</span>
+                                </div>
+                                {isIkpActive && (
+                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                        Aktif
+                                    </span>
+                                )}
+                            </Link>
+
+                            {/* Menu 2: Neraca Pangan */}
+                            <Link
+                                href="/neraca-pangan"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all ${
+                                    isNeracaActive
+                                        ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                        : 'text-slate-700 border border-slate-200/80 bg-slate-50/80 hover:bg-white hover:text-[#006565] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <Layers className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                    <span>Neraca Pangan</span>
+                                </div>
+                                {isNeracaActive && (
+                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                        Aktif
+                                    </span>
+                                )}
+                            </Link>
+
+                            {/* Menu 3: CPPD */}
+                            <Link
+                                href="/cppd"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all ${
+                                    isCppdActive
+                                        ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                        : 'text-slate-700 border border-slate-200/80 bg-slate-50/80 hover:bg-white hover:text-[#006565] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2.5">
+                                    <Package className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                    <span>CPPD</span>
+                                </div>
+                                {isCppdActive && (
+                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                        Aktif
+                                    </span>
+                                )}
+                            </Link>
+
+                            {/* Dropdown Menu: Menu Lainnya in Mobile */}
                             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-800/80">
                                 <button
                                     type="button"
@@ -592,8 +556,13 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                     className="flex w-full items-center justify-between px-2 py-1 text-xs font-black uppercase tracking-wider text-slate-700 cursor-pointer dark:text-slate-200"
                                 >
                                     <span className="flex items-center gap-2">
-                                        <Layers className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                        <span>Data Pangan</span>
+                                        <LayoutGrid className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                        <span>Menu Lainnya</span>
+                                        {isOtherActive && (
+                                            <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-[#006565] dark:text-emerald-300">
+                                                Aktif
+                                            </span>
+                                        )}
                                     </span>
                                     <ChevronDown
                                         className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${
@@ -603,28 +572,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                 </button>
                                 {mobileDataOpen && (
                                     <div className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2 dark:border-slate-700">
-                                        {/* Submenu 1: IKP */}
-                                        <Link
-                                            href="/ikp"
-                                            onClick={() => setMobileMenuOpen(false)}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                                                isIkpActive
-                                                    ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                                    : 'text-slate-700 hover:bg-white hover:text-[#006565] dark:text-slate-300 dark:hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <ShieldCheck className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                                <span>IKP</span>
-                                            </div>
-                                            {isIkpActive && (
-                                                <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
-                                                    Aktif
-                                                </span>
-                                            )}
-                                        </Link>
-
-                                        {/* Submenu 2: SKPG */}
+                                        {/* Submenu 1: SKPG */}
                                         <Link
                                             href="/skpg"
                                             onClick={() => setMobileMenuOpen(false)}
@@ -645,49 +593,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                             )}
                                         </Link>
 
-                                        {/* Submenu: CPPD */}
-                                        <Link
-                                            href="/cppd"
-                                            onClick={() => setMobileMenuOpen(false)}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                                                isCppdActive
-                                                    ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                                    : 'text-slate-700 hover:bg-white hover:text-[#006565] dark:text-slate-300 dark:hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <Package className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                                <span>CPPD (Cadangan Pangan)</span>
-                                            </div>
-                                            {isCppdActive && (
-                                                <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
-                                                    Aktif
-                                                </span>
-                                            )}
-                                        </Link>
-
-                                        {/* Submenu 2: Neraca */}
-                                        <Link
-                                            href="/neraca-pangan"
-                                            onClick={() => setMobileMenuOpen(false)}
-                                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all ${
-                                                isNeracaActive
-                                                    ? 'text-teal-800 bg-teal-50 border border-teal-500/20 dark:bg-teal-950/50 dark:text-teal-300'
-                                                    : 'text-slate-700 hover:bg-white hover:text-teal-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-2.5">
-                                                <Layers className="h-4 w-4 text-teal-700 dark:text-teal-400" />
-                                                <span>Neraca</span>
-                                            </div>
-                                            {isNeracaActive && (
-                                                <span className="rounded-full bg-teal-200/80 px-2 py-0.5 text-[10px] font-black text-teal-900 dark:bg-teal-800 dark:text-teal-100">
-                                                    Aktif
-                                                </span>
-                                            )}
-                                        </Link>
-
-                                        {/* Submenu 3: PPH */}
+                                        {/* Submenu 2: PPH */}
                                         <Link
                                             href="/pph"
                                             onClick={() => setMobileMenuOpen(false)}
@@ -699,7 +605,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                         >
                                             <div className="flex items-center gap-2.5">
                                                 <PieChart className="h-4 w-4 text-[#006565] dark:text-cyan-400" />
-                                                <span>PPH</span>
+                                                <span>PPH (Pola Pangan Harapan)</span>
                                             </div>
                                             {isPphActive && (
                                                 <span className="rounded-full bg-cyan-200/80 px-2 py-0.5 text-[10px] font-black text-[#006565] dark:bg-cyan-800 dark:text-cyan-100">
@@ -708,7 +614,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                             )}
                                         </Link>
 
-                                        {/* Submenu 4: Harga Konsumen */}
+                                        {/* Submenu 3: Harga Konsumen */}
                                         <Link
                                             href="/harga-konsumen"
                                             onClick={() => setMobileMenuOpen(false)}
@@ -729,7 +635,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                             )}
                                         </Link>
 
-                                        {/* Submenu 5: Harga Produsen */}
+                                        {/* Submenu 4: Harga Produsen */}
                                         <Link
                                             href="/harga-produsen"
                                             onClick={() => setMobileMenuOpen(false)}
