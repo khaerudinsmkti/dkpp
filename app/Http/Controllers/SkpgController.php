@@ -42,9 +42,9 @@ class SkpgController extends Controller
             'ik' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
             'ia' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
             'ip' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
-            'potensi_kering' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
-            'potensi_basah' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
-            'kondisi_iklim' => ['AMAN' => 0, 'WASPADA' => 0, 'RENTAN' => 0],
+            'potensi_kering' => ['AMAN' => 0, 'WASPADA' => 0, 'SIAGA' => 0, 'AWAS' => 0],
+            'potensi_basah' => ['AMAN' => 0, 'WASPADA' => 0, 'SIAGA' => 0, 'AWAS' => 0],
+            'kondisi_iklim' => ['AMAN' => 0, 'WASPADA' => 0, 'SIAGA' => 0, 'AWAS' => 0],
         ];
 
         foreach (Skpg::KECAMATAN_LIST as $kecName) {
@@ -118,7 +118,25 @@ class SkpgController extends Controller
         }
 
         // Summary for current selected indicator
-        $currentCounts = $indicatorCounts[$selectedIndicator] ?? ['AMAN' => 31, 'WASPADA' => 0, 'RENTAN' => 0];
+        $isClimate = in_array($selectedIndicator, Skpg::CLIMATE_INDICATORS, true);
+        $currentCounts = $indicatorCounts[$selectedIndicator] ?? [];
+
+        $overallStatus = 'AMAN';
+        if ($isClimate) {
+            if (($currentCounts['AWAS'] ?? 0) > 0) {
+                $overallStatus = 'AWAS';
+            } elseif (($currentCounts['SIAGA'] ?? 0) > 2) {
+                $overallStatus = 'SIAGA';
+            } elseif (($currentCounts['WASPADA'] ?? 0) > 5) {
+                $overallStatus = 'WASPADA';
+            }
+        } else {
+            if (($currentCounts['RENTAN'] ?? 0) > 3) {
+                $overallStatus = 'RENTAN';
+            } elseif (($currentCounts['WASPADA'] ?? 0) > 5) {
+                $overallStatus = 'WASPADA';
+            }
+        }
 
         $summary = [
             'year' => $selectedYear,
@@ -127,15 +145,48 @@ class SkpgController extends Controller
             'selected_indicator' => $selectedIndicator,
             'indicator_label' => Skpg::INDICATORS[$selectedIndicator] ?? 'Komposit (IKB)',
             'total_kecamatan' => count($kecamatanItems),
-            'count_aman' => $currentCounts['AMAN'],
-            'count_waspada' => $currentCounts['WASPADA'],
-            'count_rentan' => $currentCounts['RENTAN'],
-            'overall_status' => $currentCounts['RENTAN'] > 3 ? 'RENTAN' : ($currentCounts['WASPADA'] > 5 ? 'WASPADA' : 'AMAN'),
+            'is_climate' => $isClimate,
+            'count_aman' => $currentCounts['AMAN'] ?? 0,
+            'count_waspada' => $currentCounts['WASPADA'] ?? 0,
+            'count_rentan' => $currentCounts['RENTAN'] ?? 0,
+            'count_siaga' => $currentCounts['SIAGA'] ?? 0,
+            'count_awas' => $currentCounts['AWAS'] ?? 0,
+            'overall_status' => $overallStatus,
             'indicator_counts' => $indicatorCounts,
         ];
 
+        // Prepare 12-month annual calendar data for the selected year
+        $annualRecords = Skpg::where('year', $selectedYear)->get();
+        $annualCalendar = [];
+
+        foreach (Skpg::KECAMATAN_LIST as $kecName) {
+            $normName = Skpg::normalizeName($kecName);
+            $annualCalendar[$normName] = [
+                'kecamatan' => $kecName,
+                'kode_kecamatan' => Skpg::KECAMATAN_CODES[$kecName] ?? '',
+                'months' => array_fill(1, 12, null),
+            ];
+        }
+
+        foreach ($annualRecords as $rec) {
+            $normRec = Skpg::normalizeName($rec->kecamatan);
+            if (isset($annualCalendar[$normRec])) {
+                $annualCalendar[$normRec]['months'][(int) $rec->month] = [
+                    'ik' => $rec->ik,
+                    'ia' => $rec->ia,
+                    'ip' => $rec->ip,
+                    'ikb' => $rec->ikb,
+                    'potensi_kering' => $rec->potensi_kering,
+                    'potensi_basah' => $rec->potensi_basah,
+                    'kondisi_iklim' => $rec->kondisi_iklim,
+                    'keterangan' => $rec->keterangan,
+                ];
+            }
+        }
+
         return Inertia::render('skpg', [
             'kecamatanItems' => $kecamatanItems,
+            'calendarData' => array_values($annualCalendar),
             'summary' => $summary,
             'indicators' => Skpg::INDICATORS,
             'availableYears' => $availableYears,
@@ -172,9 +223,15 @@ class SkpgController extends Controller
             });
         }
 
-        if ($filterStatus !== '' && in_array($filterStatus, Skpg::STATUS_LIST, true)) {
+        if ($filterStatus !== '') {
             $column = array_key_exists($filterIndicator, Skpg::INDICATORS) ? $filterIndicator : 'ikb';
-            $query->where($column, $filterStatus);
+            $validStatuses = in_array($column, Skpg::CLIMATE_INDICATORS, true)
+                ? Skpg::CLIMATE_STATUS_LIST
+                : Skpg::STATUS_LIST;
+
+            if (in_array($filterStatus, $validStatuses, true)) {
+                $query->where($column, $filterStatus);
+            }
         }
 
         $records = $query->orderBy('kecamatan')->get();
@@ -235,6 +292,7 @@ class SkpgController extends Controller
             'kecamatanList' => Skpg::KECAMATAN_LIST,
             'indicators' => Skpg::INDICATORS,
             'statuses' => Skpg::STATUS_LIST,
+            'climateStatuses' => Skpg::CLIMATE_STATUS_LIST,
             'statistics' => $statistics,
             'availableYears' => $availableYears,
             'filters' => [
@@ -260,9 +318,9 @@ class SkpgController extends Controller
             'ia' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'ip' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'ikb' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
+            'potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
             'keterangan' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -291,9 +349,9 @@ class SkpgController extends Controller
             'ia' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'ip' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'ikb' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
+            'potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
             'keterangan' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -330,9 +388,9 @@ class SkpgController extends Controller
             'items.*.ia' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'items.*.ip' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
             'items.*.ikb' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'items.*.potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'items.*.potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
-            'items.*.kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::STATUS_LIST)],
+            'items.*.potensi_kering' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'items.*.potensi_basah' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
+            'items.*.kondisi_iklim' => ['required', 'string', 'in:'.implode(',', Skpg::CLIMATE_STATUS_LIST)],
             'items.*.keterangan' => ['nullable', 'string', 'max:1000'],
         ]);
 

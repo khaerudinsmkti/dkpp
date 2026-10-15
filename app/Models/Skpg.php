@@ -112,7 +112,7 @@ class Skpg extends Model
     ];
 
     /**
-     * Nilai status resmi SKPG
+     * Nilai status resmi SKPG Ketahanan Pangan (IK, IA, IP, IKB)
      */
     public const STATUS_AMAN = 'AMAN';
 
@@ -124,6 +124,40 @@ class Skpg extends Model
         self::STATUS_AMAN,
         self::STATUS_WASPADA,
         self::STATUS_RENTAN,
+    ];
+
+    /**
+     * Nilai status resmi Indikator Iklim & Bencana (Potensi Kering, Potensi Basah, Kondisi Iklim):
+     * 4 Status: AMAN, WASPADA, SIAGA, AWAS
+     */
+    public const STATUS_SIAGA = 'SIAGA';
+
+    public const STATUS_AWAS = 'AWAS';
+
+    public const CLIMATE_STATUS_LIST = [
+        self::STATUS_AMAN,
+        self::STATUS_WASPADA,
+        self::STATUS_SIAGA,
+        self::STATUS_AWAS,
+    ];
+
+    public const ALL_STATUSES = [
+        self::STATUS_AMAN,
+        self::STATUS_WASPADA,
+        self::STATUS_SIAGA,
+        self::STATUS_AWAS,
+        self::STATUS_RENTAN,
+    ];
+
+    /**
+     * Daftar kunci indikator iklim / kebencanaan
+     *
+     * @var list<string>
+     */
+    public const CLIMATE_INDICATORS = [
+        'potensi_kering',
+        'potensi_basah',
+        'kondisi_iklim',
     ];
 
     /**

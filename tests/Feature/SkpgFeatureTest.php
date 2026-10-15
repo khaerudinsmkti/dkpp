@@ -10,6 +10,7 @@ test('public page for skpg is displayed with map data, hero summary, and indicat
     $response->assertInertia(fn ($page) => $page
         ->component('skpg')
         ->has('kecamatanItems')
+        ->has('calendarData')
         ->has('summary')
         ->has('indicators')
         ->has('availableYears')
@@ -76,22 +77,24 @@ test('authenticated user can create, update, and delete a single skpg record in 
     expect($created->ia)->toBe('WASPADA');
     expect($created->ikb)->toBe('WASPADA');
 
-    // 2. Update
+    // 2. Update with SIAGA and AWAS for climate indicators
     $updateResponse = $this->actingAs($user)->put("/skpg-admin/{$created->id}", [
         'ik' => 'RENTAN',
         'ia' => 'RENTAN',
         'ip' => 'WASPADA',
         'ikb' => 'RENTAN',
-        'potensi_kering' => 'RENTAN',
-        'potensi_basah' => 'WASPADA',
-        'kondisi_iklim' => 'WASPADA',
-        'keterangan' => 'Hasil Evaluasi Diperbarui',
+        'potensi_kering' => 'AWAS',
+        'potensi_basah' => 'SIAGA',
+        'kondisi_iklim' => 'AWAS',
+        'keterangan' => 'Hasil Evaluasi Diperbarui dengan status Iklim AWAS & SIAGA',
     ]);
 
     $updateResponse->assertSessionHas('success');
     $created->refresh();
     expect($created->ikb)->toBe('RENTAN');
-    expect($created->potensi_kering)->toBe('RENTAN');
+    expect($created->potensi_kering)->toBe('AWAS');
+    expect($created->potensi_basah)->toBe('SIAGA');
+    expect($created->kondisi_iklim)->toBe('AWAS');
 
     // 3. Delete
     $deleteResponse = $this->actingAs($user)->delete("/skpg-admin/{$created->id}");
@@ -99,7 +102,7 @@ test('authenticated user can create, update, and delete a single skpg record in 
     expect(Skpg::where('id', $created->id)->exists())->toBeFalse();
 });
 
-test('authenticated user can bulk store all 31 kecamatan in admin panel', function () {
+test('authenticated user can bulk store all 31 kecamatan with SIAGA and AWAS in admin panel', function () {
     $user = User::factory()->create();
 
     $testYear = 2039;
@@ -115,8 +118,8 @@ test('authenticated user can bulk store all 31 kecamatan in admin panel', functi
             'ia' => 'AMAN',
             'ip' => 'AMAN',
             'ikb' => $idx % 2 === 0 ? 'AMAN' : 'WASPADA',
-            'potensi_kering' => 'AMAN',
-            'potensi_basah' => 'AMAN',
+            'potensi_kering' => $idx % 4 === 0 ? 'AWAS' : ($idx % 4 === 1 ? 'SIAGA' : 'AMAN'),
+            'potensi_basah' => $idx % 4 === 2 ? 'SIAGA' : 'AMAN',
             'kondisi_iklim' => 'AMAN',
             'keterangan' => "Bulk data {$kec}",
         ];
@@ -134,4 +137,21 @@ test('authenticated user can bulk store all 31 kecamatan in admin panel', functi
 
     $count = Skpg::where('year', $testYear)->where('month', $testMonth)->count();
     expect($count)->toBe(31);
+
+    $awasCount = Skpg::where('year', $testYear)->where('month', $testMonth)->where('potensi_kering', 'AWAS')->count();
+    $siagaCount = Skpg::where('year', $testYear)->where('month', $testMonth)->where('potensi_kering', 'SIAGA')->count();
+    expect($awasCount)->toBeGreaterThan(0);
+    expect($siagaCount)->toBeGreaterThan(0);
+});
+
+test('public page supports climate indicators with SIAGA and AWAS status breakdowns', function () {
+    $response = $this->get('/skpg?indicator=potensi_kering');
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('skpg')
+        ->where('summary.is_climate', true)
+        ->has('summary.count_siaga')
+        ->has('summary.count_awas')
+    );
 });

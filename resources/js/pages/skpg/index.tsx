@@ -129,6 +129,20 @@ const MONTH_NAMES = [
 
 export function getStatusBadge(status: string) {
     switch (status) {
+        case 'AWAS':
+            return {
+                label: 'AWAS',
+                badgeClass:
+                    'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+                dotClass: 'bg-rose-600',
+            };
+        case 'SIAGA':
+            return {
+                label: 'SIAGA',
+                badgeClass:
+                    'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
+                dotClass: 'bg-orange-500',
+            };
         case 'RENTAN':
             return {
                 label: 'RENTAN',
@@ -817,16 +831,19 @@ export default function SkpgAdminIndex({
                                                         handleBulkCellChange(originalIdx, 'potensi_kering', e.target.value)
                                                     }
                                                     className={`w-full rounded-lg px-2 py-1 text-xs font-bold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006565] ${
-                                                        item.potensi_kering === 'RENTAN'
-                                                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                                            : item.potensi_kering === 'WASPADA'
-                                                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                                              : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                        item.potensi_kering === 'AWAS' || item.potensi_kering === 'RENTAN'
+                                                            ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
+                                                            : item.potensi_kering === 'SIAGA'
+                                                              ? 'bg-orange-50 text-orange-800 border-orange-300 font-extrabold'
+                                                              : item.potensi_kering === 'WASPADA'
+                                                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                                                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                                     }`}
                                                 >
                                                     <option value="AMAN">AMAN</option>
                                                     <option value="WASPADA">WASPADA</option>
-                                                    <option value="RENTAN">RENTAN</option>
+                                                    <option value="SIAGA">SIAGA</option>
+                                                    <option value="AWAS">AWAS</option>
                                                 </select>
                                             </td>
 
@@ -838,16 +855,19 @@ export default function SkpgAdminIndex({
                                                         handleBulkCellChange(originalIdx, 'potensi_basah', e.target.value)
                                                     }
                                                     className={`w-full rounded-lg px-2 py-1 text-xs font-bold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006565] ${
-                                                        item.potensi_basah === 'RENTAN'
-                                                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                                            : item.potensi_basah === 'WASPADA'
-                                                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                                              : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                        item.potensi_basah === 'AWAS' || item.potensi_basah === 'RENTAN'
+                                                            ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
+                                                            : item.potensi_basah === 'SIAGA'
+                                                              ? 'bg-orange-50 text-orange-800 border-orange-300 font-extrabold'
+                                                              : item.potensi_basah === 'WASPADA'
+                                                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                                                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                                     }`}
                                                 >
                                                     <option value="AMAN">AMAN</option>
                                                     <option value="WASPADA">WASPADA</option>
-                                                    <option value="RENTAN">RENTAN</option>
+                                                    <option value="SIAGA">SIAGA</option>
+                                                    <option value="AWAS">AWAS</option>
                                                 </select>
                                             </td>
 
@@ -859,16 +879,19 @@ export default function SkpgAdminIndex({
                                                         handleBulkCellChange(originalIdx, 'kondisi_iklim', e.target.value)
                                                     }
                                                     className={`w-full rounded-lg px-2 py-1 text-xs font-bold border cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#006565] ${
-                                                        item.kondisi_iklim === 'RENTAN'
-                                                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                                            : item.kondisi_iklim === 'WASPADA'
-                                                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                                                              : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                                        item.kondisi_iklim === 'AWAS' || item.kondisi_iklim === 'RENTAN'
+                                                            ? 'bg-rose-50 text-rose-800 border-rose-300 font-extrabold'
+                                                            : item.kondisi_iklim === 'SIAGA'
+                                                              ? 'bg-orange-50 text-orange-800 border-orange-300 font-extrabold'
+                                                              : item.kondisi_iklim === 'WASPADA'
+                                                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                                                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                                     }`}
                                                 >
                                                     <option value="AMAN">AMAN</option>
                                                     <option value="WASPADA">WASPADA</option>
-                                                    <option value="RENTAN">RENTAN</option>
+                                                    <option value="SIAGA">SIAGA</option>
+                                                    <option value="AWAS">AWAS</option>
                                                 </select>
                                             </td>
 
@@ -1004,14 +1027,20 @@ export default function SkpgAdminIndex({
                                                         {rec.ip}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center font-bold">
-                                                    {rec.potensi_kering}
+                                                <td className="px-3 py-3 text-center">
+                                                    <span className={`font-bold ${getStatusBadge(rec.potensi_kering).badgeClass} px-2 py-0.5 rounded-md`}>
+                                                        {rec.potensi_kering}
+                                                    </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center font-bold">
-                                                    {rec.potensi_basah}
+                                                <td className="px-3 py-3 text-center">
+                                                    <span className={`font-bold ${getStatusBadge(rec.potensi_basah).badgeClass} px-2 py-0.5 rounded-md`}>
+                                                        {rec.potensi_basah}
+                                                    </span>
                                                 </td>
-                                                <td className="px-3 py-3 text-center font-bold">
-                                                    {rec.kondisi_iklim}
+                                                <td className="px-3 py-3 text-center">
+                                                    <span className={`font-bold ${getStatusBadge(rec.kondisi_iklim).badgeClass} px-2 py-0.5 rounded-md`}>
+                                                        {rec.kondisi_iklim}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-3 max-w-xs truncate text-slate-600">
                                                     {rec.keterangan || '-'}
@@ -1167,7 +1196,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                                 <div>
@@ -1179,7 +1209,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                                 <div className="col-span-2">
@@ -1191,7 +1222,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                             </div>
@@ -1305,7 +1337,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                                 <div>
@@ -1317,7 +1350,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                                 <div className="col-span-2">
@@ -1329,7 +1363,8 @@ export default function SkpgAdminIndex({
                                     >
                                         <option value="AMAN">AMAN</option>
                                         <option value="WASPADA">WASPADA</option>
-                                        <option value="RENTAN">RENTAN</option>
+                                        <option value="SIAGA">SIAGA</option>
+                                        <option value="AWAS">AWAS</option>
                                     </select>
                                 </div>
                             </div>
