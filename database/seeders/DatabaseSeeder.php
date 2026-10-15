@@ -34,6 +34,7 @@ class DatabaseSeeder extends Seeder
             FoodBalanceSeeder::class,
             SkpgSeeder::class,
             CppdSeeder::class,
+            FsvaSeeder::class,
         ]);
     }
 }

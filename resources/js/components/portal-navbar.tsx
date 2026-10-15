@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
     ChevronDown,
+    Compass,
     Layers,
     LayoutGrid,
     MapPin,
@@ -16,7 +17,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { dashboard, login } from '@/routes';
 
-export type PortalActivePage = 'ikp' | 'skpg' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
+export type PortalActivePage = 'ikp' | 'skpg' | 'fsva' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
 
 interface PortalNavbarProps {
     activePage: PortalActivePage;
@@ -50,6 +51,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
 
     const isIkpActive = activePage === 'ikp';
     const isSkpgActive = activePage === 'skpg';
+    const isFsvaActive = activePage === 'fsva';
     const isCppdActive = activePage === 'cppd';
     const isNeracaActive = activePage === 'neraca-pangan';
     const isPphActive = activePage === 'pph';
@@ -57,6 +59,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
     const isHargaProdusenActive = activePage === 'harga-produsen';
     const isOtherActive =
         isSkpgActive ||
+        isFsvaActive ||
         isHargaKonsumenActive ||
         isHargaProdusenActive ||
         isPphActive;
@@ -193,7 +196,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                 </span>
                                             </div>
                                             <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-extrabold text-[#006565] border border-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/30">
-                                                4 Modul Terintegrasi
+                                                5 Modul Terintegrasi
                                             </span>
                                         </div>
 
@@ -204,6 +207,49 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                 <div className="px-2 pb-1 text-[10px] font-black tracking-wider text-slate-400 uppercase dark:text-slate-500">
                                                     Kewaspadaan &amp; Gizi
                                                 </div>
+
+                                                {/* Submenu: FSVA */}
+                                                <Link
+                                                    href="/fsva"
+                                                    onClick={() => setDropdownMenuOpen(false)}
+                                                    className={`group flex items-start gap-3 rounded-xl p-2.5 transition-all ${
+                                                        isFsvaActive
+                                                            ? 'bg-gradient-to-r from-emerald-50/90 to-teal-50/40 text-slate-900 border border-emerald-500/25 dark:from-emerald-950/40 dark:to-teal-950/20 dark:text-white dark:border-emerald-500/30'
+                                                            : 'hover:bg-slate-50 border border-transparent hover:border-slate-200/60 dark:hover:bg-slate-800/80 dark:hover:border-slate-700/60'
+                                                    }`}
+                                                >
+                                                    <div
+                                                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-xs transition-colors ${
+                                                            isFsvaActive
+                                                                ? 'bg-gradient-to-br from-[#006565] to-emerald-700 text-white'
+                                                                : 'bg-emerald-100 text-[#006565] group-hover:bg-[#006565] group-hover:text-white dark:bg-slate-800 dark:text-emerald-400'
+                                                        }`}
+                                                    >
+                                                        <Compass className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span
+                                                                className={`text-xs font-bold ${
+                                                                    isFsvaActive
+                                                                        ? 'text-[#006565] dark:text-emerald-400'
+                                                                        : 'text-slate-800 group-hover:text-[#006565] dark:text-slate-200 dark:group-hover:text-emerald-400'
+                                                                }`}
+                                                            >
+                                                                FSVA
+                                                            </span>
+                                                            {isFsvaActive && (
+                                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                                                                    Aktif
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
+                                                            Peta Ketahanan Desa (317 Desa)
+                                                        </p>
+                                                    </div>
+                                                </Link>
 
                                                 {/* Submenu: SKPG */}
                                                 <Link
@@ -572,7 +618,28 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                 </button>
                                 {mobileDataOpen && (
                                     <div className="mt-2 space-y-1.5 border-t border-slate-200/70 pt-2 dark:border-slate-700">
-                                        {/* Submenu 1: SKPG */}
+                                        {/* Submenu 1: FSVA */}
+                                        <Link
+                                            href="/fsva"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all ${
+                                                isFsvaActive
+                                                    ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
+                                                    : 'text-slate-700 hover:bg-white hover:text-[#006565] dark:text-slate-300 dark:hover:bg-slate-700'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <Compass className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                                <span>FSVA (Peta 317 Desa)</span>
+                                            </div>
+                                            {isFsvaActive && (
+                                                <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
+                                                    Aktif
+                                                </span>
+                                            )}
+                                        </Link>
+
+                                        {/* Submenu 2: SKPG */}
                                         <Link
                                             href="/skpg"
                                             onClick={() => setMobileMenuOpen(false)}

@@ -6,6 +6,7 @@ use App\Http\Controllers\ConsumerPriceController;
 use App\Http\Controllers\CppdController;
 use App\Http\Controllers\FoodBalanceCommodityController;
 use App\Http\Controllers\FoodBalanceController;
+use App\Http\Controllers\FsvaController;
 use App\Http\Controllers\IkpScoreController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\PphFoodGroupController;
@@ -246,11 +247,25 @@ Route::get('/ikp', [IkpScoreController::class, 'publicIndex'])->name('ikp');
 Route::get('/skpg', [SkpgController::class, 'publicIndex'])->name('skpg');
 Route::get('/api/skpg/geojson', [SkpgController::class, 'geojson'])->name('skpg.geojson');
 
+// Modul Publik FSVA (Peta Ketahanan dan Kerentanan Pangan / Food Security and Vulnerability Atlas)
+Route::get('/fsva', [FsvaController::class, 'publicIndex'])->name('fsva');
+Route::get('/api/fsva/geojson', [FsvaController::class, 'geojson'])->name('fsva.geojson');
+
 Route::get('/cppd', [CppdController::class, 'publicIndex'])->name('cppd');
 Route::get('/cppd/export-excel', [CppdController::class, 'exportExcel'])->name('cppd.export-excel');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');
+
+    // Modul FSVA (Peta Ketahanan dan Kerentanan Pangan / Food Security and Vulnerability Atlas)
+    Route::get('/fsva-admin', [FsvaController::class, 'index'])->name('fsva.index');
+    Route::get('/fsva-admin/template', [FsvaController::class, 'downloadTemplate'])->name('fsva.template');
+    Route::get('/fsva-admin/export', [FsvaController::class, 'exportExcel'])->name('fsva.export');
+    Route::post('/fsva-admin/import', [FsvaController::class, 'import'])->name('fsva.import');
+    Route::post('/fsva-admin', [FsvaController::class, 'store'])->name('fsva.store');
+    Route::post('/fsva-admin/bulk', [FsvaController::class, 'bulkStore'])->name('fsva.bulk-store');
+    Route::put('/fsva-admin/{fsva}', [FsvaController::class, 'update'])->name('fsva.update');
+    Route::delete('/fsva-admin/{fsva}', [FsvaController::class, 'destroy'])->name('fsva.destroy');
 
     // Modul CPPD (Cadangan Pangan Pemerintah Daerah)
     Route::get('/cppd-admin', [CppdController::class, 'index'])->name('cppd.index');

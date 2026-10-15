@@ -1,0 +1,1031 @@
+import { Head, router } from '@inertiajs/react';
+import {
+    Activity,
+    AlertCircle,
+    AlertTriangle,
+    Award,
+    BarChart3,
+    Calendar,
+    CheckCircle2,
+    ChevronRight,
+    Compass,
+    Download,
+    Droplets,
+    ExternalLink,
+    FileSpreadsheet,
+    Filter,
+    HelpCircle,
+    Info,
+    Layers,
+    MapPin,
+    PieChart as PieChartIcon,
+    Printer,
+    Search,
+    ShieldAlert,
+    ShieldCheck,
+    Sparkles,
+    TrendingDown,
+    TrendingUp,
+    Wheat,
+    X,
+} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip as RechartsTooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
+
+import FsvaMap, { type FsvaVillageItem } from '@/components/fsva-map';
+import PortalFooter from '@/components/portal-footer';
+import PortalNavbar from '@/components/portal-navbar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+
+export interface PriorityBarItem {
+    priority: number;
+    name: string;
+    full_name: string;
+    short_name: string;
+    count: number;
+    percentage: number;
+    color: string;
+    category: string;
+}
+
+export interface DonutItem {
+    name: string;
+    value: number;
+    percentage: number;
+    color: string;
+}
+
+export interface ClassificationCardItem {
+    priority: number;
+    title: string;
+    status: string;
+    full_title: string;
+    count: number;
+    percentage: number;
+    avg_ikp: number;
+    avg_indicator: number;
+    color: string;
+    bg_class: string;
+    category: string;
+    description: string;
+    villages: Array<{
+        id: number;
+        desa: string;
+        kecamatan: string;
+        ikp: number | null;
+        rank: number | null;
+        current_indicator_value: number | null;
+    }>;
+}
+
+interface FsvaPageProps {
+    items: FsvaVillageItem[];
+    summary: {
+        year: number;
+        total_desa: number;
+        indicator: string;
+        indicator_info: {
+            label: string;
+            short: string;
+            unit: string;
+            description: string;
+        };
+        avg_value: number;
+        min_value: number;
+        max_value: number;
+        min_desa?: FsvaVillageItem | null;
+        max_desa?: FsvaVillageItem | null;
+        count_rentan: number;
+        count_aman: number;
+        pct_rentan: number;
+        pct_aman: number;
+    };
+    priorityChartData: PriorityBarItem[];
+    donutSummary: {
+        total_desa: number;
+        count_rentan: number;
+        percentage_rentan: number;
+        count_aman: number;
+        percentage_aman: number;
+        chart_data: DonutItem[];
+    };
+    classificationCards: ClassificationCardItem[];
+    indicators: Record<string, { label: string; short: string; unit: string; description: string }>;
+    availableYears: number[];
+    kecamatanList: string[];
+    filters: {
+        year: number;
+        indicator: string;
+        kecamatan: string;
+    };
+}
+
+export default function FsvaPage({
+    items,
+    summary,
+    priorityChartData,
+    donutSummary,
+    classificationCards,
+    indicators,
+    availableYears,
+    kecamatanList,
+    filters,
+}: FsvaPageProps) {
+    const [selectedCardModal, setSelectedCardModal] = useState<ClassificationCardItem | null>(null);
+    const [modalSearch, setModalSearch] = useState('');
+    const [tableSearch, setTableSearch] = useState('');
+    const [tableKecFilter, setTableKecFilter] = useState('ALL');
+    const [tablePriorityFilter, setTablePriorityFilter] = useState('ALL');
+    const [currentPage, setCurrentPage] = useState(1);
+    const rowsPerPage = 15;
+
+    // Filter change handler
+    const handleFilterChange = (key: 'year' | 'indicator' | 'kecamatan', value: string) => {
+        router.get(
+            '/fsva',
+            {
+                ...filters,
+                [key]: value,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+            }
+        );
+    };
+
+    // Filter villages in modal
+    const filteredModalVillages = useMemo(() => {
+        if (!selectedCardModal) return [];
+        if (!modalSearch.trim()) return selectedCardModal.villages;
+        const q = modalSearch.toLowerCase();
+        return selectedCardModal.villages.filter(
+            (v) =>
+                v.desa.toLowerCase().includes(q) ||
+                v.kecamatan.toLowerCase().includes(q)
+        );
+    }, [selectedCardModal, modalSearch]);
+
+    // Filter villages for table
+    const filteredTableItems = useMemo(() => {
+        return items.filter((it) => {
+            if (tableKecFilter !== 'ALL' && it.kecamatan !== tableKecFilter) return false;
+            if (tablePriorityFilter !== 'ALL' && it.komposit !== Number(tablePriorityFilter)) return false;
+            if (tableSearch.trim()) {
+                const q = tableSearch.toLowerCase();
+                const match =
+                    it.desa.toLowerCase().includes(q) ||
+                    it.kecamatan.toLowerCase().includes(q);
+                if (!match) return false;
+            }
+            return true;
+        });
+    }, [items, tableKecFilter, tablePriorityFilter, tableSearch]);
+
+    const totalPages = Math.ceil(filteredTableItems.length / rowsPerPage);
+    const paginatedTableItems = useMemo(() => {
+        const start = (currentPage - 1) * rowsPerPage;
+        return filteredTableItems.slice(start, start + rowsPerPage);
+    }, [filteredTableItems, currentPage]);
+
+    return (
+        <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col dark:bg-slate-950 dark:text-slate-100">
+            <Head>
+                <title>FSVA - Food Security and Vulnerability Atlas | Ketahanan Pangan Indramayu</title>
+                <meta
+                    name="description"
+                    content="Peta Ketahanan dan Kerentanan Pangan (FSVA) 317 Desa/Kelurahan Kabupaten Indramayu. Pemetaan tingkat prioritas ketahanan pangan terpadu."
+                />
+            </Head>
+
+            {/* Public Portal Top Navbar */}
+            <PortalNavbar activePage="fsva" />
+
+            <main className="flex-1 pb-16">
+                {/* 1. HERO BANNER */}
+                <section className="relative overflow-hidden bg-gradient-to-br from-[#004d4d] via-[#006565] to-teal-900 text-white pt-10 pb-16 shadow-lg">
+                    {/* Background abstract grid pattern */}
+                    <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:18px_18px]" />
+
+                    <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+                            <div className="max-w-2xl space-y-4">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-bold backdrop-blur-md border border-white/20 text-emerald-200">
+                                    <Compass className="h-3.5 w-3.5 animate-spin-slow" />
+                                    <span>Food Security and Vulnerability Atlas</span>
+                                </div>
+
+                                <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl text-white">
+                                    Peta Ketahanan &amp; Kerentanan Pangan (FSVA)
+                                </h1>
+
+                                <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed">
+                                    Pemetaan spasial tingkat ketahanan dan kerentanan pangan tingkat desa/kelurahan se-Kabupaten Indramayu. Instrumen perumusan kebijakan pengentasan kerentanan pangan terarah dan berbasis bukti.
+                                </p>
+
+                                {/* Badges */}
+                                <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+                                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 font-bold text-white backdrop-blur-xs border border-white/10">
+                                        <MapPin className="h-3.5 w-3.5 text-emerald-300" />
+                                        <span>317 Desa &amp; Kelurahan</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 font-bold text-white backdrop-blur-xs border border-white/10">
+                                        <Layers className="h-3.5 w-3.5 text-emerald-300" />
+                                        <span>31 Kecamatan</span>
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 font-bold text-white backdrop-blur-xs border border-white/10">
+                                        <Activity className="h-3.5 w-3.5 text-emerald-300" />
+                                        <span>13 Indikator Ketahanan Pangan</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Hero Right: Summary Status Card */}
+                            <div className="w-full lg:w-96 rounded-3xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-xl space-y-4">
+                                <div className="flex items-center justify-between border-b border-white/15 pb-3">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-200">
+                                        Status Umum Tahun {summary.year}
+                                    </span>
+                                    <Badge className="bg-emerald-500 text-white font-extrabold text-[10px]">
+                                        Tersinkronisasi
+                                    </Badge>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 text-center">
+                                    <div className="rounded-2xl bg-emerald-500/20 p-3 border border-emerald-400/30">
+                                        <span className="text-[11px] font-bold text-emerald-200 block">
+                                            Desa Tahan / Aman
+                                        </span>
+                                        <span className="text-2xl font-black text-white">
+                                            {summary.count_aman}
+                                        </span>
+                                        <span className="text-[10px] text-emerald-200/80 block">
+                                            {summary.pct_aman}% (P4 - P6)
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-2xl bg-rose-500/20 p-3 border border-rose-400/30">
+                                        <span className="text-[11px] font-bold text-rose-200 block">
+                                            Desa Rentan
+                                        </span>
+                                        <span className="text-2xl font-black text-white">
+                                            {summary.count_rentan}
+                                        </span>
+                                        <span className="text-[10px] text-rose-200/80 block">
+                                            {summary.pct_rentan}% (P1 - P3)
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <p className="text-[11px] text-emerald-100/80 text-center leading-tight">
+                                    Sebanyak <b>{summary.count_aman} desa</b> ({summary.pct_aman}%) berada pada klasifikasi tahan, dan <b>{summary.count_rentan} desa</b> ({summary.pct_rentan}%) memerlukan intervensi prioritas.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 -mt-7 space-y-8">
+                    {/* 2. FILTER BAR */}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-[#006565] dark:bg-emerald-950/60 dark:text-emerald-400">
+                                    <Filter className="h-4 w-4" />
+                                </span>
+                                <div>
+                                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                        Filter Indikator &amp; Periode
+                                    </h2>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        Pilih tahun evaluasi dan indikator FSVA
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                {/* Tahun Filter */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        Tahun:
+                                    </span>
+                                    <Select
+                                        value={String(summary.year)}
+                                        onValueChange={(val) => handleFilterChange('year', val)}
+                                    >
+                                        <SelectTrigger className="h-9 w-28 rounded-xl font-bold bg-slate-50 dark:bg-slate-800">
+                                            <SelectValue placeholder="Tahun" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableYears.map((y) => (
+                                                <SelectItem key={y} value={String(y)} className="font-bold">
+                                                    {y}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Indicator Filter */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                                        Indikator:
+                                    </span>
+                                    <Select
+                                        value={summary.indicator}
+                                        onValueChange={(val) => handleFilterChange('indicator', val)}
+                                    >
+                                        <SelectTrigger className="h-9 w-60 sm:w-72 rounded-xl font-bold bg-slate-50 dark:bg-slate-800">
+                                            <SelectValue placeholder="Pilih Indikator" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {Object.entries(indicators).map(([key, ind]) => (
+                                                <SelectItem key={key} value={key} className="font-medium text-xs">
+                                                    {ind.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. CARD RINGKASAN SINGKAT TENTANG INDIKATOR SESUAI FILTER */}
+                    <Card className="rounded-2xl border-slate-200/80 shadow-md overflow-hidden bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-900 dark:border-slate-800">
+                        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div className="flex items-center gap-2.5">
+                                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#006565] text-white shadow-xs">
+                                        <Activity className="h-4.5 w-4.5" />
+                                    </span>
+                                    <div>
+                                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">
+                                            Ringkasan Indikator: {summary.indicator_info.label}
+                                        </CardTitle>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            Satuan: <span className="font-semibold text-slate-700 dark:text-slate-300">{summary.indicator_info.unit}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <Badge className="bg-[#006565] text-white text-xs px-3 py-1 rounded-full font-bold self-start sm:self-auto">
+                                    Tahun {summary.year}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="pt-4 space-y-4">
+                            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed dark:text-slate-300">
+                                {summary.indicator_info.description}
+                            </p>
+
+                            {/* Stat Summary Metrics Grid */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
+                                    <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                                        Rata-rata Kabupaten
+                                    </span>
+                                    <span className="text-xl sm:text-2xl font-black text-[#006565] dark:text-emerald-400">
+                                        {summary.avg_value}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block truncate">
+                                        {summary.indicator_info.unit}
+                                    </span>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
+                                    <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
+                                        Total Desa Terdata
+                                    </span>
+                                    <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+                                        {summary.total_desa}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block">
+                                        Desa / Kelurahan
+                                    </span>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
+                                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block uppercase tracking-wider">
+                                        Nilai Tertinggi
+                                    </span>
+                                    <span className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-300">
+                                        {summary.max_value}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block truncate">
+                                        {summary.max_desa ? `Desa ${summary.max_desa.desa} (${summary.max_desa.kecamatan})` : '-'}
+                                    </span>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
+                                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 block uppercase tracking-wider">
+                                        Nilai Terendah
+                                    </span>
+                                    <span className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300">
+                                        {summary.min_value}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 block truncate">
+                                        {summary.min_desa ? `Desa ${summary.min_desa.desa} (${summary.min_desa.kecamatan})` : '-'}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* 4. PETA SEBARAN DESA STATUS FSVA (LEAFLET JS) */}
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Compass className="h-5 w-5 text-[#006565] dark:text-emerald-400" />
+                                    <span>Peta Spasial Ketahanan &amp; Kerentanan Pangan Desa</span>
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Batas wilayah desa dan visualisasi tingkat prioritas FSVA (Default: Indikator Komposit). Klik desa untuk melihat detail.
+                                </p>
+                            </div>
+                        </div>
+
+                        <FsvaMap
+                            items={items}
+                            selectedIndicator={summary.indicator}
+                            indicatorLabel={summary.indicator_info.label}
+                            selectedYear={summary.year}
+                        />
+                    </section>
+
+                    {/* 5. GRAFIK BATANG & GRAFIK LINGKARAN */}
+                    <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* Grafik Batang: Distribusi Desa Tingkat Prioritas (6 Prioritas) */}
+                        <Card className="lg:col-span-7 rounded-2xl border-slate-200/80 shadow-md bg-white dark:border-slate-800 dark:bg-slate-900">
+                            <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-[#006565] dark:bg-emerald-950/60 dark:text-emerald-400">
+                                            <BarChart3 className="h-4 w-4" />
+                                        </span>
+                                        <div>
+                                            <CardTitle className="text-sm font-black text-slate-900 dark:text-white">
+                                                Distribusi Desa Tingkat Prioritas
+                                            </CardTitle>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                Klasifikasi 6 Tingkat Prioritas Komposit FSVA
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Badge variant="outline" className="text-[10px] font-bold">
+                                        6 Prioritas
+                                    </Badge>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <div className="h-72 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={priorityChartData}
+                                            margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                                            <XAxis
+                                                dataKey="short_name"
+                                                tick={{ fontSize: 11, fontWeight: 600 }}
+                                                interval={0}
+                                                angle={-15}
+                                                textAnchor="end"
+                                                height={45}
+                                            />
+                                            <YAxis
+                                                allowDecimals={false}
+                                                tick={{ fontSize: 11 }}
+                                                label={{ value: 'Jumlah Desa', angle: -90, position: 'insideLeft', style: { fontSize: 10 } }}
+                                            />
+                                            <RechartsTooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        const data = payload[0].payload as PriorityBarItem;
+                                                        return (
+                                                            <div className="rounded-xl border border-slate-200 bg-white/95 p-3 shadow-xl text-xs dark:border-slate-700 dark:bg-slate-900/95">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span
+                                                                        className="h-2.5 w-2.5 rounded-full"
+                                                                        style={{ backgroundColor: data.color }}
+                                                                    />
+                                                                    <span className="font-extrabold text-slate-900 dark:text-white">
+                                                                        {data.full_name}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-slate-600 dark:text-slate-300">
+                                                                    Jumlah: <b>{data.count} Desa</b> ({data.percentage}%)
+                                                                </p>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                                                {priorityChartData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Grafik Lingkaran: Ringkasan Ketahanan Pangan Desa (Rentan P1-3 vs Aman P4-6) */}
+                        <Card className="lg:col-span-5 rounded-2xl border-slate-200/80 shadow-md bg-white dark:border-slate-800 dark:bg-slate-900">
+                            <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-[#006565] dark:bg-teal-950/60 dark:text-teal-400">
+                                            <PieChartIcon className="h-4 w-4" />
+                                        </span>
+                                        <div>
+                                            <CardTitle className="text-sm font-black text-slate-900 dark:text-white">
+                                                Ringkasan Ketahanan Pangan Desa
+                                            </CardTitle>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                Desa Rentan (P1-3) vs Desa Aman (P4-6)
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <Badge className="bg-[#006565] text-white text-[10px] font-bold">
+                                        Komposit
+                                    </Badge>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-4 flex flex-col items-center">
+                                <div className="h-56 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={donutSummary.chart_data}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={85}
+                                                paddingAngle={4}
+                                                dataKey="value"
+                                            >
+                                                {donutSummary.chart_data.map((entry, idx) => (
+                                                    <Cell key={`donut-${idx}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <RechartsTooltip
+                                                content={({ active, payload }) => {
+                                                    if (active && payload && payload.length) {
+                                                        const d = payload[0].payload as DonutItem;
+                                                        return (
+                                                            <div className="rounded-xl border border-slate-200 bg-white/95 p-2.5 shadow-xl text-xs dark:border-slate-700 dark:bg-slate-900/95">
+                                                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
+                                                                    <span>{d.name}</span>
+                                                                </div>
+                                                                <div className="text-slate-600 mt-1">
+                                                                    <b>{d.value} Desa</b> ({d.percentage}%)
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+
+                                {/* Custom Legend */}
+                                <div className="w-full mt-2 grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-xl bg-rose-50/80 p-2.5 border border-rose-200/60 dark:bg-rose-950/30 dark:border-rose-900">
+                                        <div className="flex items-center gap-1.5 text-rose-700 font-extrabold dark:text-rose-400">
+                                            <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                                            <span>Desa Rentan</span>
+                                        </div>
+                                        <div className="mt-1 text-base font-black text-rose-800 dark:text-rose-200">
+                                            {donutSummary.count_rentan} Desa
+                                        </div>
+                                        <span className="text-[10px] text-rose-600 dark:text-rose-400">
+                                            Prioritas 1-3 ({donutSummary.percentage_rentan}%)
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-xl bg-emerald-50/80 p-2.5 border border-emerald-200/60 dark:bg-emerald-950/30 dark:border-emerald-900">
+                                        <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold dark:text-emerald-400">
+                                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                            <span>Desa Aman / Tahan</span>
+                                        </div>
+                                        <div className="mt-1 text-base font-black text-emerald-800 dark:text-emerald-200">
+                                            {donutSummary.count_aman} Desa
+                                        </div>
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                                            Prioritas 4-6 ({donutSummary.percentage_aman}%)
+                                        </span>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </section>
+
+                    {/* 6. 6 CARD KLASIFIKASI DESA BERDASARKAN INDIKATOR */}
+                    <section className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Layers className="h-5 w-5 text-[#006565] dark:text-emerald-400" />
+                                    <span>6 Klasifikasi Tingkat Prioritas Desa</span>
+                                </h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Rincian 6 kelas kerentanan pangan desa dan jumlah desa pada tiap prioritas
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {classificationCards.map((card) => (
+                                <div
+                                    key={card.priority}
+                                    className="group relative rounded-2xl border border-slate-200/80 bg-white p-5 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 dark:border-slate-800 dark:bg-slate-900 flex flex-col justify-between"
+                                >
+                                    {/* Priority Accent Stripe */}
+                                    <div
+                                        className="absolute top-0 left-5 right-5 h-1 rounded-b-md"
+                                        style={{ backgroundColor: card.color }}
+                                    />
+
+                                    <div>
+                                        {/* Card Top Title & Badge */}
+                                        <div className="flex items-start justify-between gap-2 pt-1 mb-2">
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                                                    {card.title}
+                                                </span>
+                                                <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                                                    {card.status}
+                                                </h3>
+                                            </div>
+                                            <Badge
+                                                className="font-bold text-[10px] shrink-0"
+                                                style={{
+                                                    backgroundColor: `${card.color}20`,
+                                                    color: card.color,
+                                                    border: `1px solid ${card.color}50`,
+                                                }}
+                                            >
+                                                {card.category === 'rentan' ? 'Rentan' : 'Aman'}
+                                            </Badge>
+                                        </div>
+
+                                        <p className="text-xs text-slate-500 leading-snug dark:text-slate-400 line-clamp-2 mb-4">
+                                            {card.description}
+                                        </p>
+
+                                        {/* Count & Stats */}
+                                        <div className="rounded-xl bg-slate-50 p-3 border border-slate-100 dark:bg-slate-800/60 dark:border-slate-800 space-y-2">
+                                            <div className="flex items-baseline justify-between">
+                                                <span className="text-xs font-semibold text-slate-500">
+                                                    Jumlah Desa:
+                                                </span>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-2xl font-black" style={{ color: card.color }}>
+                                                        {card.count}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-400">
+                                                        ({card.percentage}%)
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50 dark:border-slate-700">
+                                                <span className="text-slate-500 font-medium">Rata-rata IKP:</span>
+                                                <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                                                    {card.avg_ikp}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Button: Lihat Daftar Desa */}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setSelectedCardModal(card);
+                                            setModalSearch('');
+                                        }}
+                                        className="mt-4 w-full rounded-xl text-xs font-bold border-slate-200 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+                                    >
+                                        <span>Lihat {card.count} Desa</span>
+                                        <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* 7. TABEL LENGKAP SEMUA DESA SE-KABUPATEN INDRAMAYU */}
+                    <Card className="rounded-2xl border-slate-200/80 shadow-md bg-white dark:border-slate-800 dark:bg-slate-900">
+                        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <Wheat className="h-4.5 w-4.5 text-[#006565] dark:text-emerald-400" />
+                                        <span>Tabel Lengkap Data FSVA Desa ({summary.year})</span>
+                                    </CardTitle>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        Menampilkan {filteredTableItems.length} dari total {items.length} desa
+                                    </p>
+                                </div>
+
+                                {/* Table Filters */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    <div className="relative">
+                                        <Input
+                                            type="text"
+                                            placeholder="Cari desa..."
+                                            value={tableSearch}
+                                            onChange={(e) => {
+                                                setTableSearch(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="h-8 w-40 sm:w-52 rounded-xl text-xs pl-8 bg-slate-50 dark:bg-slate-800"
+                                        />
+                                        <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                                    </div>
+
+                                    <Select
+                                        value={tableKecFilter}
+                                        onValueChange={(val) => {
+                                            setTableKecFilter(val);
+                                            setCurrentPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 w-36 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800">
+                                            <SelectValue placeholder="Kecamatan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">Semua Kecamatan</SelectItem>
+                                            {kecamatanList.map((k) => (
+                                                <SelectItem key={k} value={k}>
+                                                    {k}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select
+                                        value={tablePriorityFilter}
+                                        onValueChange={(val) => {
+                                            setTablePriorityFilter(val);
+                                            setCurrentPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 w-36 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800">
+                                            <SelectValue placeholder="Prioritas" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">Semua Prioritas</SelectItem>
+                                            {[1, 2, 3, 4, 5, 6].map((p) => (
+                                                <SelectItem key={p} value={String(p)}>
+                                                    Prioritas {p}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-400 dark:border-slate-800">
+                                        <tr>
+                                            <th className="px-4 py-3">Rank</th>
+                                            <th className="px-4 py-3">Desa</th>
+                                            <th className="px-4 py-3">Kecamatan</th>
+                                            <th className="px-4 py-3">Prioritas FSVA</th>
+                                            <th className="px-4 py-3 text-right">IKP</th>
+                                            <th className="px-4 py-3 text-right">NCPR</th>
+                                            <th className="px-4 py-3 text-right">Energi</th>
+                                            <th className="px-4 py-3 text-right">Protein</th>
+                                            <th className="px-4 py-3 text-right">Kemiskinan</th>
+                                            <th className="px-4 py-3 text-right">Stunting</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                                        {paginatedTableItems.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
+                                                    Tidak ada desa yang cocok dengan filter.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedTableItems.map((v) => {
+                                                const pInfo = classificationCards.find((c) => c.priority === v.komposit);
+                                                return (
+                                                    <tr
+                                                        key={v.id}
+                                                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                                                    >
+                                                        <td className="px-4 py-2.5 font-bold text-slate-400">
+                                                            #{v.rank ?? '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 font-extrabold text-slate-900 dark:text-white">
+                                                            {v.desa}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                                                            {v.kecamatan}
+                                                        </td>
+                                                        <td className="px-4 py-2.5">
+                                                            <span
+                                                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-black"
+                                                                style={{
+                                                                    backgroundColor: `${pInfo?.color}18`,
+                                                                    color: pInfo?.color,
+                                                                    border: `1px solid ${pInfo?.color}40`,
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    className="h-1.5 w-1.5 rounded-full"
+                                                                    style={{ backgroundColor: pInfo?.color }}
+                                                                />
+                                                                <span>P{v.komposit} - {pInfo?.status}</span>
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right font-black text-[#006565] dark:text-emerald-400">
+                                                            {v.ikp ?? '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                            {v.ncpr ?? '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                            {v.energy ?? '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                            {v.protein ?? '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                            {v.poverty ? `${v.poverty}%` : '-'}
+                                                        </td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                            {v.stunting ? `${v.stunting}%` : '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 dark:border-slate-800 text-xs">
+                                    <span className="text-slate-500">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={currentPage <= 1}
+                                            onClick={() => setCurrentPage((p) => p - 1)}
+                                            className="h-7 rounded-lg text-xs"
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={currentPage >= totalPages}
+                                            onClick={() => setCurrentPage((p) => p + 1)}
+                                            className="h-7 rounded-lg text-xs"
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
+            </main>
+
+            {/* Modal: Daftar Desa dalam Prioritas */}
+            <Dialog open={!!selectedCardModal} onOpenChange={(open) => !open && setSelectedCardModal(null)}>
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col rounded-2xl">
+                    <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span
+                                    className="h-3.5 w-3.5 rounded-full"
+                                    style={{ backgroundColor: selectedCardModal?.color }}
+                                />
+                                <DialogTitle className="text-base font-black">
+                                    {selectedCardModal?.full_title}
+                                </DialogTitle>
+                            </div>
+                            <Badge
+                                className="font-bold text-xs"
+                                style={{
+                                    backgroundColor: `${selectedCardModal?.color}20`,
+                                    color: selectedCardModal?.color,
+                                }}
+                            >
+                                {selectedCardModal?.count} Desa
+                            </Badge>
+                        </div>
+                        <DialogDescription className="text-xs">
+                            {selectedCardModal?.description}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {/* Search inside modal */}
+                    <div className="py-2">
+                        <div className="relative">
+                            <Input
+                                type="text"
+                                placeholder="Cari desa / kecamatan..."
+                                value={modalSearch}
+                                onChange={(e) => setModalSearch(e.target.value)}
+                                className="h-9 rounded-xl text-xs pl-8"
+                            />
+                            <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                        </div>
+                    </div>
+
+                    {/* Village list scroll */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100 pr-1 dark:divide-slate-800">
+                        {filteredModalVillages.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-slate-500">
+                                Tidak ada desa yang cocok.
+                            </div>
+                        ) : (
+                            filteredModalVillages.map((v) => (
+                                <div
+                                    key={v.id}
+                                    className="flex items-center justify-between py-2.5 px-2 hover:bg-slate-50 rounded-xl transition-colors dark:hover:bg-slate-800"
+                                >
+                                    <div>
+                                        <div className="text-xs font-black text-slate-900 dark:text-white">
+                                            DESA {v.desa}
+                                        </div>
+                                        <div className="text-[11px] font-semibold text-slate-500">
+                                            Kecamatan {v.kecamatan}
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-xs font-black text-[#006565] dark:text-emerald-400">
+                                            IKP: {v.ikp ?? '-'}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400">
+                                            Peringkat #{v.rank ?? '-'}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Footer */}
+            <PortalFooter />
+        </div>
+    );
+}
+

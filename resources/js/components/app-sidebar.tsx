@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Apple, FileSpreadsheet, LayoutGrid, Layers, MapPin, Package, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Apple, Compass, FileSpreadsheet, LayoutGrid, Layers, MapPin, Package, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -53,6 +53,12 @@ const navGroups: NavGroup[] = [
                 href: '/skpg-admin',
                 icon: MapPin,
                 badge: '31 Kecamatan',
+            },
+            {
+                title: 'FSVA (Ketahanan Desa)',
+                href: '/fsva-admin',
+                icon: Compass,
+                badge: '317 Desa',
             },
             {
                 title: 'Cadangan Pangan (CPPD)',

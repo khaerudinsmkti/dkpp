@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Commodity;
 use App\Models\FoodBalanceCommodity;
 use App\Models\ProducerPrice;
+use App\Models\Fsva;
 use App\Models\Skpg;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -3234,5 +3235,539 @@ class SimpleExcelService
         }
 
         return $content;
+    }
+
+    /**
+     * Generate Excel .xlsx template for FSVA (317 Desa/Kelurahan se-Kabupaten Indramayu).
+     *
+     * @param  array<string, mixed>  $existingData
+     */
+    public function generateFsvaXlsxTemplate(int $year, array $existingData = []): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_fsva_tmpl_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk template Excel FSVA.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="FSVA '.$year.'" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="3">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="12"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="3">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="3">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="10" customWidth="1"/>'
+            .'<col min="3" max="3" width="18" customWidth="1"/>'
+            .'<col min="4" max="4" width="22" customWidth="1"/>'
+            .'<col min="5" max="5" width="12" customWidth="1"/>'
+            .'<col min="6" max="6" width="12" customWidth="1"/>'
+            .'<col min="7" max="7" width="12" customWidth="1"/>'
+            .'<col min="8" max="8" width="14" customWidth="1"/>'
+            .'<col min="9" max="9" width="12" customWidth="1"/>'
+            .'<col min="10" max="10" width="12" customWidth="1"/>'
+            .'<col min="11" max="11" width="12" customWidth="1"/>'
+            .'<col min="12" max="12" width="16" customWidth="1"/>'
+            .'<col min="13" max="13" width="12" customWidth="1"/>'
+            .'<col min="14" max="14" width="12" customWidth="1"/>'
+            .'<col min="15" max="15" width="12" customWidth="1"/>'
+            .'<col min="16" max="16" width="12" customWidth="1"/>'
+            .'<col min="17" max="17" width="10" customWidth="1"/>'
+            .'<col min="18" max="18" width="16" customWidth="1"/>'
+            .'<col min="19" max="19" width="30" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>'
+            .'<row r="1" ht="26" customHeight="1">'
+            .'<c r="A1" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B1" s="1" t="inlineStr"><is><t>Tahun</t></is></c>'
+            .'<c r="C1" s="1" t="inlineStr"><is><t>Kecamatan</t></is></c>'
+            .'<c r="D1" s="1" t="inlineStr"><is><t>Desa</t></is></c>'
+            .'<c r="E1" s="1" t="inlineStr"><is><t>NCPR</t></is></c>'
+            .'<c r="F1" s="1" t="inlineStr"><is><t>Energi</t></is></c>'
+            .'<c r="G1" s="1" t="inlineStr"><is><t>Protein</t></is></c>'
+            .'<c r="H1" s="1" t="inlineStr"><is><t>Cadangan Pangan</t></is></c>'
+            .'<c r="I1" s="1" t="inlineStr"><is><t>Kemiskinan</t></is></c>'
+            .'<c r="J1" s="1" t="inlineStr"><is><t>Price CV</t></is></c>'
+            .'<c r="K1" s="1" t="inlineStr"><is><t>PoU</t></is></c>'
+            .'<c r="L1" s="1" t="inlineStr"><is><t>Sekolah Perempuan</t></is></c>'
+            .'<c r="M1" s="1" t="inlineStr"><is><t>Tanpa Air</t></is></c>'
+            .'<c r="N1" s="1" t="inlineStr"><is><t>PPH</t></is></c>'
+            .'<c r="O1" s="1" t="inlineStr"><is><t>Stunting</t></is></c>'
+            .'<c r="P1" s="1" t="inlineStr"><is><t>IKP</t></is></c>'
+            .'<c r="Q1" s="1" t="inlineStr"><is><t>Rank</t></is></c>'
+            .'<c r="R1" s="1" t="inlineStr"><is><t>Komposit (1-6)</t></is></c>'
+            .'<c r="S1" s="1" t="inlineStr"><is><t>Keterangan</t></is></c>'
+            .'</row>';
+
+        $allVillages = Fsva::getAllVillages();
+        $rowIdx = 2;
+
+        foreach ($allVillages as $idx => $item) {
+            $orderNo = $idx + 1;
+            $kec = $item['kecamatan'];
+            $desa = $item['desa'];
+            $key = Fsva::normalizeName($kec).'_'.Fsva::normalizeName($desa);
+            $rec = $existingData[$key] ?? null;
+
+            $ncpr = $rec['ncpr'] ?? '';
+            $energy = $rec['energy'] ?? '';
+            $protein = $rec['protein'] ?? '';
+            $foodRes = $rec['food_reserves'] ?? '';
+            $poverty = $rec['poverty'] ?? '';
+            $priceCv = $rec['price_cv'] ?? '';
+            $pou = $rec['pou'] ?? '';
+            $femaleSchool = $rec['female_school'] ?? '';
+            $noWater = $rec['no_water'] ?? '';
+            $pph = $rec['pph'] ?? '';
+            $stunting = $rec['stunting'] ?? '';
+            $ikp = $rec['ikp'] ?? '';
+            $rank = $rec['rank'] ?? '';
+            $komposit = $rec['komposit'] ?? 1;
+            $ket = htmlspecialchars($rec['keterangan'] ?? '', ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2"><v>'.$orderNo.'</v></c>'
+                .'<c r="B'.$rowIdx.'" s="2"><v>'.$year.'</v></c>'
+                .'<c r="C'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$kec.'</t></is></c>'
+                .'<c r="D'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$desa.'</t></is></c>'
+                .'<c r="E'.$rowIdx.'" s="2"><v>'.($ncpr !== '' ? $ncpr : '0').'</v></c>'
+                .'<c r="F'.$rowIdx.'" s="2"><v>'.($energy !== '' ? $energy : '0').'</v></c>'
+                .'<c r="G'.$rowIdx.'" s="2"><v>'.($protein !== '' ? $protein : '0').'</v></c>'
+                .'<c r="H'.$rowIdx.'" s="2"><v>'.($foodRes !== '' ? $foodRes : '0').'</v></c>'
+                .'<c r="I'.$rowIdx.'" s="2"><v>'.($poverty !== '' ? $poverty : '0').'</v></c>'
+                .'<c r="J'.$rowIdx.'" s="2"><v>'.($priceCv !== '' ? $priceCv : '0').'</v></c>'
+                .'<c r="K'.$rowIdx.'" s="2"><v>'.($pou !== '' ? $pou : '0').'</v></c>'
+                .'<c r="L'.$rowIdx.'" s="2"><v>'.($femaleSchool !== '' ? $femaleSchool : '0').'</v></c>'
+                .'<c r="M'.$rowIdx.'" s="2"><v>'.($noWater !== '' ? $noWater : '0').'</v></c>'
+                .'<c r="N'.$rowIdx.'" s="2"><v>'.($pph !== '' ? $pph : '0').'</v></c>'
+                .'<c r="O'.$rowIdx.'" s="2"><v>'.($stunting !== '' ? $stunting : '0').'</v></c>'
+                .'<c r="P'.$rowIdx.'" s="2"><v>'.($ikp !== '' ? $ikp : '0').'</v></c>'
+                .'<c r="Q'.$rowIdx.'" s="2"><v>'.($rank !== '' ? $rank : '0').'</v></c>'
+                .'<c r="R'.$rowIdx.'" s="2"><v>'.$komposit.'</v></c>'
+                .'<c r="S'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$ket.'</t></is></c>'
+                .'</row>';
+            $rowIdx++;
+        }
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file template XLSX FSVA.');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Generate CSV template for FSVA.
+     *
+     * @param  array<string, mixed>  $existingData
+     */
+    public function generateFsvaCsvTemplate(int $year, array $existingData = []): string
+    {
+        $output = "\xEF\xBB\xBF";
+        $output .= "No;Tahun;Kecamatan;Desa;NCPR;Energi;Protein;Cadangan Pangan;Kemiskinan;Price CV;PoU;Sekolah Perempuan;Tanpa Air;PPH;Stunting;IKP;Rank;Komposit;Keterangan\r\n";
+
+        $allVillages = Fsva::getAllVillages();
+        foreach ($allVillages as $idx => $item) {
+            $orderNo = $idx + 1;
+            $kec = $item['kecamatan'];
+            $desa = $item['desa'];
+            $key = Fsva::normalizeName($kec).'_'.Fsva::normalizeName($desa);
+            $rec = $existingData[$key] ?? null;
+
+            $line = [
+                $orderNo,
+                $year,
+                $kec,
+                $desa,
+                $rec['ncpr'] ?? 0,
+                $rec['energy'] ?? 0,
+                $rec['protein'] ?? 0,
+                $rec['food_reserves'] ?? 0,
+                $rec['poverty'] ?? 0,
+                $rec['price_cv'] ?? 0,
+                $rec['pou'] ?? 0,
+                $rec['female_school'] ?? 0,
+                $rec['no_water'] ?? 0,
+                $rec['pph'] ?? 0,
+                $rec['stunting'] ?? 0,
+                $rec['ikp'] ?? 0,
+                $rec['rank'] ?? ($idx + 1),
+                $rec['komposit'] ?? 1,
+                '"'.str_replace('"', '""', $rec['keterangan'] ?? '').'"',
+            ];
+            $output .= implode(';', $line)."\r\n";
+        }
+
+        return $output;
+    }
+
+    /**
+     * Export FSVA data to Excel.
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     */
+    public function exportFsvaXlsx(int $year, array $records): string
+    {
+        $byKey = [];
+        foreach ($records as $r) {
+            $normKec = Fsva::normalizeName($r['kecamatan'] ?? '');
+            $normDesa = Fsva::normalizeName($r['desa'] ?? '');
+            $byKey[$normKec.'_'.$normDesa] = $r;
+        }
+
+        return $this->generateFsvaXlsxTemplate($year, $byKey);
+    }
+
+    /**
+     * Parse and match rows of FSVA from Excel or copied table.
+     *
+     * @param  array<int, array<int, mixed>>  $rawRows
+     * @return array{matched: array<int, array<string, mixed>>, skipped_count: int, total_detected: int}
+     */
+    public function matchFsvaRows(array $rawRows, int $defaultYear = 2026): array
+    {
+        if (empty($rawRows)) {
+            return [
+                'matched' => [],
+                'skipped_count' => 0,
+                'total_detected' => 0,
+            ];
+        }
+
+        // Build lookup map for Kecamatans and Desas
+        $kecLookup = [];
+        $desaLookup = []; // normKec_normDesa => ['kec' => ..., 'desa' => ...]
+        $desasOnly = [];  // normDesa => ['kec' => ..., 'desa' => ...]
+
+        foreach (Fsva::VILLAGE_DATA as $k => $desas) {
+            $normK = Fsva::normalizeName($k);
+            $kecLookup[$normK] = $k;
+            foreach ($desas as $d) {
+                $normD = Fsva::normalizeName($d);
+                $desaLookup[$normK.'_'.$normD] = ['kecamatan' => $k, 'desa' => $d];
+                $desasOnly[$normD][] = ['kecamatan' => $k, 'desa' => $d];
+            }
+        }
+
+        // Detect if row 0 or 1 is header
+        $headerKeywords = ['kecamatan', 'desa', 'ncpr', 'energy', 'energi', 'protein', 'poverty', 'kemiskinan', 'komposit', 'ikp'];
+        $dataRows = [];
+
+        foreach ($rawRows as $rIdx => $row) {
+            $rowStr = strtolower(implode(' ', array_map('strval', $row)));
+            $isHeader = false;
+            foreach ($headerKeywords as $kw) {
+                if (str_contains($rowStr, $kw)) {
+                    $isHeader = true;
+                    break;
+                }
+            }
+            if ($isHeader && $rIdx <= 2) {
+                continue;
+            }
+
+            // Non-empty check
+            $hasContent = false;
+            foreach ($row as $cell) {
+                if (trim((string) $cell) !== '') {
+                    $hasContent = true;
+                    break;
+                }
+            }
+            if ($hasContent) {
+                $dataRows[] = $row;
+            }
+        }
+
+        $matched = [];
+        $skippedCount = 0;
+
+        foreach ($dataRows as $row) {
+            $cells = array_values(array_map(fn ($c) => trim((string) $c), $row));
+            if (count($cells) < 3) {
+                $skippedCount++;
+                continue;
+            }
+
+            // Find kecamatan & desa in cells
+            $foundKec = null;
+            $foundDesa = null;
+            $kecColIdx = -1;
+            $desaColIdx = -1;
+
+            // 1. Try finding a cell matching a known kecamatan
+            foreach ($cells as $cIdx => $cell) {
+                $norm = Fsva::normalizeName($cell);
+                if (isset($kecLookup[$norm])) {
+                    $foundKec = $kecLookup[$norm];
+                    $kecColIdx = $cIdx;
+                    break;
+                }
+            }
+
+            // 2. Try finding desa
+            if ($foundKec) {
+                $normK = Fsva::normalizeName($foundKec);
+                foreach ($cells as $cIdx => $cell) {
+                    if ($cIdx === $kecColIdx) {
+                        continue;
+                    }
+                    $normD = Fsva::normalizeName($cell);
+                    if (isset($desaLookup[$normK.'_'.$normD])) {
+                        $foundDesa = $desaLookup[$normK.'_'.$normD]['desa'];
+                        $desaColIdx = $cIdx;
+                        break;
+                    }
+                }
+            }
+
+            // 3. If desa not yet found, check across all desa names
+            if (! $foundDesa) {
+                foreach ($cells as $cIdx => $cell) {
+                    if ($cIdx === $kecColIdx) {
+                        continue;
+                    }
+                    $normD = Fsva::normalizeName($cell);
+                    if (isset($desasOnly[$normD])) {
+                        $candidates = $desasOnly[$normD];
+                        if ($foundKec) {
+                            foreach ($candidates as $cand) {
+                                if (Fsva::normalizeName($cand['kecamatan']) === Fsva::normalizeName($foundKec)) {
+                                    $foundDesa = $cand['desa'];
+                                    $desaColIdx = $cIdx;
+                                    break;
+                                }
+                            }
+                        } else {
+                            $foundDesa = $candidates[0]['desa'];
+                            $foundKec = $candidates[0]['kecamatan'];
+                            $desaColIdx = $cIdx;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // If still no village found, check if column 2 is kecamatan and column 3 is desa
+            if (! $foundDesa && isset($cells[2]) && isset($cells[3])) {
+                $foundKec = strtoupper($cells[2]);
+                $foundDesa = strtoupper($cells[3]);
+                $kecColIdx = 2;
+                $desaColIdx = 3;
+            } elseif (! $foundDesa && isset($cells[0]) && isset($cells[1])) {
+                $foundKec = strtoupper($cells[0]);
+                $foundDesa = strtoupper($cells[1]);
+                $kecColIdx = 0;
+                $desaColIdx = 1;
+            }
+
+            if (! $foundKec || ! $foundDesa) {
+                $skippedCount++;
+                continue;
+            }
+
+            // Helper to clean numeric string (supports comma decimal "12,5" -> 12.5 and "%")
+            $parseNum = function ($val, float $default = 0.0): float {
+                if ($val === null || $val === '') {
+                    return $default;
+                }
+                $clean = str_replace(['%', ' '], '', (string) $val);
+                // If contains comma and no dot, replace comma with dot
+                if (str_contains($clean, ',') && ! str_contains($clean, '.')) {
+                    $clean = str_replace(',', '.', $clean);
+                } elseif (str_contains($clean, ',') && str_contains($clean, '.')) {
+                    // Thousand dot, decimal comma e.g. 1.234,56
+                    if (strrpos($clean, ',') > strrpos($clean, '.')) {
+                        $clean = str_replace('.', '', $clean);
+                        $clean = str_replace(',', '.', $clean);
+                    } else {
+                        // Thousand comma, decimal dot e.g. 1,234.56
+                        $clean = str_replace(',', '', $clean);
+                    }
+                }
+                return is_numeric($clean) ? (float) $clean : $default;
+            };
+
+            // Detect Year from cells if present
+            $year = $defaultYear;
+            foreach ($cells as $cIdx => $cell) {
+                if ($cIdx !== $kecColIdx && $cIdx !== $desaColIdx && is_numeric($cell)) {
+                    $val = (int) $cell;
+                    if ($val >= 2000 && $val <= 2100) {
+                        $year = $val;
+                        break;
+                    }
+                }
+            }
+
+            // Extract numeric values from remaining cells in standard order or column index
+            // Check if standard 19-column layout:
+            // 0: No, 1: Tahun, 2: Kec, 3: Desa, 4: NCPR, 5: Energi, 6: Protein, 7: Cadangan, 8: Kemiskinan,
+            // 9: Price CV, 10: PoU, 11: Sekolah, 12: Tanpa Air, 13: PPH, 14: Stunting, 15: IKP, 16: Rank, 17: Komposit, 18: Keterangan
+            if (count($cells) >= 17 && $kecColIdx <= 3 && $desaColIdx <= 4) {
+                $ncpr = $parseNum($cells[4] ?? 0);
+                $energy = $parseNum($cells[5] ?? 0);
+                $protein = $parseNum($cells[6] ?? 0);
+                $foodRes = $parseNum($cells[7] ?? 0);
+                $poverty = $parseNum($cells[8] ?? 0);
+                $priceCv = $parseNum($cells[9] ?? 0);
+                $pou = $parseNum($cells[10] ?? 0);
+                $femaleSchool = $parseNum($cells[11] ?? 0);
+                $noWater = $parseNum($cells[12] ?? 0);
+                $pph = $parseNum($cells[13] ?? 0);
+                $stunting = $parseNum($cells[14] ?? 0);
+                $ikp = $parseNum($cells[15] ?? 0);
+                $rank = (int) $parseNum($cells[16] ?? 0);
+                $rawKomposit = $cells[17] ?? 1;
+                $keterangan = $cells[18] ?? null;
+            } else {
+                // Collect remaining numeric cells
+                $numericCells = [];
+                foreach ($cells as $cIdx => $cell) {
+                    if ($cIdx !== $kecColIdx && $cIdx !== $desaColIdx) {
+                        $clean = trim($cell);
+                        if ($clean !== '' && (is_numeric(str_replace([',', '%'], ['.', ''], $clean)))) {
+                            $numericCells[] = $parseNum($clean);
+                        }
+                    }
+                }
+
+                $ncpr = $numericCells[0] ?? 0;
+                $energy = $numericCells[1] ?? 0;
+                $protein = $numericCells[2] ?? 0;
+                $foodRes = $numericCells[3] ?? 0;
+                $poverty = $numericCells[4] ?? 0;
+                $priceCv = $numericCells[5] ?? 0;
+                $pou = $numericCells[6] ?? 0;
+                $femaleSchool = $numericCells[7] ?? 0;
+                $noWater = $numericCells[8] ?? 0;
+                $pph = $numericCells[9] ?? 0;
+                $stunting = $numericCells[10] ?? 0;
+                $ikp = $numericCells[11] ?? 0;
+                $rank = (int) ($numericCells[12] ?? 0);
+                $rawKomposit = $numericCells[13] ?? 1;
+                $keterangan = null;
+            }
+
+            // Normalize komposit priority (1-6)
+            $komposit = 1;
+            if (is_numeric($rawKomposit)) {
+                $komposit = max(1, min(6, (int) $rawKomposit));
+            } else {
+                $strKomposit = strtolower((string) $rawKomposit);
+                if (str_contains($strKomposit, '1') || str_contains($strKomposit, 'sangat rentan')) {
+                    $komposit = 1;
+                } elseif (str_contains($strKomposit, '2') || str_contains($strKomposit, 'rentan')) {
+                    $komposit = 2;
+                } elseif (str_contains($strKomposit, '3') || str_contains($strKomposit, 'agak rentan')) {
+                    $komposit = 3;
+                } elseif (str_contains($strKomposit, '4') || str_contains($strKomposit, 'agak tahan')) {
+                    $komposit = 4;
+                } elseif (str_contains($strKomposit, '5') || str_contains($strKomposit, 'tahan')) {
+                    $komposit = 5;
+                } elseif (str_contains($strKomposit, '6') || str_contains($strKomposit, 'sangat tahan')) {
+                    $komposit = 6;
+                }
+            }
+
+            $matched[] = [
+                'tahun' => $year,
+                'kecamatan' => $foundKec,
+                'desa' => $foundDesa,
+                'ncpr' => $ncpr,
+                'energy' => $energy,
+                'protein' => $protein,
+                'food_reserves' => $foodRes,
+                'poverty' => $poverty,
+                'price_cv' => $priceCv,
+                'pou' => $pou,
+                'female_school' => $femaleSchool,
+                'no_water' => $noWater,
+                'pph' => $pph,
+                'stunting' => $stunting,
+                'ikp' => $ikp,
+                'rank' => $rank > 0 ? $rank : null,
+                'komposit' => $komposit,
+                'keterangan' => $keterangan,
+            ];
+        }
+
+        return [
+            'matched' => $matched,
+            'skipped_count' => $skippedCount,
+            'total_detected' => count($matched),
+        ];
     }
 }
