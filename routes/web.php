@@ -250,6 +250,7 @@ Route::get('/api/skpg/geojson', [SkpgController::class, 'geojson'])->name('skpg.
 // Modul Publik FSVA (Peta Ketahanan dan Kerentanan Pangan / Food Security and Vulnerability Atlas)
 Route::get('/fsva', [FsvaController::class, 'publicIndex'])->name('fsva');
 Route::get('/api/fsva/geojson', [FsvaController::class, 'geojson'])->name('fsva.geojson');
+Route::get('/fsva/export', [FsvaController::class, 'exportExcel'])->name('fsva.public-export');
 
 Route::get('/cppd', [CppdController::class, 'publicIndex'])->name('cppd');
 Route::get('/cppd/export-excel', [CppdController::class, 'exportExcel'])->name('cppd.export-excel');

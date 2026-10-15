@@ -35,6 +35,7 @@ import {
     BarChart,
     CartesianGrid,
     Cell,
+    LabelList,
     Legend,
     Pie,
     PieChart,
@@ -149,6 +150,15 @@ interface FsvaPageProps {
     };
 }
 
+const PRIORITY_CONFIG: Record<number, { color: string; label: string; short: string; category: string }> = {
+    1: { color: '#dc2626', label: 'Prioritas 1 (Sangat Rentan)', short: 'Sangat Rentan', category: 'rentan' },
+    2: { color: '#ea580c', label: 'Prioritas 2 (Rentan)', short: 'Rentan', category: 'rentan' },
+    3: { color: '#f59e0b', label: 'Prioritas 3 (Agak Rentan)', short: 'Agak Rentan', category: 'rentan' },
+    4: { color: '#84cc16', label: 'Prioritas 4 (Agak Tahan)', short: 'Agak Tahan', category: 'aman' },
+    5: { color: '#10b981', label: 'Prioritas 5 (Tahan)', short: 'Tahan', category: 'aman' },
+    6: { color: '#047857', label: 'Prioritas 6 (Sangat Tahan)', short: 'Sangat Tahan', category: 'aman' },
+};
+
 export default function FsvaPage({
     items,
     summary,
@@ -216,6 +226,330 @@ export default function FsvaPage({
         const start = (currentPage - 1) * rowsPerPage;
         return filteredTableItems.slice(start, start + rowsPerPage);
     }, [filteredTableItems, currentPage]);
+
+    // Download Excel export for current evaluation year
+    const handleDownloadExcel = () => {
+        window.location.href = `/fsva/export?year=${summary.year}`;
+    };
+
+    // Download PDF formatted official report
+    const handleDownloadPdf = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Mohon izinkan pop-up browser untuk mencetak atau mengunduh PDF.');
+            return;
+        }
+
+        const formattedToday = new Intl.DateTimeFormat('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+        }).format(new Date());
+
+        const rowsHtml = filteredTableItems
+            .map((item, index) => {
+                const pInfo = PRIORITY_CONFIG[item.komposit] || PRIORITY_CONFIG[1];
+                return `
+                <tr>
+                    <td style="text-align: center;">${index + 1}</td>
+                    <td style="text-align: center; font-weight: bold;">${item.rank ?? '-'}</td>
+                    <td style="font-weight: 700;">${item.desa}</td>
+                    <td>${item.kecamatan}</td>
+                    <td style="text-align: center;">
+                        <span style="display: inline-block; padding: 2px 7px; border-radius: 9999px; font-weight: 800; font-size: 6.5pt; color: white; background-color: ${pInfo.color};">
+                            P${item.komposit}: ${pInfo.short}
+                        </span>
+                    </td>
+                    <td style="text-align: right; font-weight: bold; color: #006565;">${item.ikp ?? '-'}</td>
+                    <td style="text-align: right;">${item.ncpr ?? '-'}</td>
+                    <td style="text-align: right;">${item.energy ?? '-'}</td>
+                    <td style="text-align: right;">${item.protein ?? '-'}</td>
+                    <td style="text-align: right;">${item.poverty !== null ? item.poverty + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.stunting !== null ? item.stunting + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.no_water !== null ? item.no_water + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.pph ?? '-'}</td>
+                </tr>
+            `;
+            })
+            .join('');
+
+        const printHtml = `
+        <!DOCTYPE html>
+        <html lang="id">
+        <head>
+            <meta charset="UTF-8"/>
+            <title>Laporan_FSVA_Indramayu_${summary.year}</title>
+            <style>
+                @page {
+                    size: A4 landscape;
+                    margin: 8mm 10mm;
+                }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    margin: 0;
+                    padding: 14px;
+                    color: #0f172a;
+                    font-size: 7.5pt;
+                    background: #fff;
+                }
+                .no-print {
+                    margin-bottom: 14px;
+                    display: flex;
+                    gap: 10px;
+                    align-items: center;
+                    background: #f1f5f9;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    border: 1px solid #cbd5e1;
+                }
+                .btn {
+                    background: #006565;
+                    color: white;
+                    border: none;
+                    padding: 6px 14px;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    font-size: 8.5pt;
+                    cursor: pointer;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .btn-close {
+                    background: #64748b;
+                }
+                .kop-header {
+                    text-align: center;
+                    margin-bottom: 12px;
+                }
+                .kop-sub {
+                    font-size: 10pt;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                    text-transform: uppercase;
+                    margin: 0;
+                    color: #334155;
+                }
+                .kop-main {
+                    font-size: 14pt;
+                    font-weight: 900;
+                    color: #006565;
+                    text-transform: uppercase;
+                    margin: 2px 0;
+                    letter-spacing: 0.5px;
+                }
+                .kop-address {
+                    font-size: 7.5pt;
+                    color: #64748b;
+                    margin: 0;
+                }
+                .kop-line {
+                    height: 2.5px;
+                    background: #006565;
+                    margin-top: 8px;
+                }
+                .kop-line-thin {
+                    height: 1px;
+                    background: #006565;
+                    margin-top: 1.5px;
+                    margin-bottom: 10px;
+                }
+                .title-section {
+                    text-align: center;
+                    margin-bottom: 10px;
+                }
+                .title-section h1 {
+                    font-size: 12pt;
+                    font-weight: 900;
+                    margin: 0;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                }
+                .title-section p {
+                    margin: 2px 0 0 0;
+                    font-size: 8.5pt;
+                    color: #475569;
+                }
+                .summary-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 8px;
+                    background: #f8fafc;
+                    border: 1px solid #cbd5e1;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    margin-bottom: 10px;
+                }
+                .summary-card {
+                    text-align: center;
+                }
+                .summary-card .label {
+                    font-size: 7pt;
+                    color: #64748b;
+                    text-transform: uppercase;
+                    font-weight: bold;
+                }
+                .summary-card .val {
+                    font-size: 11pt;
+                    font-weight: 900;
+                    color: #0f172a;
+                    margin-top: 2px;
+                }
+                .summary-card .sub {
+                    font-size: 6.5pt;
+                    color: #64748b;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 7pt;
+                }
+                th {
+                    background-color: #006565;
+                    color: white;
+                    border: 1px solid #004d4d;
+                    padding: 5px 4px;
+                    font-weight: bold;
+                    text-align: center;
+                    font-size: 6.5pt;
+                    text-transform: uppercase;
+                }
+                td {
+                    border: 1px solid #cbd5e1;
+                    padding: 4px 4px;
+                }
+                tr:nth-child(even) td {
+                    background-color: #f8fafc;
+                }
+                .footer-sign {
+                    margin-top: 18px;
+                    display: flex;
+                    justify-content: flex-end;
+                }
+                .sign-box {
+                    text-align: center;
+                    width: 250px;
+                    font-size: 7.5pt;
+                }
+                .footer-meta {
+                    margin-top: 16px;
+                    border-top: 1px solid #e2e8f0;
+                    padding-top: 4px;
+                    display: flex;
+                    justify-content: space-between;
+                    font-size: 6.5pt;
+                    color: #94a3b8;
+                }
+                @media print {
+                    .no-print {
+                        display: none !important;
+                    }
+                    body {
+                        padding: 0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="no-print">
+                <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                <span style="font-size: 8pt; color: #475569;">
+                    Tips: Pada dialog print browser, pilih printer <strong>Save as PDF (Simpan sebagai PDF)</strong> dan orientasi <strong>Landscape</strong>.
+                </span>
+            </div>
+
+            <div class="kop-header">
+                <p class="kop-sub">Pemerintah Kabupaten Indramayu</p>
+                <h2 class="kop-main">Dinas Ketahanan Pangan dan Pertanian</h2>
+                <p class="kop-address">Jl. Letnan Gatot No. 04 Indramayu - Jawa Barat 45212 | Laman Resmi: dkpp.indramayukab.go.id</p>
+                <div class="kop-line"></div>
+                <div class="kop-line-thin"></div>
+            </div>
+
+            <div class="title-section">
+                <h1>Laporan Food Security and Vulnerability Atlas (FSVA) Desa</h1>
+                <p>Kabupaten Indramayu — Tahun Evaluasi ${summary.year}</p>
+            </div>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="label">Total Desa Terdata</div>
+                    <div class="val">${filteredTableItems.length} Desa</div>
+                    <div class="sub">31 Kecamatan Se-Kabupaten</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Desa Tahan (P4 - P6)</div>
+                    <div class="val" style="color: #047857;">${summary.count_aman} Desa</div>
+                    <div class="sub">${summary.pct_aman}% Total Desa</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Desa Rentan (P1 - P3)</div>
+                    <div class="val" style="color: #dc2626;">${summary.count_rentan} Desa</div>
+                    <div class="sub">${summary.pct_rentan}% Perlu Intervensi</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Indikator Terpilih</div>
+                    <div class="val" style="color: #006565;">${summary.indicator_info.label}</div>
+                    <div class="sub">Rata-rata: ${summary.avg_value} ${summary.indicator_info.unit}</div>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 22px;">No</th>
+                        <th style="width: 32px;">Rank</th>
+                        <th>Desa / Kelurahan</th>
+                        <th>Kecamatan</th>
+                        <th style="width: 110px;">Prioritas Komposit</th>
+                        <th>IKP</th>
+                        <th>NCPR</th>
+                        <th>Energi</th>
+                        <th>Protein</th>
+                        <th>Kemiskinan</th>
+                        <th>Stunting</th>
+                        <th>Air Bersih</th>
+                        <th>PPH</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+
+            <div class="footer-sign">
+                <div class="sign-box">
+                    <p style="margin: 0 0 45px 0;">
+                        Indramayu, ${formattedToday}<br/>
+                        <strong>Kepala Dinas Ketahanan Pangan dan Pertanian<br/>
+                        Kabupaten Indramayu</strong>
+                    </p>
+                    <p style="margin: 0; font-weight: bold; text-decoration: underline;">
+                        Plt. Ir. H. SUGENG HERIYANTO, M.Si
+                    </p>
+                    <p style="margin: 2px 0 0 0; color: #475569;">
+                        Pembina Utama Muda<br/>
+                        NIP. 19680327 199403 1 005
+                    </p>
+                </div>
+            </div>
+
+            <div class="footer-meta">
+                <span>Dicetak melalui Sistem Informasi Ketahanan Pangan DKPP Indramayu</span>
+                <span>Dokumen Resmi — Tahun ${summary.year}</span>
+            </div>
+        </body>
+        </html>
+        `;
+
+        printWindow.document.open();
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        setTimeout(() => {
+            printWindow.print();
+        }, 350);
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col dark:bg-slate-950 dark:text-slate-100">
@@ -512,7 +846,7 @@ export default function FsvaPage({
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart
                                             data={priorityChartData}
-                                            margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
+                                            margin={{ top: 25, right: 20, left: 0, bottom: 20 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                                             <XAxis
@@ -553,6 +887,13 @@ export default function FsvaPage({
                                                 }}
                                             />
                                             <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                                                <LabelList
+                                                    dataKey="count"
+                                                    position="top"
+                                                    offset={6}
+                                                    style={{ fontSize: 11, fontWeight: 800, fill: '#0f172a' }}
+                                                    formatter={(val: any) => `${val}`}
+                                                />
                                                 {priorityChartData.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                                 ))}
@@ -586,17 +927,19 @@ export default function FsvaPage({
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-4 flex flex-col items-center">
-                                <div className="h-56 w-full">
+                                <div className="h-64 w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
                                                 data={donutSummary.chart_data}
                                                 cx="50%"
                                                 cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={85}
+                                                innerRadius={50}
+                                                outerRadius={75}
                                                 paddingAngle={4}
                                                 dataKey="value"
+                                                label={(props: any) => `${props.value} Desa (${((props.percent || 0) * 100).toFixed(1)}%)`}
+                                                labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                                             >
                                                 {donutSummary.chart_data.map((entry, idx) => (
                                                     <Cell key={`donut-${idx}`} fill={entry.color} />
@@ -768,7 +1111,7 @@ export default function FsvaPage({
                                     </p>
                                 </div>
 
-                                {/* Table Filters */}
+                                {/* Table Filters & Actions */}
                                 <div className="flex flex-wrap items-center gap-2.5">
                                     <div className="relative">
                                         <Input
@@ -823,6 +1166,33 @@ export default function FsvaPage({
                                             ))}
                                         </SelectContent>
                                     </Select>
+
+                                    {/* Action Buttons: Download Excel & PDF */}
+                                    <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2 dark:border-slate-700">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleDownloadExcel}
+                                            className="h-8 rounded-xl px-2.5 text-xs font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/50 cursor-pointer"
+                                            title={`Download Data Excel FSVA Tahun ${summary.year}`}
+                                        >
+                                            <FileSpreadsheet className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                                            <span>Excel</span>
+                                        </Button>
+
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleDownloadPdf}
+                                            className="h-8 rounded-xl px-2.5 text-xs font-bold text-rose-700 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/50 cursor-pointer"
+                                            title={`Download / Cetak Dokumen PDF FSVA Tahun ${summary.year}`}
+                                        >
+                                            <Printer className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                                            <span>PDF</span>
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </CardHeader>

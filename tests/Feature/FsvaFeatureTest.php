@@ -202,5 +202,10 @@ test('authenticated user can download excel template and export fsva data', func
     $exportRes = $this->actingAs($user)->get('/fsva-admin/export?year=2026');
     $exportRes->assertOk();
     $exportRes->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    // Public export route without authentication
+    $publicExportRes = $this->get('/fsva/export?year=2026');
+    $publicExportRes->assertOk();
+    $publicExportRes->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
