@@ -364,8 +364,8 @@ export default function FsvaMap({
 
     return (
         <div
-            className={`relative rounded-2xl border border-slate-200/90 bg-white shadow-xl overflow-hidden transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 ${
-                isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : 'w-full'
+            className={`rounded-2xl border border-slate-200/90 bg-white shadow-xl overflow-hidden transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 ${
+                isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : 'relative w-full z-0 isolate'
             }`}
         >
             {/* Map Top Toolbar */}
@@ -486,7 +486,7 @@ export default function FsvaMap({
             </div>
 
             {/* Map Canvas Container */}
-            <div className="relative">
+            <div className="relative z-0">
                 <div
                     ref={mapContainerRef}
                     className={`w-full bg-slate-100 dark:bg-slate-950 transition-all ${

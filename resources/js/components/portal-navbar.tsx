@@ -76,11 +76,12 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                         href="/ikp"
                         className="group flex items-center gap-3 transition-transform"
                     >
-                        <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#006565] via-[#005555] to-[#003838] text-white shadow-md shadow-[#006565]/25 ring-1 ring-white/20 transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-[#006565]/35">
-                            <Wheat className="h-6 w-6 stroke-[2.2] text-emerald-100 transition-transform group-hover:rotate-6" />
-                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-emerald-400 ring-2 ring-white dark:ring-slate-900">
-                                <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                            </span>
+                        <div className="relative flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                            <img
+                                src="/storage/indramayu_logo.png"
+                                alt="Logo DKPP Indramayu"
+                                className="h-11 w-auto max-h-full object-contain drop-shadow-sm"
+                            />
                         </div>
                         <div className="flex flex-col">
                             <div className="flex items-center gap-1.5">

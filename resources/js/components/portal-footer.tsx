@@ -51,8 +51,12 @@ export default function PortalFooter({
                     {/* Brand & Address Column */}
                     <div className="space-y-4 lg:col-span-5">
                         <Link href="/ikp" className="group inline-flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#006565] via-[#005252] to-[#003838] text-white shadow-md shadow-[#006565]/20 ring-1 ring-white/20 transition-all duration-300 group-hover:scale-105">
-                                <Wheat className="h-6 w-6 stroke-[2.2] text-emerald-100" />
+                            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                                <img
+                                    src="/storage/indramayu_logo.png"
+                                    alt="Logo DKPP Indramayu"
+                                    className="h-11 w-auto max-h-full object-contain drop-shadow-sm"
+                                />
                             </div>
                             <div className="flex flex-col">
                                 <div className="flex items-center gap-1.5">
@@ -197,7 +201,7 @@ export default function PortalFooter({
                 onClick={scrollToTop}
                 aria-label="Kembali ke atas"
                 title="Kembali ke atas"
-                className={`fixed bottom-6 right-6 z-40 flex items-center justify-center rounded-full bg-gradient-to-r from-[#006565] to-teal-700 p-3.5 text-white shadow-lg shadow-[#006565]/30 ring-1 ring-white/20 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:from-[#005252] hover:to-teal-800 active:scale-95 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 cursor-pointer ${
+                className={`fixed bottom-6 right-6 z-50 flex items-center justify-center rounded-full bg-gradient-to-r from-[#006565] to-teal-700 p-3.5 text-white shadow-lg shadow-[#006565]/30 ring-1 ring-white/20 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:from-[#005252] hover:to-teal-800 active:scale-95 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 cursor-pointer ${
                     showFloatingTop
                         ? 'opacity-100 translate-y-0 pointer-events-auto'
                         : 'opacity-0 translate-y-6 pointer-events-none'

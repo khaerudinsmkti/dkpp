@@ -5,8 +5,11 @@ import {
     AlertTriangle,
     Award,
     BarChart3,
+    Building2,
     Calendar,
+    Check,
     CheckCircle2,
+    ChevronDown,
     ChevronRight,
     Compass,
     Download,
@@ -20,6 +23,7 @@ import {
     MapPin,
     PieChart as PieChartIcon,
     Printer,
+    Scale,
     Search,
     ShieldAlert,
     ShieldCheck,
@@ -62,7 +66,10 @@ import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
+    SelectLabel,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
@@ -158,6 +165,97 @@ const PRIORITY_CONFIG: Record<number, { color: string; label: string; short: str
     5: { color: '#10b981', label: 'Prioritas 5 (Tahan)', short: 'Tahan', category: 'aman' },
     6: { color: '#047857', label: 'Prioritas 6 (Sangat Tahan)', short: 'Sangat Tahan', category: 'aman' },
 };
+
+export const INDICATOR_GROUPS = [
+    {
+        title: 'Ketersediaan Pangan',
+        shortTitle: 'Ketersediaan',
+        description: 'Kapasitas produksi, energi, protein & cadangan beras',
+        icon: Wheat,
+        badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+        borderColor: 'border-emerald-200/70 dark:border-emerald-900/40',
+        headerBg: 'bg-emerald-50/60 dark:bg-emerald-950/30',
+        items: [
+            {
+                key: 'ncpr',
+                label: 'Rasio Konsumsi Normatif Per Kapita (NCPR)',
+                unit: 'Rasio',
+            },
+            {
+                key: 'energy',
+                label: 'Rasio Ketersediaan Energy',
+                unit: 'kkal/kapita/hari',
+            },
+            {
+                key: 'protein',
+                label: 'Rasio Ketersediaan Protein Hewani',
+                unit: 'gram/kapita/hari',
+            },
+            {
+                key: 'food_reserves',
+                label: 'Rasio Cadangan Beras Pemerintah Kabupaten/Kota (Cadangan Pangan)',
+                unit: 'ton',
+            },
+        ],
+    },
+    {
+        title: 'Keterjangkauan Pangan',
+        shortTitle: 'Keterjangkauan',
+        description: 'Daya beli, stabilitas harga pangan & kerentanan konsumsi',
+        icon: Scale,
+        badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
+        borderColor: 'border-amber-200/70 dark:border-amber-900/40',
+        headerBg: 'bg-amber-50/60 dark:bg-amber-950/30',
+        items: [
+            {
+                key: 'poverty',
+                label: 'Persentase Penduduk Miskin',
+                unit: '%',
+            },
+            {
+                key: 'price_cv',
+                label: 'Koefisien Variasi Harga Pangan',
+                unit: '%',
+            },
+            {
+                key: 'pou',
+                label: 'Prevalance of Undernourishment (PoU)',
+                unit: '%',
+            },
+        ],
+    },
+    {
+        title: 'Pemanfaatan Pangan',
+        shortTitle: 'Pemanfaatan',
+        description: 'Akses air bersih, sanitasi, mutu konsumsi & balita stunting',
+        icon: Droplets,
+        badgeColor: 'bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300',
+        borderColor: 'border-sky-200/70 dark:border-sky-900/40',
+        headerBg: 'bg-sky-50/60 dark:bg-sky-950/30',
+        items: [
+            {
+                key: 'female_school',
+                label: 'Rata-rata lama sekolah perempuan',
+                unit: 'tahun',
+            },
+            {
+                key: 'no_water',
+                label: 'Persentase rumah tangga tanpa akses air bersih',
+                unit: '%',
+            },
+            {
+                key: 'pph',
+                label: 'Skor Pola Pangan Harapan (PPH) Konsumsi',
+                unit: 'Skor (0-100)',
+            },
+            {
+                key: 'stunting',
+                label: 'Persentase Balita Stunting',
+                unit: '%',
+            },
+        ],
+    },
+];
 
 export default function FsvaPage({
     items,
@@ -598,7 +696,7 @@ export default function FsvaPage({
                                     </span>
                                     <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-1.5 font-bold text-white backdrop-blur-xs border border-white/10">
                                         <Activity className="h-3.5 w-3.5 text-emerald-300" />
-                                        <span>13 Indikator Ketahanan Pangan</span>
+                                        <span>11 Indikator Ketahanan Pangan</span>
                                     </span>
                                 </div>
                             </div>
@@ -689,7 +787,7 @@ export default function FsvaPage({
                                     </Select>
                                 </div>
 
-                                {/* Indicator Filter */}
+                                {/* Indicator Filter Grouped */}
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
                                         Indikator:
@@ -698,15 +796,52 @@ export default function FsvaPage({
                                         value={summary.indicator}
                                         onValueChange={(val) => handleFilterChange('indicator', val)}
                                     >
-                                        <SelectTrigger className="h-9 w-60 sm:w-72 rounded-xl font-bold bg-slate-50 dark:bg-slate-800">
-                                            <SelectValue placeholder="Pilih Indikator" />
+                                        <SelectTrigger className="h-9 w-60 sm:w-72 md:w-84 rounded-xl font-bold bg-slate-50 dark:bg-slate-800 text-xs">
+                                            <SelectValue placeholder="Pilih Indikator FSVA" />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            {Object.entries(indicators).map(([key, ind]) => (
-                                                <SelectItem key={key} value={key} className="font-medium text-xs">
-                                                    {ind.label}
+                                        <SelectContent className="max-h-80 w-[88vw] sm:w-[380px] md:w-[420px] rounded-xl p-1.5 z-50">
+                                            {/* Opsi Komposit */}
+                                            <SelectGroup>
+                                                <SelectItem
+                                                    value="komposit"
+                                                    className="font-extrabold text-[#006565] dark:text-emerald-400 text-xs py-2 cursor-pointer"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                                        <span>Komposit FSVA (Prioritas 1-6)</span>
+                                                    </span>
                                                 </SelectItem>
-                                            ))}
+                                            </SelectGroup>
+
+                                            {/* Group Ketersediaan, Keterjangkauan, Pemanfaatan */}
+                                            {INDICATOR_GROUPS.map((group) => {
+                                                const GroupIcon = group.icon;
+                                                return (
+                                                    <React.Fragment key={group.title}>
+                                                        <SelectSeparator className="my-1.5" />
+                                                        <SelectGroup>
+                                                            <SelectLabel className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                                                <GroupIcon className="h-3.5 w-3.5 text-[#006565] dark:text-emerald-400" />
+                                                                <span>{group.title}</span>
+                                                            </SelectLabel>
+                                                            {group.items.map((it) => (
+                                                                <SelectItem
+                                                                    key={it.key}
+                                                                    value={it.key}
+                                                                    className="text-xs font-medium py-1.5 pl-6 pr-8 cursor-pointer rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                                >
+                                                                    <div className="flex items-center justify-between gap-2 w-full">
+                                                                        <span className="truncate">{it.label}</span>
+                                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 font-normal">
+                                                                            ({it.unit})
+                                                                        </span>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectGroup>
+                                                    </React.Fragment>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -714,89 +849,46 @@ export default function FsvaPage({
                         </div>
                     </div>
 
-                    {/* 3. CARD RINGKASAN SINGKAT TENTANG INDIKATOR SESUAI FILTER */}
-                    <Card className="rounded-2xl border-slate-200/80 shadow-md overflow-hidden bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/40 dark:from-slate-900 dark:via-slate-900/90 dark:to-slate-900 dark:border-slate-800">
-                        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div className="flex items-center gap-2.5">
-                                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#006565] text-white shadow-xs">
-                                        <Activity className="h-4.5 w-4.5" />
-                                    </span>
-                                    <div>
-                                        <CardTitle className="text-base font-black text-slate-900 dark:text-white">
-                                            Ringkasan Indikator: {summary.indicator_info.label}
-                                        </CardTitle>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            Satuan: <span className="font-semibold text-slate-700 dark:text-slate-300">{summary.indicator_info.unit}</span>
-                                        </p>
+                    {/* 3. NOTIFIKASI PENGERTIAN & DESKRIPSI INDIKATOR SESUAI FILTER */}
+                    <div className="relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/90 via-teal-50/50 to-white p-4 sm:p-5 shadow-sm backdrop-blur-sm dark:border-emerald-900/50 dark:from-emerald-950/30 dark:via-slate-900 dark:to-slate-900">
+                        {/* Decorative background aura */}
+                        <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-emerald-500/10 blur-2xl" />
+
+                        <div className="flex flex-col sm:flex-row items-start gap-3.5 sm:gap-4">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#006565] text-white shadow-xs dark:bg-emerald-600">
+                                <Info className="h-5 w-5" />
+                            </span>
+
+                            <div className="flex-1 min-w-0 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="outline" className="border-emerald-300 bg-emerald-100/60 text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            Pengertian Indikator
+                                        </Badge>
+                                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">
+                                            {summary.indicator_info.label}
+                                        </h3>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="bg-[#006565] text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full dark:bg-emerald-600">
+                                            Satuan: {summary.indicator_info.unit}
+                                        </Badge>
+                                        <Badge variant="secondary" className="text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                            Tahun {summary.year}
+                                        </Badge>
                                     </div>
                                 </div>
-                                <Badge className="bg-[#006565] text-white text-xs px-3 py-1 rounded-full font-bold self-start sm:self-auto">
-                                    Tahun {summary.year}
-                                </Badge>
+
+                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                                    {summary.indicator_info.description}
+                                </p>
                             </div>
-                        </CardHeader>
-
-                        <CardContent className="pt-4 space-y-4">
-                            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed dark:text-slate-300">
-                                {summary.indicator_info.description}
-                            </p>
-
-                            {/* Stat Summary Metrics Grid */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
-                                    <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
-                                        Rata-rata Kabupaten
-                                    </span>
-                                    <span className="text-xl sm:text-2xl font-black text-[#006565] dark:text-emerald-400">
-                                        {summary.avg_value}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 block truncate">
-                                        {summary.indicator_info.unit}
-                                    </span>
-                                </div>
-
-                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
-                                    <span className="text-[11px] font-bold text-slate-400 block uppercase tracking-wider">
-                                        Total Desa Terdata
-                                    </span>
-                                    <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
-                                        {summary.total_desa}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 block">
-                                        Desa / Kelurahan
-                                    </span>
-                                </div>
-
-                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
-                                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 block uppercase tracking-wider">
-                                        Nilai Tertinggi
-                                    </span>
-                                    <span className="text-xl sm:text-2xl font-black text-emerald-700 dark:text-emerald-300">
-                                        {summary.max_value}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 block truncate">
-                                        {summary.max_desa ? `Desa ${summary.max_desa.desa} (${summary.max_desa.kecamatan})` : '-'}
-                                    </span>
-                                </div>
-
-                                <div className="rounded-xl border border-slate-200/70 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-800/60">
-                                    <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 block uppercase tracking-wider">
-                                        Nilai Terendah
-                                    </span>
-                                    <span className="text-xl sm:text-2xl font-black text-rose-700 dark:text-rose-300">
-                                        {summary.min_value}
-                                    </span>
-                                    <span className="text-[10px] text-slate-500 block truncate">
-                                        {summary.min_desa ? `Desa ${summary.min_desa.desa} (${summary.min_desa.kecamatan})` : '-'}
-                                    </span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
                     {/* 4. PETA SEBARAN DESA STATUS FSVA (LEAFLET JS) */}
-                    <section className="space-y-3">
+                    <section className="space-y-3 relative z-0 isolate">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">

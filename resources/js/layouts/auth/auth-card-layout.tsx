@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
-import { ArrowLeft, ShieldCheck, Sparkles, Wheat } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Sparkles } from 'lucide-react';
 import { home } from '@/routes';
 
 export default function AuthCardLayout({
@@ -23,8 +23,12 @@ export default function AuthCardLayout({
                         href={home()}
                         className="group flex flex-col items-center gap-2.5 transition-transform hover:scale-105"
                     >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#006565] text-white shadow-lg shadow-[#006565]/25 transition-colors group-hover:bg-[#005252]">
-                            <Wheat className="h-6 w-6 stroke-[2.2]" />
+                        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                            <img
+                                src="/storage/indramayu_logo.png"
+                                alt="Logo DKPP Indramayu"
+                                className="h-14 w-auto max-h-full object-contain drop-shadow-sm"
+                            />
                         </div>
                         <div className="flex flex-col">
                             <span className="text-lg font-black tracking-tight text-[#191c1e]">
