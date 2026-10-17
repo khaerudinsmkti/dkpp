@@ -1862,23 +1862,25 @@ export default function HargaKonsumen({
     // - Kuning: HET 1-10% (0% < diffPct <= 10%)
     // - Merah: di atas HET >10% (diffPct > 10%)
     const getCommodityHetInfo = (item: ConsumerCommodityItem) => {
-        // 1. Apabila tidak ada HET: warna putih
+        // 1. Apabila tidak ada HET atau harga 0/null: warna putih
         if (
             item.het_price === null ||
             item.het_price === undefined ||
             item.het_price <= 0 ||
-            item.today_price === null
+            item.today_price === null ||
+            item.today_price <= 0
         ) {
+            const isZero = item.today_price === 0;
             return {
                 color: 'white' as const,
                 hasHet: false,
                 hetDiff: null,
                 hetDiffPct: null,
-                badgeText: 'Non-HET',
-                badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+                badgeText: isZero ? 'Rp 0' : 'Non-HET',
+                badgeClass: isZero ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-slate-100 text-slate-700 border-slate-200',
                 cardBgClass:
                     'bg-white border-slate-200/90 text-slate-900 hover:border-slate-300 hover:shadow-md',
-                statusText: 'Tidak ada regulasi HET',
+                statusText: isZero ? 'Harga komoditi belum ada (Rp 0)' : 'Tidak ada regulasi HET',
             };
         }
 
@@ -1936,7 +1938,7 @@ export default function HargaKonsumen({
 
     // Calculation for price difference compared to yesterday
     const getYesterdayDiff = (item: ConsumerCommodityItem) => {
-        if (item.today_price === null || item.yesterday_price === null) {
+        if (item.today_price === null || item.today_price <= 0 || item.yesterday_price === null || item.yesterday_price <= 0) {
             return {
                 diff: null,
                 pct: null,

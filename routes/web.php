@@ -95,34 +95,14 @@ Route::get('/harga-konsumen', function (Request $request) {
         ->get()
         ->keyBy('commodity_id');
 
-    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $effectiveDate, $marketId) {
+    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $effectiveDate) {
         $priceRecord = $currentPrices->get($c->id);
-        $commodityDate = $effectiveDate;
-
-        if (! $priceRecord) {
-            $priceRecord = ConsumerPrice::where('market_id', $marketId)
-                ->where('commodity_id', $c->id)
-                ->where('recorded_date', '<=', $effectiveDate)
-                ->orderByDesc('recorded_date')
-                ->first();
-            if ($priceRecord) {
-                $commodityDate = Carbon::parse($priceRecord->recorded_date)->format('Y-m-d');
-            }
-        }
-
         $prevPriceRecord = $prevPrices->get($c->id);
-        if (! $prevPriceRecord && $priceRecord) {
-            $prevPriceRecord = ConsumerPrice::where('market_id', $marketId)
-                ->where('commodity_id', $c->id)
-                ->where('recorded_date', '<', $commodityDate)
-                ->orderByDesc('recorded_date')
-                ->first();
-        }
+        $applicableHet = $c->hetAt($effectiveDate);
 
-        $applicableHet = $c->hetAt($commodityDate);
-
-        $todayPrice = $priceRecord ? (float) $priceRecord->price : null;
-        $yesterdayPrice = $prevPriceRecord ? (float) $prevPriceRecord->price : null;
+        // Satu paket semua komoditi pada tanggal yang sama: jika tidak tercatat atau null, tetap tampilkan 0
+        $todayPrice = $priceRecord && $priceRecord->price !== null ? (float) $priceRecord->price : 0;
+        $yesterdayPrice = $prevPriceRecord && $prevPriceRecord->price !== null ? (float) $prevPriceRecord->price : 0;
         $hetPrice = $applicableHet ? (float) $applicableHet->price : null;
 
         return [
@@ -135,7 +115,7 @@ Route::get('/harga-konsumen', function (Request $request) {
             'today_price' => $todayPrice,
             'yesterday_price' => $yesterdayPrice,
             'het_price' => $hetPrice,
-            'date' => $commodityDate,
+            'date' => $effectiveDate,
         ];
     });
 
@@ -228,38 +208,18 @@ Route::get('/harga-produsen', function (Request $request) {
         $commoditiesConfig = ProducerPrice::COMMODITIES;
     }
 
-    $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord, $effectiveDate): array {
+    $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
         $key = $cfg['key'];
-        $currentPrice = $currentRecord && $currentRecord->{$key} !== null ? (float) $currentRecord->{$key} : null;
-
-        if ($currentPrice === null) {
-            $fallbackRecord = ProducerPrice::where('recorded_date', '<=', $effectiveDate)
-                ->whereNotNull($key)
-                ->orderByDesc('recorded_date')
-                ->first();
-            if ($fallbackRecord) {
-                $currentPrice = (float) $fallbackRecord->{$key};
-            }
-        }
-
-        $prevPrice = $prevRecord && $prevRecord->{$key} !== null ? (float) $prevRecord->{$key} : null;
-        if ($prevPrice === null && $currentPrice !== null) {
-            $fallbackPrev = ProducerPrice::where('recorded_date', '<', $effectiveDate)
-                ->whereNotNull($key)
-                ->orderByDesc('recorded_date')
-                ->first();
-            if ($fallbackPrev) {
-                $prevPrice = (float) $fallbackPrev->{$key};
-            }
-        }
-
+        // Satu paket semua komoditi pada tanggal yang sama: jika tidak tercatat atau null, tetap tampilkan 0
+        $currentPrice = $currentRecord && $currentRecord->{$key} !== null ? (float) $currentRecord->{$key} : 0;
+        $prevPrice = $prevRecord && $prevRecord->{$key} !== null ? (float) $prevRecord->{$key} : 0;
         $hapPrice = (float) $cfg['hap'];
 
         $diffHap = null;
         $diffHapPercentage = null;
         $status = 'not_recorded';
 
-        if ($currentPrice !== null) {
+        if ($currentPrice > 0) {
             $diffHap = round($currentPrice - $hapPrice, 2);
             $diffHapPercentage = $hapPrice > 0 ? round(($diffHap / $hapPrice) * 100, 2) : 0;
             if ($diffHap > 0) {
@@ -275,7 +235,7 @@ Route::get('/harga-produsen', function (Request $request) {
         $diffYesterdayPercentage = null;
         $changeType = 'stable';
 
-        if ($currentPrice !== null && $prevPrice !== null) {
+        if ($currentPrice > 0 && $prevPrice > 0) {
             $diffYesterday = round($currentPrice - $prevPrice, 2);
             $diffYesterdayPercentage = $prevPrice > 0 ? round(($diffYesterday / $prevPrice) * 100, 2) : 0;
             if ($diffYesterday > 0) {

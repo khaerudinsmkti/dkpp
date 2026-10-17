@@ -1707,11 +1707,9 @@ export default function HargaProdusen({
                                             <div className="p-3 pt-2.5">
                                                 <div className="flex items-baseline gap-1">
                                                     <span className="text-base sm:text-lg font-black text-slate-900">
-                                                        {comm.today_price ? `Rp ${comm.today_price.toLocaleString('id-ID')}` : 'Belum Terdata'}
+                                                        {comm.today_price && comm.today_price > 0 ? `Rp ${comm.today_price.toLocaleString('id-ID')}` : 'Rp 0'}
                                                     </span>
-                                                    {comm.today_price && (
-                                                        <span className="text-[10px] font-semibold text-slate-500">/{comm.unit}</span>
-                                                    )}
+                                                    <span className="text-[10px] font-semibold text-slate-500">/{comm.unit}</span>
                                                 </div>
 
                                                 <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px]">
