@@ -30,6 +30,8 @@ Route::get('/', function () {
     return redirect()->route('ikp');
 })->name('home');
 
+Route::redirect('/register', '/login');
+
 Route::get('/harga-konsumen', function (Request $request) {
     // Hanya tampilkan pasar yang statusnya aktif (is_active = true)
     $markets = Market::where('is_active', true)->orderBy('order')->get();

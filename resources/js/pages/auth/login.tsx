@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
 
@@ -114,16 +113,11 @@ export default function Login({ status, canResetPassword }: Props) {
                             </Button>
                         </div>
 
-                        {/* Sign Up Redirect */}
+                        {/* Sign Up Notice */}
                         <div className="pt-2 text-center text-xs text-slate-500">
-                            Belum memiliki akun petugas?{' '}
-                            <TextLink
-                                href={register()}
-                                tabIndex={6}
-                                className="font-bold text-[#006565] no-underline hover:text-[#005252] hover:underline"
-                            >
-                                Registrasi Sekarang
-                            </TextLink>
+                            Belum memiliki akun petugas? Hubungi{' '}
+                            <span className="font-semibold text-slate-700">Administrator DKPP</span>{' '}
+                            untuk mendapatkan akses akun.
                         </div>
                     </>
                 )}
