@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { dashboard, login } from '@/routes';
+import PortalBottomBar from './portal-bottom-bar';
 
 export type PortalActivePage = 'ikp' | 'skpg' | 'fsva' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
 
@@ -65,7 +66,8 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
         isPphActive;
 
     return (
-        <header className="sticky top-0 z-50 transition-all">
+        <>
+            <header className="sticky top-0 z-50 transition-all">
             {/* Top Accent Gradient Shimmer Line */}
             <div className="h-[2.5px] w-full bg-gradient-to-r from-emerald-500 via-[#006565] to-teal-400" />
 
@@ -753,7 +755,9 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                     </div>
                 )}
             </div>
-        </header>
+            </header>
+            <PortalBottomBar activePage={activePage} />
+        </>
     );
 }
 

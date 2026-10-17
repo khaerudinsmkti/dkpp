@@ -2959,56 +2959,56 @@ export default function HargaKonsumen({
                                     </div>
 
                                     {/* 3 Tabulasi: Harian, Mingguan, Bulanan */}
-                                    <div className="inline-flex rounded-xl bg-slate-100 p-1">
+                                    <div className="grid grid-cols-3 w-full sm:w-auto sm:inline-flex rounded-xl bg-slate-100 p-1">
                                         <button
                                             type="button"
                                             onClick={() => setChartTab('daily')}
-                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                            className={`rounded-lg px-2 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-center transition-all ${
                                                 chartTab === 'daily'
                                                     ? 'bg-white text-[#006565] shadow-xs'
                                                     : 'text-slate-600 hover:text-slate-900'
                                             }`}
                                         >
-                                            Grafik Harian
-                                            <span className="ml-1 text-[10px] font-normal opacity-75">(31 Hari)</span>
+                                            Harian
+                                            <span className="hidden sm:inline ml-1 text-[10px] font-normal opacity-75">(31 Hari)</span>
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setChartTab('weekly')}
-                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                            className={`rounded-lg px-2 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-center transition-all ${
                                                 chartTab === 'weekly'
                                                     ? 'bg-white text-[#006565] shadow-xs'
                                                     : 'text-slate-600 hover:text-slate-900'
                                             }`}
                                         >
-                                            Grafik Mingguan
+                                            Mingguan
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setChartTab('monthly')}
-                                            className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                                            className={`rounded-lg px-2 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-bold text-center transition-all ${
                                                 chartTab === 'monthly'
                                                     ? 'bg-white text-[#006565] shadow-xs'
                                                     : 'text-slate-600 hover:text-slate-900'
                                             }`}
                                         >
-                                            Grafik Bulanan
+                                            Bulanan
                                         </button>
                                     </div>
                                 </div>
 
                                 {/* Controls & Filter Bar Sesuai Tabulasi */}
-                                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50/80 p-3 text-xs border border-slate-100">
+                                <div className="mt-4 flex flex-col gap-3 rounded-xl bg-slate-50/80 p-3 text-xs border border-slate-100 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                                     {/* Filter Komoditas (Tersedia di semua tabulasi) */}
-                                    <div className="flex items-center gap-2">
-                                        <label htmlFor="chart-commodity" className="font-bold text-slate-600 shrink-0">
+                                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto min-w-0">
+                                        <label htmlFor="chart-commodity" className="font-bold text-slate-600 shrink-0 text-xs">
                                             Komoditas:
                                         </label>
                                         <select
                                             id="chart-commodity"
                                             value={chartCommodityId}
                                             onChange={(e) => setChartCommodityId(Number(e.target.value))}
-                                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs focus:border-[#006565] focus:outline-none"
+                                            className="w-full sm:w-64 md:w-72 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 shadow-xs focus:border-[#006565] focus:outline-none truncate"
                                         >
                                             {commoditiesList.map((c) => (
                                                 <option key={c.id} value={c.id}>
@@ -3020,21 +3020,21 @@ export default function HargaKonsumen({
 
                                     {/* Filter Khusus Tab 1: Harian (Rentang tanggal, maks 31 hari) */}
                                     {chartTab === 'daily' && (
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-bold text-slate-600">Rentang (Maks 31 Hari):</span>
-                                            <div className="flex items-center gap-1.5">
+                                        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2 w-full sm:w-auto min-w-0">
+                                            <span className="font-bold text-slate-600 shrink-0">Rentang (Maks 31 Hari):</span>
+                                            <div className="flex items-center gap-1.5 w-full sm:w-auto">
                                                 <input
                                                     type="date"
                                                     value={dailyStartDate}
                                                     onChange={(e) => handleDailyStartDateChange(e.target.value)}
-                                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                    className="w-full sm:w-auto min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
                                                 />
-                                                <span className="text-slate-400">s/d</span>
+                                                <span className="text-slate-400 shrink-0">s/d</span>
                                                 <input
                                                     type="date"
                                                     value={dailyEndDate}
                                                     onChange={(e) => handleDailyEndDateChange(e.target.value)}
-                                                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                    className="w-full sm:w-auto min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
                                                 />
                                             </div>
                                         </div>
@@ -3042,13 +3042,13 @@ export default function HargaKonsumen({
 
                                     {/* Filter Khusus Tab 2: Mingguan (Filter Bulan & Tahun) */}
                                     {chartTab === 'weekly' && (
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-bold text-slate-600">Bulan:</span>
+                                        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                                            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial min-w-[130px]">
+                                                <span className="font-bold text-slate-600 shrink-0">Bulan:</span>
                                                 <select
                                                     value={weeklyMonth}
                                                     onChange={(e) => setWeeklyMonth(Number(e.target.value))}
-                                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
                                                 >
                                                     {[
                                                         'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -3060,12 +3060,12 @@ export default function HargaKonsumen({
                                                     ))}
                                                 </select>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="font-bold text-slate-600">Tahun:</span>
+                                            <div className="flex items-center gap-1.5 flex-1 sm:flex-initial min-w-[90px]">
+                                                <span className="font-bold text-slate-600 shrink-0">Tahun:</span>
                                                 <select
                                                     value={weeklyYear}
                                                     onChange={(e) => setWeeklyYear(Number(e.target.value))}
-                                                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
                                                 >
                                                     {[2024, 2025, 2026, 2027].map((y) => (
                                                         <option key={y} value={y}>
@@ -3079,12 +3079,12 @@ export default function HargaKonsumen({
 
                                     {/* Filter Khusus Tab 3: Bulanan (Filter Tahun saja) */}
                                     {chartTab === 'monthly' && (
-                                        <div className="flex items-center gap-1.5">
-                                            <span className="font-bold text-slate-600">Tahun:</span>
+                                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                                            <span className="font-bold text-slate-600 shrink-0">Tahun:</span>
                                             <select
                                                 value={monthlyYear}
                                                 onChange={(e) => setMonthlyYear(Number(e.target.value))}
-                                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
+                                                className="w-full sm:w-auto rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs focus:border-[#006565] focus:outline-none"
                                             >
                                                 {[2024, 2025, 2026, 2027].map((y) => (
                                                     <option key={y} value={y}>
@@ -3097,7 +3097,7 @@ export default function HargaKonsumen({
 
                                     {/* Indikator Status Warna Batang HET (Mingguan & Bulanan) */}
                                     {chartTab !== 'daily' && (
-                                        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-1 text-[11px] border border-slate-200/80 shadow-2xs">
+                                        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-[11px] border border-slate-200/80 shadow-2xs w-full sm:w-auto">
                                             <span className="font-bold text-slate-600">Status HET:</span>
                                             <span className="inline-flex items-center gap-1 font-medium text-slate-700">
                                                 <span className="h-2 w-2 rounded-full bg-[#006565]" />

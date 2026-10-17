@@ -46,7 +46,7 @@ export default function PortalFooter({
             {/* Top accent gradient line */}
             <div className="h-[2px] w-full bg-gradient-to-r from-emerald-500 via-[#006565] to-teal-400" />
 
-            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-7xl px-4 pt-12 pb-24 sm:px-6 sm:pb-16 lg:px-8 lg:pb-12">
                 <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-12 lg:gap-10">
                     {/* Brand & Address Column */}
                     <div className="space-y-4 lg:col-span-5">
@@ -201,7 +201,7 @@ export default function PortalFooter({
                 onClick={scrollToTop}
                 aria-label="Kembali ke atas"
                 title="Kembali ke atas"
-                className={`fixed bottom-6 right-6 z-50 flex items-center justify-center rounded-full bg-gradient-to-r from-[#006565] to-teal-700 p-3.5 text-white shadow-lg shadow-[#006565]/30 ring-1 ring-white/20 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:from-[#005252] hover:to-teal-800 active:scale-95 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 cursor-pointer ${
+                className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-30 flex items-center justify-center rounded-full bg-gradient-to-r from-[#006565] to-teal-700 p-3 sm:p-3.5 text-white shadow-lg shadow-[#006565]/30 ring-1 ring-white/20 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:from-[#005252] hover:to-teal-800 active:scale-95 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 cursor-pointer ${
                     showFloatingTop
                         ? 'opacity-100 translate-y-0 pointer-events-auto'
                         : 'opacity-0 translate-y-6 pointer-events-none'
