@@ -390,10 +390,17 @@ class ConsumerPriceController extends Controller
             $endDate = (string) $request->query('end_date', '');
             $startDate = (string) $request->query('start_date', '');
 
+            $latestRecordedDate = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $commodityId)
+                ->max('recorded_date')
+                ?? ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
+                ?? ConsumerPrice::max('recorded_date')
+                ?? now()->format('Y-m-d');
+
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-                $endDate = ConsumerPrice::where('market_id', $marketId)
-                    ->where('commodity_id', $commodityId)
-                    ->max('recorded_date') ?? now()->format('Y-m-d');
+                $endDate = $latestRecordedDate;
+            } elseif ($endDate > $latestRecordedDate && ! ConsumerPrice::where('market_id', $marketId)->where('commodity_id', $commodityId)->where('recorded_date', $endDate)->exists()) {
+                $endDate = $latestRecordedDate;
             }
 
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
@@ -595,6 +602,16 @@ class ConsumerPriceController extends Controller
         } else {
             $startCarbon = Carbon::parse($startDate);
             $endCarbon = Carbon::parse($endDate);
+
+            $maxRecordedDate = ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
+                ?? ConsumerPrice::max('recorded_date')
+                ?? now()->format('Y-m-d');
+
+            if ($endCarbon->gt(Carbon::parse($maxRecordedDate)) && ! ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $endCarbon->format('Y-m-d'))->exists()) {
+                $diffDays = $startCarbon->diffInDays($endCarbon);
+                $endCarbon = Carbon::parse($maxRecordedDate);
+                $startCarbon = $endCarbon->copy()->subDays(min(30, max(6, $diffDays)));
+            }
 
             if ($startCarbon->gt($endCarbon)) {
                 $temp = $startCarbon;

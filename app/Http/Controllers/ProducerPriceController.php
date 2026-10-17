@@ -445,17 +445,32 @@ class ProducerPriceController extends Controller
             $startDate = (string) $request->query('start_date', '');
             $endDate = (string) $request->query('end_date', '');
 
+            $latestRecordedDate = ProducerPrice::whereNotNull($key)->max('recorded_date')
+                ?? ProducerPrice::max('recorded_date')
+                ?? now()->format('Y-m-d');
+
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
-                $latestDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
-                $endDate = $latestDate;
+                $endDate = $latestRecordedDate;
                 $startDate = Carbon::parse($endDate)->subDays(30)->format('Y-m-d');
             } else {
                 $startCarbon = Carbon::parse($startDate);
                 $endCarbon = Carbon::parse($endDate);
+
+                if ($endCarbon->gt(Carbon::parse($latestRecordedDate)) && ! ProducerPrice::where('recorded_date', $endCarbon->format('Y-m-d'))->whereNotNull($key)->exists()) {
+                    $diffDays = $startCarbon->diffInDays($endCarbon);
+                    $endCarbon = Carbon::parse($latestRecordedDate);
+                    $startCarbon = $endCarbon->copy()->subDays(min(30, max(6, $diffDays)));
+                }
+
                 if ($startCarbon->gt($endCarbon)) {
                     $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
+                    $endDate = $endCarbon->format('Y-m-d');
                 } elseif ($startCarbon->diffInDays($endCarbon) > 31) {
                     $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
+                    $endDate = $endCarbon->format('Y-m-d');
+                } else {
+                    $startDate = $startCarbon->format('Y-m-d');
+                    $endDate = $endCarbon->format('Y-m-d');
                 }
             }
 
@@ -632,6 +647,13 @@ class ProducerPriceController extends Controller
         } else {
             $startCarbon = Carbon::parse($startDate);
             $endCarbon = Carbon::parse($endDate);
+
+            $maxRecordedDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
+            if ($endCarbon->gt(Carbon::parse($maxRecordedDate)) && ! ProducerPrice::where('recorded_date', $endCarbon->format('Y-m-d'))->exists()) {
+                $diffDays = $startCarbon->diffInDays($endCarbon);
+                $endCarbon = Carbon::parse($maxRecordedDate);
+                $startCarbon = $endCarbon->copy()->subDays(min(30, max(6, $diffDays)));
+            }
 
             if ($startCarbon->gt($endCarbon)) {
                 $temp = $startCarbon;

@@ -42,28 +42,50 @@ Route::get('/harga-konsumen', function (Request $request) {
     $marketId = $selectedMarket?->id ?? $defaultMarketId;
 
     // Available recorded dates in DB
-    $maxRecordedDate = ConsumerPrice::max('recorded_date') ?? now()->format('Y-m-d');
-    $minRecordedDate = ConsumerPrice::min('recorded_date') ?? '2026-01-01';
+    $maxRecordedDate = ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
+        ?? ConsumerPrice::max('recorded_date')
+        ?? now()->format('Y-m-d');
+    $minRecordedDate = ConsumerPrice::where('market_id', $marketId)->min('recorded_date')
+        ?? ConsumerPrice::min('recorded_date')
+        ?? '2026-01-01';
 
-    $selectedDate = $request->query('date', $maxRecordedDate);
-    if (! is_string($selectedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
-        $selectedDate = $maxRecordedDate;
+    $todayStr = now()->format('Y-m-d');
+    $hasTodayData = ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $todayStr)->exists();
+
+    $requestedDate = $request->query('date');
+    if (! is_string($requestedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $requestedDate)) {
+        $requestedDate = null;
     }
 
-    // Previous date before selectedDate for this market to calculate yesterday change
+    if ($requestedDate) {
+        $hasDataOnRequested = ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $requestedDate)->exists();
+        if ($hasDataOnRequested) {
+            $effectiveDate = $requestedDate;
+            $isFallback = false;
+        } else {
+            $latestBefore = ConsumerPrice::where('market_id', $marketId)->where('recorded_date', '<=', $requestedDate)->max('recorded_date');
+            $effectiveDate = $latestBefore ?? $maxRecordedDate;
+            $isFallback = true;
+        }
+    } else {
+        $effectiveDate = $hasTodayData ? $todayStr : $maxRecordedDate;
+        $isFallback = ! $hasTodayData;
+    }
+
+    // Previous date before effectiveDate for this market to calculate yesterday change
     $prevDate = ConsumerPrice::where('market_id', $marketId)
-        ->where('recorded_date', '<', $selectedDate)
+        ->where('recorded_date', '<', $effectiveDate)
         ->max('recorded_date');
 
     if (! $prevDate) {
-        $prevDate = Carbon::parse($selectedDate)->subDay()->format('Y-m-d');
+        $prevDate = Carbon::parse($effectiveDate)->subDay()->format('Y-m-d');
     }
 
     $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
 
-    // Query prices for selected date and market
+    // Query prices for effective date and market
     $currentPrices = ConsumerPrice::where('market_id', $marketId)
-        ->where('recorded_date', $selectedDate)
+        ->where('recorded_date', $effectiveDate)
         ->get()
         ->keyBy('commodity_id');
 
@@ -73,10 +95,31 @@ Route::get('/harga-konsumen', function (Request $request) {
         ->get()
         ->keyBy('commodity_id');
 
-    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $selectedDate) {
+    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $effectiveDate, $marketId) {
         $priceRecord = $currentPrices->get($c->id);
+        $commodityDate = $effectiveDate;
+
+        if (! $priceRecord) {
+            $priceRecord = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $c->id)
+                ->where('recorded_date', '<=', $effectiveDate)
+                ->orderByDesc('recorded_date')
+                ->first();
+            if ($priceRecord) {
+                $commodityDate = Carbon::parse($priceRecord->recorded_date)->format('Y-m-d');
+            }
+        }
+
         $prevPriceRecord = $prevPrices->get($c->id);
-        $applicableHet = $c->hetAt($selectedDate);
+        if (! $prevPriceRecord && $priceRecord) {
+            $prevPriceRecord = ConsumerPrice::where('market_id', $marketId)
+                ->where('commodity_id', $c->id)
+                ->where('recorded_date', '<', $commodityDate)
+                ->orderByDesc('recorded_date')
+                ->first();
+        }
+
+        $applicableHet = $c->hetAt($commodityDate);
 
         $todayPrice = $priceRecord ? (float) $priceRecord->price : null;
         $yesterdayPrice = $prevPriceRecord ? (float) $prevPriceRecord->price : null;
@@ -92,7 +135,7 @@ Route::get('/harga-konsumen', function (Request $request) {
             'today_price' => $todayPrice,
             'yesterday_price' => $yesterdayPrice,
             'het_price' => $hetPrice,
-            'date' => $selectedDate,
+            'date' => $commodityDate,
         ];
     });
 
@@ -105,7 +148,11 @@ Route::get('/harga-konsumen', function (Request $request) {
         ]),
         'selectedMarketId' => $marketId,
         'selectedMarketName' => $selectedMarket?->name ?? 'Pasar Daerah Indramayu',
-        'selectedDate' => $selectedDate,
+        'selectedDate' => $effectiveDate,
+        'latestDate' => $maxRecordedDate,
+        'requestedDate' => $requestedDate ?? ($hasTodayData ? $todayStr : null),
+        'isFallback' => $isFallback,
+        'hasTodayData' => $hasTodayData,
         'prevDate' => $prevDate,
         'minDate' => $minRecordedDate,
         'maxDate' => now()->format('Y-m-d'),
@@ -116,23 +163,51 @@ Route::get('/harga-produsen', function (Request $request) {
     $maxRecordedDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
     $minRecordedDate = ProducerPrice::min('recorded_date') ?? '2026-01-01';
 
-    $selectedDate = $request->query('date', $maxRecordedDate);
-    if (! is_string($selectedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $selectedDate)) {
-        $selectedDate = $maxRecordedDate;
+    $todayStr = now()->format('Y-m-d');
+    $hasTodayData = ProducerPrice::where('recorded_date', $todayStr)->exists();
+
+    $requestedDate = $request->query('date');
+    if (! is_string($requestedDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $requestedDate)) {
+        $requestedDate = null;
     }
 
-    $currentRecord = ProducerPrice::where('recorded_date', $selectedDate)->first();
-    $prevDate = ProducerPrice::where('recorded_date', '<', $selectedDate)->max('recorded_date');
+    if ($requestedDate) {
+        $currentRecord = ProducerPrice::where('recorded_date', $requestedDate)->first();
+        if ($currentRecord) {
+            $effectiveDate = $requestedDate;
+            $isFallback = false;
+        } else {
+            $currentRecord = ProducerPrice::where('recorded_date', '<=', $requestedDate)->orderByDesc('recorded_date')->first()
+                ?? ProducerPrice::orderByDesc('recorded_date')->first();
+            $effectiveDate = $currentRecord ? Carbon::parse($currentRecord->recorded_date)->format('Y-m-d') : $maxRecordedDate;
+            $isFallback = true;
+        }
+    } else {
+        if ($hasTodayData) {
+            $effectiveDate = $todayStr;
+            $currentRecord = ProducerPrice::where('recorded_date', $todayStr)->first();
+            $isFallback = false;
+        } else {
+            $effectiveDate = $maxRecordedDate;
+            $currentRecord = ProducerPrice::where('recorded_date', $maxRecordedDate)->first()
+                ?? ProducerPrice::orderByDesc('recorded_date')->first();
+            $isFallback = true;
+        }
+    }
+
+    $prevDate = $currentRecord
+        ? ProducerPrice::where('recorded_date', '<', $effectiveDate)->max('recorded_date')
+        : null;
     $prevRecord = $prevDate ? ProducerPrice::where('recorded_date', $prevDate)->first() : null;
 
     $dbCommodities = ProducerCommodity::where('is_active', true)
-        ->with(['haps' => fn ($q) => $q->where('effective_date', '<=', $selectedDate)->orderByDesc('effective_date')->orderByDesc('id')])
+        ->with(['haps' => fn ($q) => $q->where('effective_date', '<=', $effectiveDate)->orderByDesc('effective_date')->orderByDesc('id')])
         ->orderBy('order')
         ->get();
 
     if ($dbCommodities->isNotEmpty()) {
-        $commoditiesConfig = $dbCommodities->map(function ($c) use ($selectedDate) {
-            $hap = $c->hapAt($selectedDate);
+        $commoditiesConfig = $dbCommodities->map(function ($c) use ($effectiveDate) {
+            $hap = $c->hapAt($effectiveDate);
 
             return [
                 'id' => $c->id,
@@ -153,10 +228,31 @@ Route::get('/harga-produsen', function (Request $request) {
         $commoditiesConfig = ProducerPrice::COMMODITIES;
     }
 
-    $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
+    $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord, $effectiveDate): array {
         $key = $cfg['key'];
         $currentPrice = $currentRecord && $currentRecord->{$key} !== null ? (float) $currentRecord->{$key} : null;
+
+        if ($currentPrice === null) {
+            $fallbackRecord = ProducerPrice::where('recorded_date', '<=', $effectiveDate)
+                ->whereNotNull($key)
+                ->orderByDesc('recorded_date')
+                ->first();
+            if ($fallbackRecord) {
+                $currentPrice = (float) $fallbackRecord->{$key};
+            }
+        }
+
         $prevPrice = $prevRecord && $prevRecord->{$key} !== null ? (float) $prevRecord->{$key} : null;
+        if ($prevPrice === null && $currentPrice !== null) {
+            $fallbackPrev = ProducerPrice::where('recorded_date', '<', $effectiveDate)
+                ->whereNotNull($key)
+                ->orderByDesc('recorded_date')
+                ->first();
+            if ($fallbackPrev) {
+                $prevPrice = (float) $fallbackPrev->{$key};
+            }
+        }
+
         $hapPrice = (float) $cfg['hap'];
 
         $diffHap = null;
@@ -217,8 +313,11 @@ Route::get('/harga-produsen', function (Request $request) {
 
     return Inertia::render('harga-produsen', [
         'marketName' => 'Kabupaten Indramayu',
-        'selectedDate' => $selectedDate,
+        'selectedDate' => $effectiveDate,
         'latestDate' => $maxRecordedDate,
+        'requestedDate' => $requestedDate ?? ($hasTodayData ? $todayStr : null),
+        'isFallback' => $isFallback,
+        'hasTodayData' => $hasTodayData,
         'prevDate' => $prevDate,
         'minDate' => $minRecordedDate,
         'maxDate' => now()->format('Y-m-d'),

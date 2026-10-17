@@ -93,6 +93,9 @@ export interface HargaKonsumenProps {
     maxDate?: string;
     marketName?: string;
     latestDate?: string;
+    isFallback?: boolean;
+    hasTodayData?: boolean;
+    requestedDate?: string | null;
 }
 
 // ==============================================================================
@@ -588,6 +591,9 @@ export default function HargaKonsumen({
     maxDate = '',
     marketName = 'Pasar Daerah Indramayu',
     latestDate,
+    isFallback = false,
+    hasTodayData = false,
+    requestedDate = null,
 }: HargaKonsumenProps = {}) {
 
     // Filter states
@@ -609,6 +615,10 @@ export default function HargaKonsumen({
     useEffect(() => {
         if (selectedDate) {
             setCurrentDate(selectedDate);
+            setDailyEndDate(selectedDate);
+            const d = new Date(selectedDate + 'T00:00:00');
+            d.setDate(d.getDate() - 30);
+            setDailyStartDate(d.toISOString().split('T')[0]);
         }
     }, [selectedDate]);
 
@@ -2109,6 +2119,14 @@ export default function HargaKonsumen({
                                         <span className="text-[11px]">Memuat...</span>
                                     </div>
                                 )}
+
+                                {/* Fallback Info Badge when today has no data */}
+                                {isFallback && (
+                                    <div className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300/40 bg-amber-400/20 px-3 py-1.5 text-[11px] font-bold text-amber-100 backdrop-blur-md">
+                                        <Info className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+                                        <span>Data hari ini belum tersedia &bull; Menampilkan data terakhir ({formatIndoDate(currentDate)})</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -2637,6 +2655,20 @@ export default function HargaKonsumen({
                             </span>
                         )}
                     </div>
+
+                    {/* Fallback Notice Banner */}
+                    {isFallback && (
+                        <div className="mt-3 flex items-start sm:items-center gap-2.5 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3.5 py-2.5 text-xs text-amber-900 shadow-2xs">
+                            <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5 sm:mt-0" />
+                            <div className="leading-relaxed">
+                                <span className="font-bold">Informasi Data Terkini:</span> Data harga untuk hari ini{' '}
+                                <span className="font-semibold text-amber-950">({formatIndoDate(maxDate || new Date().toISOString().split('T')[0])})</span>{' '}
+                                belum diinput oleh surveyor. Sistem tetap menampilkan data harga terakhir yang tercatat per{' '}
+                                <strong className="font-black text-amber-950 underline decoration-amber-400">{formatIndoDate(currentDate)}</strong>{' '}
+                                pada card, grafik, dan tabel.
+                            </div>
+                        </div>
+                    )}
 
                     {/* Color Legend Bar */}
                     <div className="mt-8 rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-4 shadow-xs">
