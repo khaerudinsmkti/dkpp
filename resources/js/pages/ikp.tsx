@@ -1350,7 +1350,7 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                                                 Koefisien Variasi (CV) Harga Pangan Pokok
                                             </div>
                                             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                                                Mengukur tingkat volatilitas dan stabilitas disparitas harga pangan pokok penting (beras, minyak goreng, telur, cabai) antarwaktu dan antarwilayah.
+                                                Mengukur tingkat volatilitas dan stabilitas disparitas harga pangan pokok penting (beras, minyak goreng, telur ayam ras) antarwaktu dan antarwilayah.
                                             </p>
                                             <span className="inline-block rounded-md bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-800 border border-indigo-200/60 dark:bg-indigo-950/80 dark:text-indigo-300 dark:border-indigo-800">
                                                 Stabilitas &amp; Disparitas Harga Pasar
@@ -1387,7 +1387,7 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                                     <span>Fokus Stabilisasi Pasar</span>
                                 </div>
                                 <p className="text-[11px] text-sky-800/80 dark:text-sky-300/80 leading-relaxed">
-                                    Pelaksanaan Gerakan Pangan Murah (GPM) berkala, pemantauan harga harian di 4 pasar pantura utama Indramayu, serta penguatan penyaluran beras SPHP untuk menjaga daya beli keluarga.
+                                    Pelaksanaan Gerakan Pangan Murah (GPM) berkala, pemantauan harga harian di Pasar Indramayu, serta penguatan penyaluran beras SPHP untuk menjaga daya beli keluarga.
                                 </p>
                             </div>
                         </Card>

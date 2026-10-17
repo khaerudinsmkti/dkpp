@@ -93,7 +93,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                 </span>
                             </div>
                             <div className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase text-[#006565] dark:text-emerald-400">
-                                <span>Lumbung Padi Nasional</span>
+                                <span>Bidang KDP</span>
                                 <span className="text-slate-300 dark:text-slate-600">•</span>
                                 <span className="font-semibold text-slate-400 lowercase dark:text-slate-500">
                                     portal pangan

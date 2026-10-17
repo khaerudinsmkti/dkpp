@@ -80,7 +80,7 @@ export default function PortalFooter({
                         <div className="space-y-2 pt-1 text-xs text-slate-500 dark:text-slate-400">
                             <div className="flex items-start gap-2.5">
                                 <MapPin className="h-4 w-4 shrink-0 text-[#006565] dark:text-emerald-400 mt-0.5" />
-                                <span>Jl. MT Haryono No. 1, Sindang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45222</span>
+                                <span>Jl. Pasar Baru No. 445, Kel. Karangmalang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45222</span>
                             </div>
                         </div>
                     </div>
@@ -172,7 +172,7 @@ export default function PortalFooter({
                 {/* Bottom Copyright & Sub-bar */}
                 <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200/80 pt-6 text-xs text-slate-400 md:flex-row dark:border-slate-800">
                     <div className="text-center md:text-left">
-                        &copy; {currentYear} Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu. Lumbung Padi Nasional.
+                        &copy; {currentYear} Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu.
                     </div>
 
                     {/* Tombol Kembali ke Atas Modern di Footer */}
