@@ -3721,7 +3721,7 @@ export default function HargaKonsumen({
                                                     </th>
                                                 ))}
                                                 {/* Kolom Paling Akhir: Kirim */}
-                                                <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-center font-extrabold text-slate-700 min-w-[105px] border-l-2 border-slate-300 shadow-xs">
+                                                <th className="bg-slate-100 px-3.5 py-3 text-center font-extrabold text-slate-700 min-w-[105px] border-l border-slate-200 whitespace-nowrap">
                                                     Kirim
                                                 </th>
                                             </tr>
@@ -3787,7 +3787,7 @@ export default function HargaKonsumen({
                                                             );
                                                         })}
                                                         {/* Kolom Paling Akhir: Tombol WhatsApp */}
-                                                        <td className="sticky right-0 z-20 bg-white group-hover:bg-emerald-50/40 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                        <td className="px-3 py-2 text-center border-l border-slate-100 whitespace-nowrap">
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleSendWhatsapp(row)}
@@ -3823,7 +3823,7 @@ export default function HargaKonsumen({
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
                                                     -
                                                 </td>
                                             </tr>
@@ -3847,7 +3847,7 @@ export default function HargaKonsumen({
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
                                                     -
                                                 </td>
                                             </tr>
@@ -3873,7 +3873,7 @@ export default function HargaKonsumen({
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
                                                     -
                                                 </td>
                                             </tr>
@@ -3904,7 +3904,7 @@ export default function HargaKonsumen({
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
                                                     -
                                                 </td>
                                             </tr>
@@ -3930,7 +3930,7 @@ export default function HargaKonsumen({
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
                                                     -
                                                 </td>
                                             </tr>
