@@ -362,10 +362,14 @@ export default function FsvaPage({
                     <td style="text-align: right;">${item.ncpr ?? '-'}</td>
                     <td style="text-align: right;">${item.energy ?? '-'}</td>
                     <td style="text-align: right;">${item.protein ?? '-'}</td>
-                    <td style="text-align: right;">${item.poverty !== null ? item.poverty + '%' : '-'}</td>
-                    <td style="text-align: right;">${item.stunting !== null ? item.stunting + '%' : '-'}</td>
-                    <td style="text-align: right;">${item.no_water !== null ? item.no_water + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.food_reserves ?? '-'}</td>
+                    <td style="text-align: right;">${item.poverty !== null && item.poverty !== undefined ? item.poverty + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.price_cv !== null && item.price_cv !== undefined ? item.price_cv + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.pou !== null && item.pou !== undefined ? item.pou + '%' : '-'}</td>
+                    <td style="text-align: right;">${item.female_school ?? '-'}</td>
+                    <td style="text-align: right;">${item.no_water !== null && item.no_water !== undefined ? item.no_water + '%' : '-'}</td>
                     <td style="text-align: right;">${item.pph ?? '-'}</td>
+                    <td style="text-align: right;">${item.stunting !== null && item.stunting !== undefined ? item.stunting + '%' : '-'}</td>
                 </tr>
             `;
             })
@@ -596,42 +600,29 @@ export default function FsvaPage({
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 22px;">No</th>
-                        <th style="width: 32px;">Rank</th>
+                        <th style="width: 20px;">No</th>
+                        <th style="width: 28px;">Rank</th>
                         <th>Desa / Kelurahan</th>
                         <th>Kecamatan</th>
-                        <th style="width: 110px;">Prioritas Komposit</th>
+                        <th style="width: 90px;">Prioritas</th>
                         <th>IKP</th>
                         <th>NCPR</th>
                         <th>Energi</th>
                         <th>Protein</th>
+                        <th>Cadangan</th>
                         <th>Kemiskinan</th>
-                        <th>Stunting</th>
-                        <th>Air Bersih</th>
+                        <th>Var. Harga</th>
+                        <th>PoU</th>
+                        <th>Sekolah Pr.</th>
+                        <th>Tanpa Air</th>
                         <th>PPH</th>
+                        <th>Stunting</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${rowsHtml}
                 </tbody>
             </table>
-
-            <div class="footer-sign">
-                <div class="sign-box">
-                    <p style="margin: 0 0 45px 0;">
-                        Indramayu, ${formattedToday}<br/>
-                        <strong>Kepala Dinas Ketahanan Pangan dan Pertanian<br/>
-                        Kabupaten Indramayu</strong>
-                    </p>
-                    <p style="margin: 0; font-weight: bold; text-decoration: underline;">
-                        Plt. Ir. H. SUGENG HERIYANTO, M.Si
-                    </p>
-                    <p style="margin: 2px 0 0 0; color: #475569;">
-                        Pembina Utama Muda<br/>
-                        NIP. 19680327 199403 1 005
-                    </p>
-                </div>
-            </div>
 
             <div class="footer-meta">
                 <span>Dicetak melalui Sistem Informasi Ketahanan Pangan DKPP Indramayu</span>
@@ -1199,7 +1190,7 @@ export default function FsvaPage({
                                         <span>Tabel Lengkap Data FSVA Desa ({summary.year})</span>
                                     </CardTitle>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                                        Menampilkan {filteredTableItems.length} dari total {items.length} desa
+                                        Menampilkan {filteredTableItems.length} dari total {items.length} desa &bull; 11 Indikator Ketahanan Pangan
                                     </p>
                                 </div>
 
@@ -1294,22 +1285,28 @@ export default function FsvaPage({
                                 <table className="w-full text-left text-xs">
                                     <thead className="bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200/80 dark:bg-slate-800/80 dark:text-slate-400 dark:border-slate-800">
                                         <tr>
-                                            <th className="px-4 py-3">Rank</th>
-                                            <th className="px-4 py-3">Desa</th>
-                                            <th className="px-4 py-3">Kecamatan</th>
-                                            <th className="px-4 py-3">Prioritas FSVA</th>
-                                            <th className="px-4 py-3 text-right">IKP</th>
-                                            <th className="px-4 py-3 text-right">NCPR</th>
-                                            <th className="px-4 py-3 text-right">Energi</th>
-                                            <th className="px-4 py-3 text-right">Protein</th>
-                                            <th className="px-4 py-3 text-right">Kemiskinan</th>
-                                            <th className="px-4 py-3 text-right">Stunting</th>
+                                            <th className="px-3.5 py-3 whitespace-nowrap">Rank</th>
+                                            <th className="px-3.5 py-3 whitespace-nowrap">Desa</th>
+                                            <th className="px-3.5 py-3 whitespace-nowrap">Kecamatan</th>
+                                            <th className="px-3.5 py-3 whitespace-nowrap">Prioritas FSVA</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'ikp' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Indeks Ketahanan Pangan (IKP)">IKP</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'ncpr' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Rasio Konsumsi Normatif Per Kapita (NCPR)">NCPR</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'energy' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Rasio Ketersediaan Energy (kkal/kapita/hari)">Energi</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'protein' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Rasio Ketersediaan Protein Hewani (gram/kapita/hari)">Protein</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'food_reserves' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Rasio Cadangan Beras / Cadangan Pangan (ton)">Cadangan Pangan</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'poverty' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Persentase Penduduk Miskin (%)">Kemiskinan</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'price_cv' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Koefisien Variasi Harga Pangan (%)">Variasi Harga</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'pou' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Prevalence of Undernourishment (PoU) (%)">PoU</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'female_school' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Rata-rata Lama Sekolah Perempuan (tahun)">Sekolah Perempuan</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'no_water' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Persentase Rumah Tangga Tanpa Akses Air Bersih (%)">Tanpa Air Bersih</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'pph' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Skor Pola Pangan Harapan (PPH) Konsumsi">Skor PPH</th>
+                                            <th className={`px-3.5 py-3 text-right whitespace-nowrap ${summary.indicator === 'stunting' ? 'bg-emerald-50/80 text-[#006565] dark:bg-emerald-950/40 dark:text-emerald-300' : ''}`} title="Persentase Balita Stunting (%)">Stunting</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                                         {paginatedTableItems.length === 0 ? (
                                             <tr>
-                                                <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
+                                                <td colSpan={16} className="px-4 py-8 text-center text-slate-500">
                                                     Tidak ada desa yang cocok dengan filter.
                                                 </td>
                                             </tr>
@@ -1321,16 +1318,16 @@ export default function FsvaPage({
                                                         key={v.id}
                                                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
                                                     >
-                                                        <td className="px-4 py-2.5 font-bold text-slate-400">
+                                                        <td className="px-3.5 py-2.5 font-bold text-slate-400 whitespace-nowrap">
                                                             #{v.rank ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 font-extrabold text-slate-900 dark:text-white">
+                                                        <td className="px-3.5 py-2.5 font-extrabold text-slate-900 dark:text-white whitespace-nowrap">
                                                             {v.desa}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                                                        <td className="px-3.5 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                                                             {v.kecamatan}
                                                         </td>
-                                                        <td className="px-4 py-2.5">
+                                                        <td className="px-3.5 py-2.5 whitespace-nowrap">
                                                             <span
                                                                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-black"
                                                                 style={{
@@ -1346,23 +1343,41 @@ export default function FsvaPage({
                                                                 <span>P{v.komposit} - {pInfo?.status}</span>
                                                             </span>
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right font-black text-[#006565] dark:text-emerald-400">
+                                                        <td className={`px-3.5 py-2.5 text-right font-black whitespace-nowrap ${summary.indicator === 'ikp' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 text-[#006565] dark:text-emerald-300' : 'text-[#006565] dark:text-emerald-400'}`}>
                                                             {v.ikp ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'ncpr' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
                                                             {v.ncpr ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'energy' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
                                                             {v.energy ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'protein' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
                                                             {v.protein ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
-                                                            {v.poverty ? `${v.poverty}%` : '-'}
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'food_reserves' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.food_reserves ?? '-'}
                                                         </td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">
-                                                            {v.stunting ? `${v.stunting}%` : '-'}
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'poverty' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.poverty !== null && v.poverty !== undefined ? `${v.poverty}%` : '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'price_cv' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.price_cv !== null && v.price_cv !== undefined ? `${v.price_cv}%` : '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'pou' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.pou !== null && v.pou !== undefined ? `${v.pou}%` : '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'female_school' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.female_school ?? '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'no_water' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.no_water !== null && v.no_water !== undefined ? `${v.no_water}%` : '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'pph' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.pph ?? '-'}
+                                                        </td>
+                                                        <td className={`px-3.5 py-2.5 text-right whitespace-nowrap ${summary.indicator === 'stunting' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 font-bold text-[#006565] dark:text-emerald-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                            {v.stunting !== null && v.stunting !== undefined ? `${v.stunting}%` : '-'}
                                                         </td>
                                                     </tr>
                                                 );
