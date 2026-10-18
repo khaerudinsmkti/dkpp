@@ -86,7 +86,7 @@ export default function PwaInstallPrompt() {
                             </div>
                             <h4 className="font-bold text-slate-900 dark:text-white">Aplikasi Berhasil Dipasang!</h4>
                             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                                Sekarang Anda dapat mengakses DKPP Pangan langsung dari layar utama perangkat Anda.
+                                Sekarang Anda dapat mengakses DKPP - Bidang KDP langsung dari layar utama perangkat Anda.
                             </p>
                         </div>
                     ) : (

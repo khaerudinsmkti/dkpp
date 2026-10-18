@@ -39,8 +39,8 @@
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="default">
-        <meta name="apple-mobile-web-app-title" content="DKPP Pangan">
-        <meta name="application-name" content="DKPP Pangan">
+        <meta name="apple-mobile-web-app-title" content="Bidang KDP">
+        <meta name="application-name" content="Bidang KDP">
 
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

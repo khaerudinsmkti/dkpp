@@ -1,6 +1,6 @@
 {
   "name": "DKPP Indramayu - Portal Satu Data Pangan",
-  "short_name": "DKPP Pangan",
+  "short_name": "Bidang KDP",
   "description": "Portal Informasi dan Analisis Ketahanan Pangan Kabupaten Indramayu",
   "start_url": "/?source=pwa",
   "scope": "/",
