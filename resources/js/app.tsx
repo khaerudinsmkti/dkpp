@@ -1,4 +1,5 @@
 import { createInertiaApp } from '@inertiajs/react';
+import PwaInstallPrompt from '@/components/pwa-install-prompt';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -35,6 +36,7 @@ void createInertiaApp({
         return (
             <TooltipProvider delayDuration={0}>
                 {app}
+                <PwaInstallPrompt />
                 <Toaster />
             </TooltipProvider>
         );
@@ -43,6 +45,15 @@ void createInertiaApp({
         color: '#4B5563',
     },
 });
+
+// Register PWA Service Worker
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((error) => {
+            console.warn('[PWA] Service worker registration failed:', error);
+        });
+    });
+}
 
 // This will set light / dark mode on load...
 initializeTheme();
