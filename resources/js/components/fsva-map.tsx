@@ -473,7 +473,7 @@ export default function FsvaMap({
             className={`flex flex-col bg-white dark:bg-slate-900 transition-colors duration-200 ${
                 isFullscreen
                     ? 'fixed inset-0 z-[99999] h-screen w-screen m-0 p-0 rounded-none border-0 overflow-hidden'
-                    : 'relative w-full rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden'
+                    : 'relative z-0 isolate w-full rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden'
             }`}
         >
             {/* Map Top Toolbar - Displays title, subtitle, search, and fullscreen actions */}

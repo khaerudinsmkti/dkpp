@@ -846,13 +846,6 @@ export default function PphPublic({
                 </tfoot>
             </table>
 
-            <div class="footer-sign">
-                <div class="sign-box">
-                    <p style="margin: 0 0 45px 0;">Indramayu, ${formattedToday}<br/>Kepala DKPP Kabupaten Indramayu</p>
-                    <p style="margin: 0; font-weight: bold; text-decoration: underline;">DINAS KETAHANAN PANGAN &amp; PERTANIAN</p>
-                    <p style="margin: 0; color: #64748b; font-size: 7.5pt;">Pemerintah Kabupaten Indramayu</p>
-                </div>
-            </div>
         </body>
         </html>
         `;
