@@ -593,14 +593,6 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                 </tfoot>
             </table>
 
-            <div class="footer-sign">
-                <div class="sign-box">
-                    <p style="margin: 0 0 50px 0;">Indramayu, ${formattedToday}<br/>Kepala Dinas Ketahanan Pangan dan Pertanian<br/>Kabupaten Indramayu</p>
-                    <p style="margin: 0; font-weight: bold; text-decoration: underline;">DINAS KETAHANAN PANGAN &amp; PERTANIAN</p>
-                    <p style="margin: 0; color: #64748b; font-size: 7.5pt;">Pemerintah Kabupaten Indramayu</p>
-                </div>
-            </div>
-
             <div class="footer-meta">
                 <span>Dokumen resmi hasil pemantauan Indeks Ketahanan Pangan (IKP) Kabupaten Indramayu</span>
                 <span>Dicetak pada: ${formattedToday}</span>
