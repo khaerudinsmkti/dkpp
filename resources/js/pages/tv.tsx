@@ -25,6 +25,7 @@ import {
     Sun,
     TrendingDown,
     TrendingUp,
+    Volume2,
     Wheat,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -75,8 +76,9 @@ export default function TvPage({
         };
     }, []);
 
-    // --- 1. FULLSCREEN STATE & HANDLER ---
+    // --- 1. FULLSCREEN STATE & AUTO FULLSCREEN HANDLER ---
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [hasInteracted, setHasInteracted] = useState(false);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -88,17 +90,45 @@ export default function TvPage({
         };
     }, []);
 
+    const enterFullscreen = useCallback(() => {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch((err) => {
+                console.warn('Browser policy: User gesture required for fullscreen:', err);
+            });
+        }
+    }, []);
+
     const toggleFullScreen = () => {
         if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen().catch((err) => {
-                console.warn('Error attempting to enable fullscreen:', err);
-            });
+            enterFullscreen();
         } else {
             document.exitFullscreen().catch((err) => {
                 console.warn('Error attempting to exit fullscreen:', err);
             });
         }
     };
+
+    // Auto Fullscreen saat halaman dibuka & deteksi gesture pertama
+    useEffect(() => {
+        // Coba langsung masuk fullscreen otomatis
+        enterFullscreen();
+
+        // Beberapa browser mewajibkan minimal 1 interaksi klik/touch/keydown untuk fullscreen dan audio unmuted
+        const handleFirstInteraction = () => {
+            setHasInteracted(true);
+            enterFullscreen();
+        };
+
+        window.addEventListener('click', handleFirstInteraction, { once: true });
+        window.addEventListener('touchstart', handleFirstInteraction, { once: true });
+        window.addEventListener('keydown', handleFirstInteraction, { once: true });
+
+        return () => {
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
+            window.removeEventListener('keydown', handleFirstInteraction);
+        };
+    }, [enterFullscreen]);
 
     // --- 2. REALTIME CLOCK & DATE ---
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -292,19 +322,42 @@ export default function TvPage({
 
     const currentSlideCommodities = slides[currentSlideIndex] || [];
 
+    // Gradasi Biru Cerah yang Segar & Hidup
+    const brightBlueGradient = 'bg-gradient-to-r from-[#1d4ed8] via-[#0284c7] to-[#00b4d8]';
+
     return (
         <div className="flex h-screen w-screen flex-col overflow-hidden bg-white text-slate-800 select-none">
             <Head title="Display TV Lobby • Dinas Ketahanan Pangan dan Pertanian Indramayu">
                 <meta name="robots" content="noindex, nofollow" />
             </Head>
 
+            {/* Banner/Overlay jika browser belum mengizinkan fullscreen otomatis karena policy */}
+            {!isFullscreen && !hasInteracted && (
+                <div
+                    onClick={enterFullscreen}
+                    className="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-amber-500/90 px-4 py-2 text-white shadow-lg backdrop-blur-sm cursor-pointer transition-all animate-pulse"
+                >
+                    <div className="flex items-center gap-2 text-xs sm:text-sm font-bold">
+                        <Volume2 className="h-4 w-4" />
+                        <span>Klik di mana saja pada layar ini untuk mengaktifkan Mode Layar Penuh (Fullscreen) & Audio Siaran TV.</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={enterFullscreen}
+                        className="rounded-lg bg-white px-3 py-1 text-xs font-black text-amber-700 shadow-sm"
+                    >
+                        AKTIFKAN SEKARANG
+                    </button>
+                </div>
+            )}
+
             {/* ========================================================================= */}
-            {/* 1. TOP NAVIGASI (Gradasi Biru Tua & Biru Muda, Logo, Sub Judul, Fullscreen) */}
+            {/* 1. TOP NAVIGASI (Gradasi Biru Cerah, Logo, Sub Judul, Fullscreen)         */}
             {/* ========================================================================= */}
-            <header className="relative z-20 flex shrink-0 items-center justify-between bg-gradient-to-r from-[#09203f] via-[#123e73] to-[#1e6091] px-5 py-3 text-white shadow-md">
+            <header className={`relative z-20 flex shrink-0 items-center justify-between ${brightBlueGradient} px-5 py-3 text-white shadow-md`}>
                 {/* Left: Logo & Nama Instansi */}
                 <div className="flex items-center gap-3.5 sm:gap-4">
-                    <div className="relative flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-md ring-2 ring-white/40">
+                    <div className="relative flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-md ring-2 ring-white/50">
                         <img
                             src="/storage/indramayu_logo.png"
                             alt="Logo DKPP Indramayu"
@@ -317,12 +370,12 @@ export default function TvPage({
                             <h1 className="text-base font-black tracking-tight uppercase text-white sm:text-xl lg:text-2xl drop-shadow-sm">
                                 Dinas Ketahanan Pangan dan Pertanian
                             </h1>
-                            <span className="hidden items-center gap-1.5 rounded-full border border-sky-300/40 bg-sky-400/20 px-2.5 py-0.5 text-[10px] font-black tracking-wider text-sky-100 uppercase sm:inline-flex shadow-xs">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="hidden items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white uppercase sm:inline-flex shadow-xs">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
                                 TV LOBBY DISPLAY
                             </span>
                         </div>
-                        <p className="text-xs sm:text-sm font-medium tracking-wide text-sky-100 drop-shadow-xs">
+                        <p className="text-xs sm:text-sm font-semibold tracking-wide text-sky-50 drop-shadow-xs">
                             Jl. Pasar Baru No.445, Kel. Karangmalang - INDRAMAYU
                         </p>
                     </div>
@@ -334,16 +387,16 @@ export default function TvPage({
                         type="button"
                         onClick={toggleFullScreen}
                         title={isFullscreen ? 'Keluar dari Layar Penuh (ESC)' : 'Tampilkan Layar Penuh (F11)'}
-                        className="group flex items-center gap-2 rounded-xl border border-white/30 bg-white/15 px-3.5 py-2 text-xs sm:text-sm font-bold text-white backdrop-blur-sm transition-all duration-200 hover:border-white/50 hover:bg-white/25 hover:shadow-md cursor-pointer"
+                        className="group flex items-center gap-2 rounded-xl border border-white/30 bg-white/20 px-3.5 py-2 text-xs sm:text-sm font-bold text-white backdrop-blur-sm transition-all duration-200 hover:border-white/60 hover:bg-white/30 hover:shadow-md cursor-pointer"
                     >
                         {isFullscreen ? (
                             <>
-                                <Minimize className="h-4 w-4 text-sky-200 transition-transform group-hover:scale-110" />
+                                <Minimize className="h-4 w-4 text-sky-100 transition-transform group-hover:scale-110" />
                                 <span className="hidden sm:inline">Keluar Penuh</span>
                             </>
                         ) : (
                             <>
-                                <Maximize className="h-4 w-4 text-sky-200 transition-transform group-hover:scale-110" />
+                                <Maximize className="h-4 w-4 text-sky-100 transition-transform group-hover:scale-110" />
                                 <span className="hidden sm:inline">Layar Penuh</span>
                             </>
                         )}
@@ -356,16 +409,16 @@ export default function TvPage({
             {/* ========================================================================= */}
             <main className="relative z-10 flex min-h-0 flex-1 flex-col gap-4 bg-slate-50/70 p-4 lg:flex-row lg:gap-4 lg:p-4">
                 {/* --------------------------------------------------------------------- */}
-                {/* LAYOUT 1 (70%): VIDEO PLAYLIST YOUTUBE                                */}
+                {/* LAYOUT 1 (70%): VIDEO PLAYLIST YOUTUBE (Diperbesar Tanpa Margin Hitam) */}
                 {/* --------------------------------------------------------------------- */}
                 <section className="flex flex-col min-h-0 w-full lg:w-[70%] lg:flex-[7]">
-                    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-2 shadow-sm">
-                        {/* Video Frame */}
-                        <div className="relative h-full w-full overflow-hidden rounded-xl bg-black">
+                    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-black shadow-sm">
+                        {/* Video Frame - Diperbesar sedikit dengan scale-[1.08] agar margin hitam terpotong penuh */}
+                        <div className="relative h-full w-full overflow-hidden">
                             <iframe
-                                src="https://www.youtube.com/embed/videoseries?list=PL28h8nQalyhkRoOd27-h2vvMhB7PybZTw&autoplay=1&mute=1&loop=1&controls=1&rel=0&modestbranding=1&enablejsapi=1"
+                                src="https://www.youtube.com/embed/videoseries?list=PL28h8nQalyhkRoOd27-h2vvMhB7PybZTw&autoplay=1&mute=0&loop=1&controls=1&rel=0&modestbranding=1&enablejsapi=1"
                                 title="Video Informasi DKPP Indramayu"
-                                className="h-full w-full border-0"
+                                className="h-full w-full border-0 scale-[1.08] origin-center transition-transform duration-300"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
                             />
@@ -381,7 +434,7 @@ export default function TvPage({
                         {/* Panel Header */}
                         <div className="mb-2.5 flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
                             <div className="flex items-center gap-2.5">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#09203f] to-[#1e6091] shadow-xs">
+                                <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${brightBlueGradient} shadow-xs`}>
                                     <Store className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -418,7 +471,7 @@ export default function TvPage({
                         {/* Slide Auto Timer Progress Line */}
                         <div className="relative mb-2.5 h-1 w-full overflow-hidden rounded-full bg-slate-100">
                             <div
-                                className="h-full bg-gradient-to-r from-[#09203f] via-[#123e73] to-[#1e6091] transition-all duration-100 ease-linear"
+                                className={`h-full ${brightBlueGradient} transition-all duration-100 ease-linear`}
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
@@ -479,7 +532,7 @@ export default function TvPage({
                                             {/* Sisi Kanan: Harga Hari Ini, HET & Perbandingan */}
                                             <div className="flex shrink-0 flex-col items-end text-right">
                                                 {/* Harga Hari Ini */}
-                                                <span className="font-mono text-sm sm:text-base font-black text-[#0f2c59]">
+                                                <span className="font-mono text-sm sm:text-base font-black text-blue-900">
                                                     {formatRp(todayPrice)}
                                                 </span>
 
@@ -545,7 +598,7 @@ export default function TvPage({
                                         }}
                                         className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
                                             i === currentSlideIndex
-                                                ? 'w-6 bg-gradient-to-r from-[#09203f] to-[#1e6091] shadow-xs'
+                                                ? `w-6 ${brightBlueGradient} shadow-xs`
                                                 : 'w-2 bg-slate-300 hover:bg-slate-400'
                                         }`}
                                         title={`Buka Slide ${i + 1}`}
@@ -575,14 +628,14 @@ export default function TvPage({
             </main>
 
             {/* ========================================================================= */}
-            {/* 3. FOOTER (Gradasi Biru Tua & Biru Muda: Jam, Running Text, Cuaca)        */}
+            {/* 3. FOOTER (Gradasi Biru Cerah: Jam, Running Text, Cuaca)                  */}
             {/* ========================================================================= */}
-            <footer className="relative z-20 flex shrink-0 items-center justify-between bg-gradient-to-r from-[#09203f] via-[#123e73] to-[#1e6091] px-5 py-2.5 text-white shadow-md">
+            <footer className={`relative z-20 flex shrink-0 items-center justify-between ${brightBlueGradient} px-5 py-2.5 text-white shadow-md`}>
                 {/* --------------------------------------------------------------------- */}
                 {/* KIRI BAWAH: JAM SAAT INI REALTIME                                     */}
                 {/* --------------------------------------------------------------------- */}
                 <div className="flex shrink-0 items-center gap-3 border-r border-white/20 pr-4 sm:pr-5">
-                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white/15 border border-white/25 text-white shadow-xs">
+                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white/20 border border-white/30 text-white shadow-xs">
                         <Clock className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
                     <div className="flex flex-col">
@@ -590,11 +643,11 @@ export default function TvPage({
                             <span className="font-mono text-lg sm:text-xl font-black tracking-wider text-amber-300 drop-shadow-xs">
                                 {formatClock}
                             </span>
-                            <span className="text-[10px] sm:text-xs font-bold text-sky-200 uppercase">
+                            <span className="text-[10px] sm:text-xs font-bold text-sky-100 uppercase">
                                 WIB
                             </span>
                         </div>
-                        <span className="text-[11px] sm:text-xs font-medium text-sky-100 whitespace-nowrap">
+                        <span className="text-[11px] sm:text-xs font-semibold text-white whitespace-nowrap">
                             {formatDateIndo}
                         </span>
                     </div>
@@ -608,40 +661,40 @@ export default function TvPage({
                         <span className="text-xs sm:text-sm font-bold tracking-wide text-amber-300 drop-shadow-xs">
                             📢 SELAMAT DATANG DI DINAS KETAHANAN PANGAN DAN PERTANIAN KABUPATEN INDRAMAYU
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-white drop-shadow-xs">
                             INFORMASI HARGA PANGAN POKOK HARIAN TERCATAT REALTIME DARI PASAR DAERAH INDRAMAYU
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-sky-100 drop-shadow-xs">
                             BERSAMA MENJAGA STABILITAS PASOKAN DAN KETERJANGKAUAN HARGA PANGAN MASYARAKAT
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-bold tracking-wide text-amber-300 drop-shadow-xs">
                             KABUPATEN INDRAMAYU LUMBUNG PANGAN JAWA BARAT & NASIONAL
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-white drop-shadow-xs">
                             KUNJUNGI PORTAL RESMI: HTTPS://DKPP.INDRAMAYUKAB.GO.ID
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-sky-100 drop-shadow-xs">
                             ALAMAT KANTOR: JL. PASAR BARU NO. 445 KEL. KARANGMALANG - INDRAMAYU
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         {/* Duplicate content for seamless infinite marquee loop */}
                         <span className="text-xs sm:text-sm font-bold tracking-wide text-amber-300 drop-shadow-xs">
                             📢 SELAMAT DATANG DI DINAS KETAHANAN PANGAN DAN PERTANIAN KABUPATEN INDRAMAYU
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-white drop-shadow-xs">
                             INFORMASI HARGA PANGAN POKOK HARIAN TERCATAT REALTIME DARI PASAR DAERAH INDRAMAYU
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-semibold tracking-wide text-sky-100 drop-shadow-xs">
                             BERSAMA MENJAGA STABILITAS PASOKAN DAN KETERJANGKAUAN HARGA PANGAN MASYARAKAT
                         </span>
-                        <span className="text-sky-300 font-black">•</span>
+                        <span className="text-white font-black">•</span>
                         <span className="text-xs sm:text-sm font-bold tracking-wide text-amber-300 drop-shadow-xs">
                             KABUPATEN INDRAMAYU LUMBUNG PANGAN JAWA BARAT & NASIONAL
                         </span>
@@ -652,7 +705,7 @@ export default function TvPage({
                 {/* KANAN BAWAH: ICON DAN SUHU CUACA INDRAMAYU REALTIME                   */}
                 {/* --------------------------------------------------------------------- */}
                 <div className="flex shrink-0 items-center gap-3 border-l border-white/20 pl-4 sm:pl-5">
-                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white/15 border border-white/25 shadow-xs">
+                    <div className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-xl bg-white/20 border border-white/30 shadow-xs">
                         {renderWeatherIcon(weather.weatherCode)}
                     </div>
                     <div className="flex flex-col">
@@ -660,11 +713,11 @@ export default function TvPage({
                             <span className="font-mono text-lg sm:text-xl font-black text-white drop-shadow-xs">
                                 {weather.temperature}°C
                             </span>
-                            <span className="text-[10px] sm:text-xs font-black tracking-wider text-sky-200 uppercase">
+                            <span className="text-[10px] sm:text-xs font-black tracking-wider text-sky-100 uppercase">
                                 INDRAMAYU
                             </span>
                         </div>
-                        <span className="text-[11px] sm:text-xs font-medium text-sky-100 whitespace-nowrap">
+                        <span className="text-[11px] sm:text-xs font-semibold text-white whitespace-nowrap">
                             {weather.description}
                             {weather.humidity ? ` • ${weather.humidity}%` : ''}
                         </span>
