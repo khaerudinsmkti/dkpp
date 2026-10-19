@@ -209,3 +209,26 @@ test('authenticated user can download excel template and export fsva data', func
     $publicExportRes->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
+test('public page for fsva updates active indicator and priorities when indicator filter is selected', function () {
+    $year = 2026;
+    Fsva::updateOrCreate([
+        'tahun' => $year,
+        'kecamatan' => 'HAURGEULIS',
+        'desa' => 'HAURKOLOT',
+    ], [
+        'stunting' => 2,
+        'komposit' => 4,
+    ]);
+
+    $response = $this->get("/fsva?year={$year}&indicator=stunting");
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('fsva')
+        ->where('summary.indicator', 'stunting')
+        ->where('summary.indicator_info.short', 'Stunting')
+        ->has('items.0.active_priority')
+    );
+});
+
+

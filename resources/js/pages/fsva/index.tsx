@@ -887,13 +887,13 @@ export default function FsvaAdminIndex({
                                                     {r.food_reserves ? `${r.food_reserves}` : '-'}
                                                 </td>
                                                 <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                                                    {r.poverty ? `${r.poverty}%` : '-'}
+                                                    {r.poverty ?? '-'}
                                                 </td>
                                                 <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                                                    {r.stunting ? `${r.stunting}%` : '-'}
+                                                    {r.stunting ?? '-'}
                                                 </td>
                                                 <td className="px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                                                    {r.no_water ? `${r.no_water}%` : '-'}
+                                                    {r.no_water ?? '-'}
                                                 </td>
                                                 <td className="px-3 py-2 text-center">
                                                     <div className="flex items-center justify-center gap-1">
@@ -1078,44 +1078,52 @@ export default function FsvaAdminIndex({
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Cadangan (ton)</Label>
+                                    <Label className="text-[11px] font-semibold">Cadangan Pangan</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
-                                        placeholder="contoh: 120"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formFoodReserves}
                                         onChange={(e) => setFormFoodReserves(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Kemiskinan (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Kemiskinan</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
-                                        placeholder="contoh: 8.5"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formPoverty}
                                         onChange={(e) => setFormPoverty(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Price CV (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Price CV</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
-                                        placeholder="contoh: 6.2"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formPriceCv}
                                         onChange={(e) => setFormPriceCv(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">PoU (%)</Label>
+                                    <Label className="text-[11px] font-semibold">PoU</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
-                                        placeholder="contoh: 5.4"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formPou}
                                         onChange={(e) => setFormPou(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
@@ -1125,41 +1133,49 @@ export default function FsvaAdminIndex({
                                     <Label className="text-[11px] font-semibold">Sekolah Perempuan</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
-                                        placeholder="contoh: 9.2"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formFemaleSchool}
                                         onChange={(e) => setFormFemaleSchool(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Tanpa Air (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Tanpa Air</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
-                                        placeholder="contoh: 4.5"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formNoWater}
                                         onChange={(e) => setFormNoWater(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Skor PPH</Label>
+                                    <Label className="text-[11px] font-semibold">PPH</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
-                                        placeholder="contoh: 88.5"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formPph}
                                         onChange={(e) => setFormPph(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Stunting (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Stunting</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
-                                        placeholder="contoh: 11.2"
+                                        step="1"
+                                        min="1"
+                                        max="6"
+                                        placeholder="1-6"
                                         value={formStunting}
                                         onChange={(e) => setFormStunting(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
@@ -1304,40 +1320,48 @@ export default function FsvaAdminIndex({
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Cadangan (ton)</Label>
+                                    <Label className="text-[11px] font-semibold">Cadangan Pangan</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formFoodReserves}
                                         onChange={(e) => setFormFoodReserves(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Kemiskinan (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Kemiskinan</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formPoverty}
                                         onChange={(e) => setFormPoverty(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Price CV (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Price CV</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formPriceCv}
                                         onChange={(e) => setFormPriceCv(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">PoU (%)</Label>
+                                    <Label className="text-[11px] font-semibold">PoU</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formPou}
                                         onChange={(e) => setFormPou(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
@@ -1347,37 +1371,45 @@ export default function FsvaAdminIndex({
                                     <Label className="text-[11px] font-semibold">Sekolah Perempuan</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formFemaleSchool}
                                         onChange={(e) => setFormFemaleSchool(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Tanpa Air (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Tanpa Air</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formNoWater}
                                         onChange={(e) => setFormNoWater(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Skor PPH</Label>
+                                    <Label className="text-[11px] font-semibold">PPH</Label>
                                     <Input
                                         type="number"
-                                        step="0.1"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formPph}
                                         onChange={(e) => setFormPph(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-[11px] font-semibold">Stunting (%)</Label>
+                                    <Label className="text-[11px] font-semibold">Stunting</Label>
                                     <Input
                                         type="number"
-                                        step="0.01"
+                                        step="1"
+                                        min="1"
+                                        max="6"
                                         value={formStunting}
                                         onChange={(e) => setFormStunting(e.target.value)}
                                         className="h-8 rounded-lg text-xs"
@@ -1611,7 +1643,7 @@ export default function FsvaAdminIndex({
                                                         {row.energy}
                                                     </td>
                                                     <td className="px-3 py-1.5 text-right text-slate-600">
-                                                        {row.poverty}%
+                                                        {row.poverty ?? '-'}
                                                     </td>
                                                 </tr>
                                             ))}

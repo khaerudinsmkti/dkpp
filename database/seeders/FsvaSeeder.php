@@ -77,104 +77,23 @@ class FsvaSeeder extends Seeder
                 6 => 89.0 + ($mod100 % 6),
             };
 
-            $ncpr = round(match ($komposit) {
-                1 => 0.70 + (($mod100 % 20) / 100),
-                2 => 0.85 + (($mod100 % 20) / 100),
-                3 => 1.00 + (($mod100 % 20) / 100),
-                4 => 1.20 + (($mod100 % 25) / 100),
-                5 => 1.45 + (($mod100 % 30) / 100),
-                6 => 1.70 + (($mod100 % 35) / 100),
-            }, 2);
+            // The 11 FSVA indicators are scores from 1 to 6 (Prioritas 1 s/d 6)
+            $clamp1to6 = fn ($val) => max(1, min(6, (int) $val));
+            $v1 = ($mod100 % 3) - 1; // -1, 0, or 1
+            $v2 = (($mod100 * 3) % 3) - 1;
+            $v3 = (($mod100 * 7) % 3) - 1;
 
-            $energy = round(match ($komposit) {
-                1 => 1850 + ($mod100 % 100),
-                2 => 1950 + ($mod100 % 100),
-                3 => 2050 + ($mod100 % 100),
-                4 => 2150 + ($mod100 % 100),
-                5 => 2250 + ($mod100 % 100),
-                6 => 2350 + ($mod100 % 100),
-            }, 1);
-
-            $protein = round(match ($komposit) {
-                1 => 52.0 + (($mod100 % 50) / 10),
-                2 => 57.0 + (($mod100 % 50) / 10),
-                3 => 62.0 + (($mod100 % 50) / 10),
-                4 => 66.0 + (($mod100 % 50) / 10),
-                5 => 70.0 + (($mod100 % 50) / 10),
-                6 => 75.0 + (($mod100 % 50) / 10),
-            }, 1);
-
-            $foodReserves = round(match ($komposit) {
-                1 => 15.0 + ($mod100 % 20),
-                2 => 35.0 + ($mod100 % 30),
-                3 => 65.0 + ($mod100 % 40),
-                4 => 105.0 + ($mod100 % 50),
-                5 => 150.0 + ($mod100 % 60),
-                6 => 210.0 + ($mod100 % 80),
-            }, 1);
-
-            $poverty = round(match ($komposit) {
-                1 => 16.5 + (($mod100 % 60) / 10),
-                2 => 13.0 + (($mod100 % 40) / 10),
-                3 => 10.5 + (($mod100 % 30) / 10),
-                4 => 8.0 + (($mod100 % 25) / 10),
-                5 => 6.0 + (($mod100 % 20) / 10),
-                6 => 4.5 + (($mod100 % 15) / 10),
-            }, 2);
-
-            $priceCv = round(match ($komposit) {
-                1 => 13.5 + (($mod100 % 30) / 10),
-                2 => 11.0 + (($mod100 % 25) / 10),
-                3 => 9.0 + (($mod100 % 20) / 10),
-                4 => 7.5 + (($mod100 % 15) / 10),
-                5 => 6.0 + (($mod100 % 15) / 10),
-                6 => 4.5 + (($mod100 % 10) / 10),
-            }, 2);
-
-            $pou = round(match ($komposit) {
-                1 => 12.0 + (($mod100 % 30) / 10),
-                2 => 9.5 + (($mod100 % 25) / 10),
-                3 => 7.5 + (($mod100 % 20) / 10),
-                4 => 6.0 + (($mod100 % 15) / 10),
-                5 => 4.5 + (($mod100 % 15) / 10),
-                6 => 3.0 + (($mod100 % 10) / 10),
-            }, 2);
-
-            $femaleSchool = round(match ($komposit) {
-                1 => 6.8 + (($mod100 % 15) / 10),
-                2 => 7.5 + (($mod100 % 15) / 10),
-                3 => 8.1 + (($mod100 % 15) / 10),
-                4 => 8.8 + (($mod100 % 15) / 10),
-                5 => 9.5 + (($mod100 % 15) / 10),
-                6 => 10.2 + (($mod100 % 15) / 10),
-            }, 1);
-
-            $noWater = round(match ($komposit) {
-                1 => 16.0 + (($mod100 % 50) / 10),
-                2 => 12.0 + (($mod100 % 40) / 10),
-                3 => 8.5 + (($mod100 % 35) / 10),
-                4 => 6.0 + (($mod100 % 25) / 10),
-                5 => 4.0 + (($mod100 % 20) / 10),
-                6 => 2.0 + (($mod100 % 15) / 10),
-            }, 2);
-
-            $pph = round(match ($komposit) {
-                1 => 72.0 + (($mod100 % 40) / 10),
-                2 => 76.0 + (($mod100 % 40) / 10),
-                3 => 81.0 + (($mod100 % 40) / 10),
-                4 => 86.0 + (($mod100 % 35) / 10),
-                5 => 89.5 + (($mod100 % 30) / 10),
-                6 => 93.0 + (($mod100 % 30) / 10),
-            }, 1);
-
-            $stunting = round(match ($komposit) {
-                1 => 22.0 + (($mod100 % 50) / 10),
-                2 => 18.0 + (($mod100 % 40) / 10),
-                3 => 15.0 + (($mod100 % 30) / 10),
-                4 => 12.0 + (($mod100 % 25) / 10),
-                5 => 9.5 + (($mod100 % 20) / 10),
-                6 => 6.5 + (($mod100 % 20) / 10),
-            }, 2);
+            $ncpr = $clamp1to6($komposit + $v1);
+            $energy = $clamp1to6($komposit + $v2);
+            $protein = $clamp1to6($komposit + $v3);
+            $foodReserves = $clamp1to6($komposit + $v1);
+            $poverty = $clamp1to6($komposit + $v2);
+            $priceCv = $clamp1to6($komposit + $v3);
+            $pou = $clamp1to6($komposit + $v1);
+            $femaleSchool = $clamp1to6($komposit + $v2);
+            $noWater = $clamp1to6($komposit + $v3);
+            $pph = $clamp1to6($komposit + $v1);
+            $stunting = $clamp1to6($komposit + $v2);
 
             $records[] = [
                 'tahun' => $year,

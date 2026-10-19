@@ -41,6 +41,7 @@ export interface FsvaVillageItem {
     ikp: number | null;
     rank: number | null;
     komposit: number;
+    active_priority?: number;
     keterangan?: string | null;
     current_indicator_value?: number | null;
     priority_info?: {
@@ -148,6 +149,10 @@ export default function FsvaMap({
             zoomControl: true,
             minZoom: 9,
             maxZoom: 16,
+            zoomSnap: 0.25,
+            zoomDelta: 0.5,
+            wheelPxPerZoomLevel: 200,
+            wheelDebounceTime: 60,
         });
 
         // CartoDB Voyager tile layer with API Key to prevent "API KEY REQUIRED" watermark
@@ -196,7 +201,20 @@ export default function FsvaMap({
         tileLayerRef.current = tiles;
     }, [layerStyle]);
 
-    // Render / update GeoJSON layer whenever geoJsonData, itemsMap, or activePriorityFilter changes
+    // Helper to determine active priority (1-6) for an item based on selectedIndicator
+    const getVillagePriority = (item: FsvaVillageItem | undefined | null): number => {
+        if (!item) return 1;
+        if (selectedIndicator === 'komposit' || !selectedIndicator) {
+            return item.komposit || 1;
+        }
+        const val = item.current_indicator_value ?? (item as any)[selectedIndicator];
+        if (val !== null && val !== undefined && !isNaN(Number(val))) {
+            return Math.max(1, Math.min(6, Math.round(Number(val))));
+        }
+        return item.active_priority ?? item.komposit ?? 1;
+    };
+
+    // Render / update GeoJSON layer whenever geoJsonData, itemsMap, activePriorityFilter, or selectedIndicator changes
     useEffect(() => {
         const map = mapInstanceRef.current;
         if (!map || !geoJsonData) return;
@@ -214,7 +232,7 @@ export default function FsvaMap({
                 const key = `${normalizeKey(kec)}_${normalizeKey(desa)}`;
                 const item = itemsMap.get(key);
 
-                const priority = item ? item.komposit : 1;
+                const priority = getVillagePriority(item);
                 const pColor = PRIORITY_COLORS[priority]?.color || '#94a3b8';
 
                 // Check if priority filter is active
@@ -237,8 +255,10 @@ export default function FsvaMap({
                 const key = `${normalizeKey(kec)}_${normalizeKey(desa)}`;
                 const item = itemsMap.get(key);
 
-                const priority = item ? item.komposit : 1;
+                const priority = getVillagePriority(item);
                 const pInfo = PRIORITY_COLORS[priority] || PRIORITY_COLORS[1];
+                const isKomposit = selectedIndicator === 'komposit' || !selectedIndicator;
+                const indVal = item?.current_indicator_value ?? (item ? (item as any)[selectedIndicator] : null);
 
                 // Tooltip on hover
                 const tooltipHtml = `
@@ -247,9 +267,13 @@ export default function FsvaMap({
                         <div class="text-[10px] text-slate-500">Kec. ${kec || '-'}</div>
                         <div class="mt-1 flex items-center gap-1.5">
                             <span class="inline-block w-2.5 h-2.5 rounded-full" style="background-color: ${pInfo.color}"></span>
-                            <span class="font-semibold text-slate-700">${pInfo.label}</span>
+                            <span class="font-semibold text-slate-700">
+                                ${isKomposit ? pInfo.label : `${indicatorLabel}: Prioritas ${priority} (${pInfo.short})`}
+                            </span>
                         </div>
-                        ${item && item.ikp ? `<div class="text-[10px] text-slate-600 mt-0.5">IKP: <b>${item.ikp}</b> (Peringkat #${item.rank || '-'})</div>` : ''}
+                        <div class="text-[10px] text-slate-600 mt-0.5">
+                            ${!isKomposit ? `Nilai: <b>${indVal ?? '-'}</b> • Komposit: <b>P${item?.komposit ?? '-'}</b> • ` : ''}IKP: <b>${item?.ikp ?? '-'}</b> (Rank #${item?.rank || '-'})
+                        </div>
                     </div>
                 `;
 
@@ -292,7 +316,7 @@ export default function FsvaMap({
         if (geoJsonLayer.getBounds().isValid()) {
             map.fitBounds(geoJsonLayer.getBounds(), { padding: [15, 15] });
         }
-    }, [geoJsonData, itemsMap, activePriorityFilter]);
+    }, [geoJsonData, itemsMap, activePriorityFilter, selectedIndicator, indicatorLabel]);
 
     // Handle search village or subdistrict
     const handleSearch = (e: React.FormEvent) => {
@@ -353,14 +377,15 @@ export default function FsvaMap({
         }, 200);
     };
 
-    // Count per priority
+    // Count per priority based on selected indicator
     const priorityCounts = useMemo(() => {
         const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
         for (const it of items) {
-            counts[it.komposit] = (counts[it.komposit] || 0) + 1;
+            const p = getVillagePriority(it);
+            counts[p] = (counts[p] || 0) + 1;
         }
         return counts;
-    }, [items]);
+    }, [items, selectedIndicator]);
 
     return (
         <div
@@ -504,42 +529,94 @@ export default function FsvaMap({
                     </div>
                 )}
 
-                {/* Floating Map Legend (Bottom Left) */}
-                <div className="absolute bottom-4 left-4 z-[1000] max-w-xs rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-2xl backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 pointer-events-auto">
-                    <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                Tingkat Prioritas FSVA
+                {/* Floating Map Legend (Bottom Left - Portrait Layout) */}
+                <div className="absolute bottom-4 left-4 z-[1000] w-56 sm:w-60 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 shadow-2xl backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 pointer-events-auto">
+                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex flex-col min-w-0 pr-1">
+                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 truncate">
+                                {selectedIndicator === 'komposit' || !selectedIndicator
+                                    ? 'Legenda Prioritas'
+                                    : `Legenda: ${indicatorLabel}`}
                             </span>
-                            <span className="text-[10px] font-bold text-slate-400">6 Tingkat</span>
+                            <span className="text-[10px] font-semibold text-slate-400">
+                                6 Tingkat Kerentanan
+                            </span>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setIsLegendOpen((prev) => !prev)}
-                            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 transition-colors ml-2 cursor-pointer"
-                            title={isLegendOpen ? 'Sembunyikan Legenda' : 'Tampilkan Legenda'}
-                        >
-                            {isLegendOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                            {activePriorityFilter !== null && (
+                                <button
+                                    type="button"
+                                    onClick={() => setActivePriorityFilter(null)}
+                                    className="text-[10px] font-extrabold text-[#006565] dark:text-emerald-400 hover:underline px-1 py-0.5 cursor-pointer"
+                                    title="Tampilkan semua prioritas"
+                                >
+                                    Reset
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setIsLegendOpen((prev) => !prev)}
+                                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                title={isLegendOpen ? 'Sembunyikan Legenda' : 'Tampilkan Legenda'}
+                            >
+                                {isLegendOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                            </button>
+                        </div>
                     </div>
                     {isLegendOpen && (
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs animate-in fade-in duration-150">
+                        <div className="flex flex-col space-y-1 text-xs animate-in fade-in duration-150">
                             {([1, 2, 3, 4, 5, 6] as const).map((p) => {
                                 const cfg = PRIORITY_COLORS[p];
                                 const count = priorityCounts[p] || 0;
+                                const isActive = activePriorityFilter === p;
+                                const isDimmed = activePriorityFilter !== null && !isActive;
+
                                 return (
-                                    <div key={p} className="flex items-center gap-1.5">
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        onClick={() => setActivePriorityFilter(isActive ? null : p)}
+                                        className={`group flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-left transition-all cursor-pointer ${
+                                            isActive
+                                                ? 'bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900 ring-2 ring-slate-900/20 dark:ring-white/20'
+                                                : isDimmed
+                                                  ? 'opacity-40 hover:opacity-85 hover:bg-slate-100/60 dark:hover:bg-slate-800/60'
+                                                  : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-200'
+                                        }`}
+                                        title={`Prioritas ${p} (${cfg.short}): ${count} desa. Klik untuk memfilter.`}
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span
+                                                className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white/80 shadow-xs dark:ring-slate-900/80"
+                                                style={{ backgroundColor: cfg.color }}
+                                            />
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[11px] font-bold leading-tight">
+                                                        Prioritas {p}
+                                                    </span>
+                                                </div>
+                                                <span
+                                                    className={`block text-[10px] leading-tight truncate ${
+                                                        isActive
+                                                            ? 'text-slate-200 dark:text-slate-700 font-semibold'
+                                                            : 'text-slate-400 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    {cfg.short}
+                                                </span>
+                                            </div>
+                                        </div>
                                         <span
-                                            className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-white/60 shadow-xs"
-                                            style={{ backgroundColor: cfg.color }}
-                                        />
-                                        <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">
-                                            P{p}: {cfg.short}
-                                        </span>
-                                        <span className="ml-auto text-[10px] font-bold text-slate-400">
+                                            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-black ${
+                                                isActive
+                                                    ? 'bg-white/20 text-white dark:bg-slate-900/10 dark:text-slate-900'
+                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                            }`}
+                                        >
                                             {count}
                                         </span>
-                                    </div>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -577,15 +654,16 @@ export default function FsvaMap({
                                     className="h-3 w-3 rounded-full shrink-0"
                                     style={{
                                         backgroundColor:
-                                            PRIORITY_COLORS[selectedVillage.komposit]?.color || '#94a3b8',
+                                            PRIORITY_COLORS[getVillagePriority(selectedVillage)]?.color || '#94a3b8',
                                     }}
                                 />
                                 <div>
                                     <div className="text-xs font-black text-slate-900 dark:text-white">
-                                        Prioritas {selectedVillage.komposit}
+                                        Prioritas {getVillagePriority(selectedVillage)}
                                     </div>
                                     <div className="text-[10px] text-slate-500 font-semibold">
-                                        {PRIORITY_COLORS[selectedVillage.komposit]?.short || ''}
+                                        {PRIORITY_COLORS[getVillagePriority(selectedVillage)]?.short || ''}
+                                        {selectedIndicator !== 'komposit' && selectedIndicator ? ` (${indicatorLabel})` : ' (Komposit)'}
                                     </div>
                                 </div>
                             </div>
@@ -595,46 +673,79 @@ export default function FsvaMap({
                                 </div>
                                 <div className="text-[10px] text-slate-500">
                                     Peringkat #{selectedVillage.rank ?? '-'}
+                                    {selectedIndicator !== 'komposit' && (
+                                        <span className="block text-[9px] text-slate-400">Komposit: P{selectedVillage.komposit}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {/* Indicator Grid */}
+                        {/* Indicator Grid (Scores 1-6 with no percentages) */}
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'ncpr' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
                                 <span className="text-[10px] text-slate-400 font-semibold">NCPR</span>
                                 <p className="font-extrabold text-slate-800 dark:text-slate-200">
                                     {selectedVillage.ncpr ?? '-'}
                                 </p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'energy' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
                                 <span className="text-[10px] text-slate-400 font-semibold">Energi</span>
                                 <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    {selectedVillage.energy ? `${selectedVillage.energy} kkal` : '-'}
+                                    {selectedVillage.energy ?? '-'}
                                 </p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'protein' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
                                 <span className="text-[10px] text-slate-400 font-semibold">Protein</span>
                                 <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    {selectedVillage.protein ? `${selectedVillage.protein} g` : '-'}
+                                    {selectedVillage.protein ?? '-'}
                                 </p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'food_reserves' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">Cadangan Pangan</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.food_reserves ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'poverty' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
                                 <span className="text-[10px] text-slate-400 font-semibold">Kemiskinan</span>
                                 <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    {selectedVillage.poverty ? `${selectedVillage.poverty}%` : '-'}
+                                    {selectedVillage.poverty ?? '-'}
                                 </p>
                             </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'price_cv' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">Price CV</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.price_cv ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'pou' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">PoU</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.pou ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'female_school' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">Sekolah Perempuan</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.female_school ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'no_water' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">Tanpa Air</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.no_water ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'pph' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
+                                <span className="text-[10px] text-slate-400 font-semibold">PPH</span>
+                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                                    {selectedVillage.pph ?? '-'}
+                                </p>
+                            </div>
+                            <div className={`rounded-lg p-2 ${selectedIndicator === 'stunting' ? 'bg-emerald-100/70 border border-emerald-300 dark:bg-emerald-950/60 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-800/40'}`}>
                                 <span className="text-[10px] text-slate-400 font-semibold">Stunting</span>
                                 <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    {selectedVillage.stunting ? `${selectedVillage.stunting}%` : '-'}
-                                </p>
-                            </div>
-                            <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/40">
-                                <span className="text-[10px] text-slate-400 font-semibold">Tanpa Air Bersih</span>
-                                <p className="font-extrabold text-slate-800 dark:text-slate-200">
-                                    {selectedVillage.no_water ? `${selectedVillage.no_water}%` : '-'}
+                                    {selectedVillage.stunting ?? '-'}
                                 </p>
                             </div>
                         </div>

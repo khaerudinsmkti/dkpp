@@ -66,7 +66,6 @@ class FsvaController extends Controller
 
         foreach ($records as $r) {
             $komposit = max(1, min(6, (int) ($r->komposit ?? 1)));
-            $priorityCounts[$komposit]++;
 
             // Get value for current selected indicator
             $indicatorVal = match ($selectedIndicator) {
@@ -85,6 +84,13 @@ class FsvaController extends Controller
                 'stunting' => $r->stunting,
                 default => $komposit,
             };
+
+            // Calculate active priority (1-6) for this village based on current indicator
+            $activePriority = ($selectedIndicator === 'komposit' || $selectedIndicator === 'ikp')
+                ? $komposit
+                : ($indicatorVal !== null ? max(1, min(6, (int) round((float) $indicatorVal))) : $komposit);
+
+            $priorityCounts[$activePriority]++;
 
             if ($indicatorVal !== null && is_numeric($indicatorVal)) {
                 $indicatorValues[] = (float) $indicatorVal;
@@ -111,10 +117,11 @@ class FsvaController extends Controller
                 'komposit' => $komposit,
                 'keterangan' => $r->keterangan,
                 'current_indicator_value' => $indicatorVal,
-                'priority_info' => Fsva::getPriorityInfo($komposit),
+                'active_priority' => $activePriority,
+                'priority_info' => Fsva::getPriorityInfo($activePriority),
             ];
 
-            $priorityVillages[$komposit][] = $item;
+            $priorityVillages[$activePriority][] = $item;
             $items[] = $item;
         }
 
