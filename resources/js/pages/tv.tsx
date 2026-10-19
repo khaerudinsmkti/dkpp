@@ -19,6 +19,7 @@ import {
     Minus,
     Pause,
     Play,
+    Plus,
     RefreshCw,
     ShieldCheck,
     Store,
@@ -79,6 +80,7 @@ export default function TvPage({
     // --- 1. FULLSCREEN STATE & AUTO FULLSCREEN HANDLER ---
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hasInteracted, setHasInteracted] = useState(false);
+    const [videoScale, setVideoScale] = useState(1.05);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -370,10 +372,6 @@ export default function TvPage({
                             <h1 className="text-base font-black tracking-tight uppercase text-white sm:text-xl lg:text-2xl drop-shadow-sm">
                                 Dinas Ketahanan Pangan dan Pertanian
                             </h1>
-                            <span className="hidden items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white uppercase sm:inline-flex shadow-xs">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
-                                TV LOBBY DISPLAY
-                            </span>
                         </div>
                         <p className="text-xs sm:text-sm font-semibold tracking-wide text-sky-50 drop-shadow-xs">
                             Jl. Pasar Baru No.445, Kel. Karangmalang - INDRAMAYU
@@ -392,12 +390,12 @@ export default function TvPage({
                         {isFullscreen ? (
                             <>
                                 <Minimize className="h-4 w-4 text-sky-100 transition-transform group-hover:scale-110" />
-                                <span className="hidden sm:inline">Keluar Penuh</span>
+                                <span className="hidden sm:inline"></span>
                             </>
                         ) : (
                             <>
                                 <Maximize className="h-4 w-4 text-sky-100 transition-transform group-hover:scale-110" />
-                                <span className="hidden sm:inline">Layar Penuh</span>
+                                <span className="hidden sm:inline"></span>
                             </>
                         )}
                     </button>
@@ -413,12 +411,36 @@ export default function TvPage({
                 {/* --------------------------------------------------------------------- */}
                 <section className="flex flex-col min-h-0 w-full lg:w-[70%] lg:flex-[7]">
                     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-black shadow-sm">
-                        {/* Video Frame - Diperbesar sedikit dengan scale-[1.08] agar margin hitam terpotong penuh */}
-                        <div className="relative h-full w-full overflow-hidden">
+                        {/* Video Frame - Skala proporsional 118% dengan tombol fine-tuning zoom */}
+                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black group">
+                            {/* Floating Zoom Control di pojok kanan atas frame video */}
+                            <div className="absolute top-3 right-3 z-20 flex items-center gap-1 rounded-xl bg-black/60 px-2.5 py-1.5 backdrop-blur-md border border-white/20 text-white shadow-lg opacity-40 hover:opacity-100 transition-opacity">
+                                <button
+                                    type="button"
+                                    onClick={() => setVideoScale((prev) => Math.max(1.0, Number((prev - 0.02).toFixed(2))))}
+                                    title="Perkecil Zoom (-)"
+                                    className="rounded-lg bg-white/20 hover:bg-white/30 p-1 text-xs font-black transition-colors cursor-pointer"
+                                >
+                                    <Minus className="h-3.5 w-3.5" />
+                                </button>
+                                <span className="font-mono text-xs font-bold px-1 select-none">
+                                    {Math.round(videoScale * 100)}%
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setVideoScale((prev) => Math.min(1.3, Number((prev + 0.02).toFixed(2))))}
+                                    title="Perbesar Zoom (+)"
+                                    className="rounded-lg bg-white/20 hover:bg-white/30 p-1 text-xs font-black transition-colors cursor-pointer"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+
                             <iframe
                                 src="https://www.youtube.com/embed/videoseries?list=PL28h8nQalyhkRoOd27-h2vvMhB7PybZTw&autoplay=1&mute=0&loop=1&controls=1&rel=0&modestbranding=1&enablejsapi=1"
                                 title="Video Informasi DKPP Indramayu"
-                                className="h-full w-full border-0 scale-[1.08] origin-center transition-transform duration-300"
+                                className="h-full w-full border-0 origin-center transition-transform duration-300"
+                                style={{ transform: `scale(${videoScale})` }}
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
                             />
