@@ -139,6 +139,68 @@ Route::get('/harga-konsumen', function (Request $request) {
     ]);
 })->name('harga-konsumen');
 
+Route::get('/tv', function (Request $request) {
+    // TV Lobby Display - Tidak ditampilkan pada mega menu
+    $markets = Market::where('is_active', true)->orderBy('order')->get();
+    $selectedMarket = $markets->first();
+    $marketId = $selectedMarket?->id ?? 1;
+
+    $maxRecordedDate = ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
+        ?? ConsumerPrice::max('recorded_date')
+        ?? now()->format('Y-m-d');
+
+    $effectiveDate = $maxRecordedDate;
+
+    $prevDate = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', '<', $effectiveDate)
+        ->max('recorded_date');
+
+    if (! $prevDate) {
+        $prevDate = Carbon::parse($effectiveDate)->subDay()->format('Y-m-d');
+    }
+
+    $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
+
+    $currentPrices = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', $effectiveDate)
+        ->get()
+        ->keyBy('commodity_id');
+
+    $prevPrices = ConsumerPrice::where('market_id', $marketId)
+        ->where('recorded_date', $prevDate)
+        ->get()
+        ->keyBy('commodity_id');
+
+    $consumerCommodities = $commodities->map(function ($c) use ($currentPrices, $prevPrices, $effectiveDate) {
+        $priceRecord = $currentPrices->get($c->id);
+        $prevPriceRecord = $prevPrices->get($c->id);
+        $applicableHet = $c->hetAt($effectiveDate);
+
+        $todayPrice = $priceRecord && $priceRecord->price !== null ? (float) $priceRecord->price : 0;
+        $yesterdayPrice = $prevPriceRecord && $prevPriceRecord->price !== null ? (float) $prevPriceRecord->price : 0;
+        $hetPrice = $applicableHet ? (float) $applicableHet->price : null;
+
+        return [
+            'id' => $c->id,
+            'name' => $c->name,
+            'category' => $c->category,
+            'unit' => $c->unit,
+            'image' => $c->image_url,
+            'image_url' => $c->image_url,
+            'today_price' => $todayPrice,
+            'yesterday_price' => $yesterdayPrice,
+            'het_price' => $hetPrice,
+            'date' => $effectiveDate,
+        ];
+    });
+
+    return Inertia::render('tv', [
+        'consumerCommodities' => $consumerCommodities,
+        'marketName' => $selectedMarket?->name ?? 'Pasar Daerah Indramayu',
+        'effectiveDate' => $effectiveDate,
+    ]);
+})->name('tv');
+
 Route::get('/harga-produsen', function (Request $request) {
     $maxRecordedDate = ProducerPrice::max('recorded_date') ?? now()->format('Y-m-d');
     $minRecordedDate = ProducerPrice::min('recorded_date') ?? '2026-01-01';

@@ -215,3 +215,24 @@
         font-weight: 400;
     }
 }
+
+@keyframes tv-marquee-scroll {
+    0% {
+        transform: translateX(0%);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.animate-tv-marquee {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: tv-marquee-scroll 45s linear infinite;
+    will-change: transform;
+}
+
+.animate-tv-marquee:hover {
+    animation-play-state: paused;
+}
+
