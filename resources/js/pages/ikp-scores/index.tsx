@@ -40,6 +40,11 @@ export interface IkpScoreRow {
     status: string;
     is_achieved: boolean;
     keterangan: string | null;
+    indeks_ketersediaan?: number | null;
+    indeks_keterjangkauan?: number | null;
+    indeks_pemanfaatan?: number | null;
+    kelompok_ikp?: string | null;
+    status_kerentanan?: string | null;
     creator_name?: string | null;
     created_at?: string | null;
     updated_at?: string | null;
@@ -61,6 +66,55 @@ interface PageProps {
         latest_target_renstra: number;
         achieved_count: number;
     };
+}
+
+function getKelompokBadge(kelompok?: string | null) {
+    if (!kelompok) {
+        return {
+            label: '-',
+            className:
+                'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+        };
+    }
+    switch (kelompok) {
+        case 'Kelompok 6':
+            return {
+                label: kelompok,
+                className:
+                    'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+            };
+        case 'Kelompok 5':
+            return {
+                label: kelompok,
+                className:
+                    'bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800',
+            };
+        case 'Kelompok 4':
+            return {
+                label: kelompok,
+                className:
+                    'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+            };
+        case 'Kelompok 3':
+            return {
+                label: kelompok,
+                className:
+                    'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
+            };
+        case 'Kelompok 2':
+        case 'Kelompok 1':
+            return {
+                label: kelompok,
+                className:
+                    'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+            };
+        default:
+            return {
+                label: kelompok,
+                className:
+                    'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+            };
+    }
 }
 
 function getCategoryBadge(status: string) {
@@ -121,7 +175,38 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
     const [formYear, setFormYear] = useState<string>(new Date().getFullYear().toString());
     const [formNilaiIkp, setFormNilaiIkp] = useState<string>('85.00');
     const [formTargetRenstra, setFormTargetRenstra] = useState<string>('84.00');
+    const [formIndeksKetersediaan, setFormIndeksKetersediaan] = useState<string>('');
+    const [formIndeksKeterjangkauan, setFormIndeksKeterjangkauan] = useState<string>('');
+    const [formIndeksPemanfaatan, setFormIndeksPemanfaatan] = useState<string>('');
+    const [formKelompokIkp, setFormKelompokIkp] = useState<string>('Kelompok 6');
+    const [formStatusKerentanan, setFormStatusKerentanan] = useState<string>('Sangat Tahan');
     const [formKeterangan, setFormKeterangan] = useState<string>('');
+
+    const updateKelompokAndStatusFromNilai = (val: string) => {
+        setFormNilaiIkp(val);
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
+            if (num >= 80) {
+                setFormKelompokIkp('Kelompok 6');
+                setFormStatusKerentanan('Sangat Tahan');
+            } else if (num >= 70) {
+                setFormKelompokIkp('Kelompok 5');
+                setFormStatusKerentanan('Tahan');
+            } else if (num >= 60) {
+                setFormKelompokIkp('Kelompok 4');
+                setFormStatusKerentanan('Agak Tahan');
+            } else if (num >= 50) {
+                setFormKelompokIkp('Kelompok 3');
+                setFormStatusKerentanan('Agak Rentan');
+            } else if (num >= 40) {
+                setFormKelompokIkp('Kelompok 2');
+                setFormStatusKerentanan('Rentan');
+            } else {
+                setFormKelompokIkp('Kelompok 1');
+                setFormStatusKerentanan('Sangat Rentan');
+            }
+        }
+    };
 
     // Filtered scores list
     const filteredScores = useMemo(() => {
@@ -131,7 +216,9 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
             (item) =>
                 item.tahun.toString().includes(q) ||
                 (item.keterangan && item.keterangan.toLowerCase().includes(q)) ||
-                item.status.toLowerCase().includes(q),
+                item.status.toLowerCase().includes(q) ||
+                (item.kelompok_ikp && item.kelompok_ikp.toLowerCase().includes(q)) ||
+                (item.status_kerentanan && item.status_kerentanan.toLowerCase().includes(q)),
         );
     }, [scores, searchTerm]);
 
@@ -162,6 +249,11 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                 ? (statistics.latest_target_renstra + 1).toFixed(2)
                 : '85.00',
         );
+        setFormIndeksKetersediaan('');
+        setFormIndeksKeterjangkauan('');
+        setFormIndeksPemanfaatan('');
+        setFormKelompokIkp('Kelompok 6');
+        setFormStatusKerentanan('Sangat Tahan');
         setFormKeterangan('');
         setIsCreateModalOpen(true);
     };
@@ -171,6 +263,23 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
         setFormYear(item.tahun.toString());
         setFormNilaiIkp(item.nilai_ikp.toString());
         setFormTargetRenstra(item.target_renstra.toString());
+        setFormIndeksKetersediaan(
+            item.indeks_ketersediaan !== null && item.indeks_ketersediaan !== undefined
+                ? item.indeks_ketersediaan.toString()
+                : '',
+        );
+        setFormIndeksKeterjangkauan(
+            item.indeks_keterjangkauan !== null && item.indeks_keterjangkauan !== undefined
+                ? item.indeks_keterjangkauan.toString()
+                : '',
+        );
+        setFormIndeksPemanfaatan(
+            item.indeks_pemanfaatan !== null && item.indeks_pemanfaatan !== undefined
+                ? item.indeks_pemanfaatan.toString()
+                : '',
+        );
+        setFormKelompokIkp(item.kelompok_ikp || 'Kelompok 6');
+        setFormStatusKerentanan(item.status_kerentanan || item.status || 'Sangat Tahan');
         setFormKeterangan(item.keterangan || '');
         setIsEditModalOpen(true);
     };
@@ -190,6 +299,20 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                 tahun: parseInt(formYear, 10),
                 nilai_ikp: parseFloat(formNilaiIkp),
                 target_renstra: parseFloat(formTargetRenstra),
+                indeks_ketersediaan:
+                    formIndeksKetersediaan.trim() !== ''
+                        ? parseFloat(formIndeksKetersediaan)
+                        : null,
+                indeks_keterjangkauan:
+                    formIndeksKeterjangkauan.trim() !== ''
+                        ? parseFloat(formIndeksKeterjangkauan)
+                        : null,
+                indeks_pemanfaatan:
+                    formIndeksPemanfaatan.trim() !== ''
+                        ? parseFloat(formIndeksPemanfaatan)
+                        : null,
+                kelompok_ikp: formKelompokIkp || null,
+                status_kerentanan: formStatusKerentanan || null,
                 keterangan: formKeterangan,
             },
             {
@@ -224,6 +347,20 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                 tahun: parseInt(formYear, 10),
                 nilai_ikp: parseFloat(formNilaiIkp),
                 target_renstra: parseFloat(formTargetRenstra),
+                indeks_ketersediaan:
+                    formIndeksKetersediaan.trim() !== ''
+                        ? parseFloat(formIndeksKetersediaan)
+                        : null,
+                indeks_keterjangkauan:
+                    formIndeksKeterjangkauan.trim() !== ''
+                        ? parseFloat(formIndeksKeterjangkauan)
+                        : null,
+                indeks_pemanfaatan:
+                    formIndeksPemanfaatan.trim() !== ''
+                        ? parseFloat(formIndeksPemanfaatan)
+                        : null,
+                kelompok_ikp: formKelompokIkp || null,
+                status_kerentanan: formStatusKerentanan || null,
                 keterangan: formKeterangan,
             },
             {
@@ -426,22 +563,26 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                     <table className="w-full text-left text-xs sm:text-sm">
                         <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:border-slate-800 dark:bg-slate-850 dark:text-slate-300">
                             <tr>
-                                <th className="px-4 py-3.5 text-center">No</th>
-                                <th className="px-4 py-3.5">Tahun</th>
-                                <th className="px-4 py-3.5 text-right">Nilai IKP</th>
-                                <th className="px-4 py-3.5 text-right">Target Renstra</th>
-                                <th className="px-4 py-3.5 text-right">Selisih</th>
-                                <th className="px-4 py-3.5 text-center">Capaian (%)</th>
-                                <th className="px-4 py-3.5">Kategori / Status</th>
-                                <th className="px-4 py-3.5">Keterangan</th>
-                                <th className="px-4 py-3.5 text-center">Aksi</th>
+                                <th className="px-3.5 py-3.5 text-center">No</th>
+                                <th className="px-3.5 py-3.5">Tahun</th>
+                                <th className="px-3.5 py-3.5 text-right">Nilai IKP</th>
+                                <th className="px-3.5 py-3.5 text-right">Target Renstra</th>
+                                <th className="px-3.5 py-3.5 text-right">Selisih</th>
+                                <th className="px-3.5 py-3.5 text-center">Capaian (%)</th>
+                                <th className="px-3.5 py-3.5 text-right" title="Pilar 1: Ketersediaan Pangan">Indeks Ketersediaan</th>
+                                <th className="px-3.5 py-3.5 text-right" title="Pilar 2: Keterjangkauan Pangan">Indeks Keterjangkauan</th>
+                                <th className="px-3.5 py-3.5 text-right" title="Pilar 3: Pemanfaatan Pangan">Indeks Pemanfaatan</th>
+                                <th className="px-3.5 py-3.5 text-center">Kelompok IKP</th>
+                                <th className="px-3.5 py-3.5">Status Kerentanan</th>
+                                <th className="px-3.5 py-3.5">Keterangan</th>
+                                <th className="px-3.5 py-3.5 text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {filteredScores.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan={9}
+                                        colSpan={13}
                                         className="py-12 text-center text-xs text-slate-500 dark:text-slate-400"
                                     >
                                         <div className="flex flex-col items-center justify-center gap-2">
@@ -457,29 +598,30 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                 </tr>
                             ) : (
                                 filteredScores.map((item, idx) => {
-                                    const badge = getCategoryBadge(item.status);
+                                    const badge = getCategoryBadge(item.status_kerentanan || item.status);
+                                    const kelompokBadge = getKelompokBadge(item.kelompok_ikp);
                                     return (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-slate-50/70 transition-colors dark:hover:bg-slate-850/50"
                                         >
-                                            <td className="px-4 py-3 text-center font-medium text-slate-400">
+                                            <td className="px-3.5 py-3 text-center font-medium text-slate-400">
                                                 {idx + 1}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3.5 py-3">
                                                 <span className="font-extrabold text-slate-900 dark:text-white">
                                                     {item.tahun}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-3.5 py-3 text-right">
                                                 <span className="font-black text-emerald-700 dark:text-emerald-400">
                                                     {item.nilai_ikp.toFixed(2)}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-right font-semibold text-slate-700 dark:text-slate-300">
+                                            <td className="px-3.5 py-3 text-right font-semibold text-slate-700 dark:text-slate-300">
                                                 {item.target_renstra.toFixed(2)}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-3.5 py-3 text-right">
                                                 <span
                                                     className={`inline-flex items-center gap-1 font-bold ${
                                                         item.diff_renstra >= 0
@@ -491,7 +633,7 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                                     {item.diff_renstra.toFixed(2)}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
+                                            <td className="px-3.5 py-3 text-center">
                                                 <Badge
                                                     className={`font-mono text-[10px] font-bold ${
                                                         item.is_achieved
@@ -502,18 +644,41 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                                     {item.capaian_percentage.toFixed(1)}%
                                                 </Badge>
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-3.5 py-3 text-right font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+                                                {item.indeks_ketersediaan !== null && item.indeks_ketersediaan !== undefined
+                                                    ? item.indeks_ketersediaan.toFixed(2)
+                                                    : '-'}
+                                            </td>
+                                            <td className="px-3.5 py-3 text-right font-mono font-semibold text-sky-800 dark:text-sky-300">
+                                                {item.indeks_keterjangkauan !== null && item.indeks_keterjangkauan !== undefined
+                                                    ? item.indeks_keterjangkauan.toFixed(2)
+                                                    : '-'}
+                                            </td>
+                                            <td className="px-3.5 py-3 text-right font-mono font-semibold text-amber-800 dark:text-amber-300">
+                                                {item.indeks_pemanfaatan !== null && item.indeks_pemanfaatan !== undefined
+                                                    ? item.indeks_pemanfaatan.toFixed(2)
+                                                    : '-'}
+                                            </td>
+                                            <td className="px-3.5 py-3 text-center">
                                                 <Badge
                                                     variant="outline"
-                                                    className={`font-semibold text-[11px] ${badge.className}`}
+                                                    className={`font-mono text-[10px] font-bold whitespace-nowrap ${kelompokBadge.className}`}
+                                                >
+                                                    {kelompokBadge.label}
+                                                </Badge>
+                                            </td>
+                                            <td className="px-3.5 py-3">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`font-semibold text-[11px] whitespace-nowrap ${badge.className}`}
                                                 >
                                                     {badge.label}
                                                 </Badge>
                                             </td>
-                                            <td className="px-4 py-3 text-slate-600 max-w-xs truncate dark:text-slate-400">
+                                            <td className="px-3.5 py-3 text-slate-600 max-w-xs truncate dark:text-slate-400">
                                                 {item.keterangan || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-center">
+                                            <td className="px-3.5 py-3 text-center">
                                                 <div className="flex items-center justify-center gap-1.5">
                                                     <Button
                                                         variant="ghost"
@@ -546,14 +711,14 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
 
             {/* Modal Dialog: Tambah Data IKP */}
             <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent className="sm:max-w-md rounded-2xl">
+                <DialogContent className="sm:max-w-lg rounded-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                             <Plus className="h-5 w-5 text-[#006565] dark:text-emerald-400" />
                             <span>Tambah Data IKP</span>
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Masukkan data Nilai Indeks Ketahanan Pangan (IKP) dan Target Renstra tahunan.
+                            Masukkan data Nilai Indeks Ketahanan Pangan (IKP), Target Renstra, dan 3 Pilar Ketahanan Pangan.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -578,7 +743,7 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label htmlFor="create-nilai" className="text-xs font-bold">
-                                    Nilai IKP (0-100) <span className="text-rose-500">*</span>
+                                    Nilai IKP Komposit (0-100) <span className="text-rose-500">*</span>
                                 </Label>
                                 <Input
                                     id="create-nilai"
@@ -587,7 +752,7 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                     min="0"
                                     max="100"
                                     value={formNilaiIkp}
-                                    onChange={(e) => setFormNilaiIkp(e.target.value)}
+                                    onChange={(e) => updateKelompokAndStatusFromNilai(e.target.value)}
                                     placeholder="85.50"
                                     required
                                     className="rounded-xl"
@@ -610,6 +775,104 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                     required
                                     className="rounded-xl"
                                 />
+                            </div>
+                        </div>
+
+                        {/* 3 Pilar Indeks */}
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-850/50">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                3 Pilar Indeks Pangan
+                            </div>
+                            <div className="grid grid-cols-3 gap-2.5">
+                                <div className="space-y-1">
+                                    <Label htmlFor="create-ketersediaan" className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400">
+                                        Ketersediaan
+                                    </Label>
+                                    <Input
+                                        id="create-ketersediaan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksKetersediaan}
+                                        onChange={(e) => setFormIndeksKetersediaan(e.target.value)}
+                                        placeholder="88.50"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="create-keterjangkauan" className="text-[11px] font-bold text-sky-800 dark:text-sky-400">
+                                        Keterjangkauan
+                                    </Label>
+                                    <Input
+                                        id="create-keterjangkauan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksKeterjangkauan}
+                                        onChange={(e) => setFormIndeksKeterjangkauan(e.target.value)}
+                                        placeholder="82.40"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="create-pemanfaatan" className="text-[11px] font-bold text-amber-800 dark:text-amber-400">
+                                        Pemanfaatan
+                                    </Label>
+                                    <Input
+                                        id="create-pemanfaatan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksPemanfaatan}
+                                        onChange={(e) => setFormIndeksPemanfaatan(e.target.value)}
+                                        placeholder="83.20"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Kelompok IKP & Status Kerentanan */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-kelompok" className="text-xs font-bold">
+                                    Kelompok IKP
+                                </Label>
+                                <select
+                                    id="create-kelompok"
+                                    value={formKelompokIkp}
+                                    onChange={(e) => setFormKelompokIkp(e.target.value)}
+                                    className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
+                                >
+                                    <option value="Kelompok 6">Kelompok 6 (Sangat Tahan)</option>
+                                    <option value="Kelompok 5">Kelompok 5 (Tahan)</option>
+                                    <option value="Kelompok 4">Kelompok 4 (Agak Tahan)</option>
+                                    <option value="Kelompok 3">Kelompok 3 (Agak Rentan)</option>
+                                    <option value="Kelompok 2">Kelompok 2 (Rentan)</option>
+                                    <option value="Kelompok 1">Kelompok 1 (Sangat Rentan)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-status-kerentanan" className="text-xs font-bold">
+                                    Status Kerentanan
+                                </Label>
+                                <select
+                                    id="create-status-kerentanan"
+                                    value={formStatusKerentanan}
+                                    onChange={(e) => setFormStatusKerentanan(e.target.value)}
+                                    className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
+                                >
+                                    <option value="Sangat Tahan">Sangat Tahan</option>
+                                    <option value="Tahan">Tahan</option>
+                                    <option value="Agak Tahan">Agak Tahan</option>
+                                    <option value="Agak Rentan">Agak Rentan</option>
+                                    <option value="Rentan">Rentan</option>
+                                    <option value="Sangat Rentan">Sangat Rentan</option>
+                                </select>
                             </div>
                         </div>
 
@@ -651,14 +914,14 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
 
             {/* Modal Dialog: Edit Data IKP */}
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-md rounded-2xl">
+                <DialogContent className="sm:max-w-lg rounded-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
                             <Edit3 className="h-5 w-5 text-[#006565] dark:text-emerald-400" />
                             <span>Ubah Data IKP Tahun {selectedScore?.tahun}</span>
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Perbarui nilai capaian IKP atau target Renstra untuk tahun ini.
+                            Perbarui nilai capaian IKP, target Renstra, dan rincian indikator pilar.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -682,7 +945,7 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
                                 <Label htmlFor="edit-nilai" className="text-xs font-bold">
-                                    Nilai IKP (0-100) <span className="text-rose-500">*</span>
+                                    Nilai IKP Komposit (0-100) <span className="text-rose-500">*</span>
                                 </Label>
                                 <Input
                                     id="edit-nilai"
@@ -691,7 +954,7 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                     min="0"
                                     max="100"
                                     value={formNilaiIkp}
-                                    onChange={(e) => setFormNilaiIkp(e.target.value)}
+                                    onChange={(e) => updateKelompokAndStatusFromNilai(e.target.value)}
                                     required
                                     className="rounded-xl"
                                 />
@@ -712,6 +975,104 @@ export default function IkpScoresIndex({ scores, filters, statistics }: PageProp
                                     required
                                     className="rounded-xl"
                                 />
+                            </div>
+                        </div>
+
+                        {/* 3 Pilar Indeks */}
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-850/50">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                3 Pilar Indeks Pangan
+                            </div>
+                            <div className="grid grid-cols-3 gap-2.5">
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit-ketersediaan" className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400">
+                                        Ketersediaan
+                                    </Label>
+                                    <Input
+                                        id="edit-ketersediaan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksKetersediaan}
+                                        onChange={(e) => setFormIndeksKetersediaan(e.target.value)}
+                                        placeholder="88.50"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit-keterjangkauan" className="text-[11px] font-bold text-sky-800 dark:text-sky-400">
+                                        Keterjangkauan
+                                    </Label>
+                                    <Input
+                                        id="edit-keterjangkauan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksKeterjangkauan}
+                                        onChange={(e) => setFormIndeksKeterjangkauan(e.target.value)}
+                                        placeholder="82.40"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit-pemanfaatan" className="text-[11px] font-bold text-amber-800 dark:text-amber-400">
+                                        Pemanfaatan
+                                    </Label>
+                                    <Input
+                                        id="edit-pemanfaatan"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={formIndeksPemanfaatan}
+                                        onChange={(e) => setFormIndeksPemanfaatan(e.target.value)}
+                                        placeholder="83.20"
+                                        className="rounded-xl h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Kelompok IKP & Status Kerentanan */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-kelompok" className="text-xs font-bold">
+                                    Kelompok IKP
+                                </Label>
+                                <select
+                                    id="edit-kelompok"
+                                    value={formKelompokIkp}
+                                    onChange={(e) => setFormKelompokIkp(e.target.value)}
+                                    className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
+                                >
+                                    <option value="Kelompok 6">Kelompok 6 (Sangat Tahan)</option>
+                                    <option value="Kelompok 5">Kelompok 5 (Tahan)</option>
+                                    <option value="Kelompok 4">Kelompok 4 (Agak Tahan)</option>
+                                    <option value="Kelompok 3">Kelompok 3 (Agak Rentan)</option>
+                                    <option value="Kelompok 2">Kelompok 2 (Rentan)</option>
+                                    <option value="Kelompok 1">Kelompok 1 (Sangat Rentan)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="edit-status-kerentanan" className="text-xs font-bold">
+                                    Status Kerentanan
+                                </Label>
+                                <select
+                                    id="edit-status-kerentanan"
+                                    value={formStatusKerentanan}
+                                    onChange={(e) => setFormStatusKerentanan(e.target.value)}
+                                    className="flex h-9 w-full rounded-xl border border-input bg-background px-3 py-1 text-xs shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:bg-slate-900"
+                                >
+                                    <option value="Sangat Tahan">Sangat Tahan</option>
+                                    <option value="Tahan">Tahan</option>
+                                    <option value="Agak Tahan">Agak Tahan</option>
+                                    <option value="Agak Rentan">Agak Rentan</option>
+                                    <option value="Rentan">Rentan</option>
+                                    <option value="Sangat Rentan">Sangat Rentan</option>
+                                </select>
                             </div>
                         </div>
 

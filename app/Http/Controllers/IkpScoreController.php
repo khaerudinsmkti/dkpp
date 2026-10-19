@@ -45,6 +45,11 @@ class IkpScoreController extends Controller
                 'status' => $status,
                 'is_achieved' => $nilai >= $target,
                 'keterangan' => $item->keterangan,
+                'indeks_ketersediaan' => $item->indeks_ketersediaan !== null ? (float) $item->indeks_ketersediaan : null,
+                'indeks_keterjangkauan' => $item->indeks_keterjangkauan !== null ? (float) $item->indeks_keterjangkauan : null,
+                'indeks_pemanfaatan' => $item->indeks_pemanfaatan !== null ? (float) $item->indeks_pemanfaatan : null,
+                'kelompok_ikp' => $item->kelompok_ikp ?: $item->default_kelompok,
+                'status_kerentanan' => $item->status_kerentanan ?: $status,
             ];
 
             $prevScore = $nilai;
@@ -92,6 +97,8 @@ class IkpScoreController extends Controller
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->where('tahun', 'like', "%{$search}%")
+                    ->orWhere('kelompok_ikp', 'like', "%{$search}%")
+                    ->orWhere('status_kerentanan', 'like', "%{$search}%")
                     ->orWhere('keterangan', 'like', "%{$search}%");
             });
         }
@@ -111,6 +118,11 @@ class IkpScoreController extends Controller
                 'status' => $item->category,
                 'is_achieved' => $nilai >= $target,
                 'keterangan' => $item->keterangan,
+                'indeks_ketersediaan' => $item->indeks_ketersediaan !== null ? (float) $item->indeks_ketersediaan : null,
+                'indeks_keterjangkauan' => $item->indeks_keterjangkauan !== null ? (float) $item->indeks_keterjangkauan : null,
+                'indeks_pemanfaatan' => $item->indeks_pemanfaatan !== null ? (float) $item->indeks_pemanfaatan : null,
+                'kelompok_ikp' => $item->kelompok_ikp ?: $item->default_kelompok,
+                'status_kerentanan' => $item->status_kerentanan ?: $item->category,
                 'creator_name' => $item->creator?->name,
                 'created_at' => $item->created_at?->format('d/m/Y H:i'),
                 'updated_at' => $item->updated_at?->format('d/m/Y H:i'),
@@ -150,13 +162,33 @@ class IkpScoreController extends Controller
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100', 'unique:ikp_scores,tahun'],
             'nilai_ikp' => ['required', 'numeric', 'min:0', 'max:100'],
             'target_renstra' => ['required', 'numeric', 'min:0', 'max:100'],
+            'indeks_ketersediaan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'indeks_keterjangkauan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'indeks_pemanfaatan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'kelompok_ikp' => ['nullable', 'string', 'max:50'],
+            'status_kerentanan' => ['nullable', 'string', 'max:50'],
             'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $nilaiIkp = round((float) $validated['nilai_ikp'], 2);
+        $defaultStatus = $this->calculateStatusKerentanan($nilaiIkp);
+        $defaultKelompok = $this->calculateKelompokIkp($nilaiIkp);
+
         $item = IkpScore::create([
             'tahun' => (int) $validated['tahun'],
-            'nilai_ikp' => round((float) $validated['nilai_ikp'], 2),
+            'nilai_ikp' => $nilaiIkp,
             'target_renstra' => round((float) $validated['target_renstra'], 2),
+            'indeks_ketersediaan' => isset($validated['indeks_ketersediaan']) && $validated['indeks_ketersediaan'] !== '' && $validated['indeks_ketersediaan'] !== null
+                ? round((float) $validated['indeks_ketersediaan'], 2)
+                : null,
+            'indeks_keterjangkauan' => isset($validated['indeks_keterjangkauan']) && $validated['indeks_keterjangkauan'] !== '' && $validated['indeks_keterjangkauan'] !== null
+                ? round((float) $validated['indeks_keterjangkauan'], 2)
+                : null,
+            'indeks_pemanfaatan' => isset($validated['indeks_pemanfaatan']) && $validated['indeks_pemanfaatan'] !== '' && $validated['indeks_pemanfaatan'] !== null
+                ? round((float) $validated['indeks_pemanfaatan'], 2)
+                : null,
+            'kelompok_ikp' => !empty($validated['kelompok_ikp']) ? $validated['kelompok_ikp'] : $defaultKelompok,
+            'status_kerentanan' => !empty($validated['status_kerentanan']) ? $validated['status_kerentanan'] : $defaultStatus,
             'keterangan' => $validated['keterangan'] ?? null,
             'created_by' => $request->user()?->id,
         ]);
@@ -173,17 +205,63 @@ class IkpScoreController extends Controller
             'tahun' => ['required', 'integer', 'min:2000', 'max:2100', 'unique:ikp_scores,tahun,'.$ikpScore->id],
             'nilai_ikp' => ['required', 'numeric', 'min:0', 'max:100'],
             'target_renstra' => ['required', 'numeric', 'min:0', 'max:100'],
+            'indeks_ketersediaan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'indeks_keterjangkauan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'indeks_pemanfaatan' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'kelompok_ikp' => ['nullable', 'string', 'max:50'],
+            'status_kerentanan' => ['nullable', 'string', 'max:50'],
             'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $nilaiIkp = round((float) $validated['nilai_ikp'], 2);
+        $defaultStatus = $this->calculateStatusKerentanan($nilaiIkp);
+        $defaultKelompok = $this->calculateKelompokIkp($nilaiIkp);
+
         $ikpScore->update([
             'tahun' => (int) $validated['tahun'],
-            'nilai_ikp' => round((float) $validated['nilai_ikp'], 2),
+            'nilai_ikp' => $nilaiIkp,
             'target_renstra' => round((float) $validated['target_renstra'], 2),
+            'indeks_ketersediaan' => isset($validated['indeks_ketersediaan']) && $validated['indeks_ketersediaan'] !== '' && $validated['indeks_ketersediaan'] !== null
+                ? round((float) $validated['indeks_ketersediaan'], 2)
+                : null,
+            'indeks_keterjangkauan' => isset($validated['indeks_keterjangkauan']) && $validated['indeks_keterjangkauan'] !== '' && $validated['indeks_keterjangkauan'] !== null
+                ? round((float) $validated['indeks_keterjangkauan'], 2)
+                : null,
+            'indeks_pemanfaatan' => isset($validated['indeks_pemanfaatan']) && $validated['indeks_pemanfaatan'] !== '' && $validated['indeks_pemanfaatan'] !== null
+                ? round((float) $validated['indeks_pemanfaatan'], 2)
+                : null,
+            'kelompok_ikp' => !empty($validated['kelompok_ikp']) ? $validated['kelompok_ikp'] : $defaultKelompok,
+            'status_kerentanan' => !empty($validated['status_kerentanan']) ? $validated['status_kerentanan'] : $defaultStatus,
             'keterangan' => $validated['keterangan'] ?? null,
         ]);
 
         return back()->with('success', "Data IKP Tahun {$ikpScore->tahun} berhasil diperbarui.");
+    }
+
+    /**
+     * Calculate default status kerentanan based on Bapanas IKP thresholds.
+     */
+    private function calculateStatusKerentanan(float $val): string
+    {
+        if ($val >= 80) return 'Sangat Tahan';
+        if ($val >= 70) return 'Tahan';
+        if ($val >= 60) return 'Agak Tahan';
+        if ($val >= 50) return 'Agak Rentan';
+        if ($val >= 40) return 'Rentan';
+        return 'Sangat Rentan';
+    }
+
+    /**
+     * Calculate default kelompok IKP based on Bapanas IKP thresholds.
+     */
+    private function calculateKelompokIkp(float $val): string
+    {
+        if ($val >= 80) return 'Kelompok 6';
+        if ($val >= 70) return 'Kelompok 5';
+        if ($val >= 60) return 'Kelompok 4';
+        if ($val >= 50) return 'Kelompok 3';
+        if ($val >= 40) return 'Kelompok 2';
+        return 'Kelompok 1';
     }
 
     /**

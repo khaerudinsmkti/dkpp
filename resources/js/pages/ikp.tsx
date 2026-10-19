@@ -67,6 +67,11 @@ export interface YearlyIkpItem {
     status: string;
     is_achieved: boolean;
     keterangan: string | null;
+    indeks_ketersediaan?: number | null;
+    indeks_keterjangkauan?: number | null;
+    indeks_pemanfaatan?: number | null;
+    kelompok_ikp?: string | null;
+    status_kerentanan?: string | null;
 }
 
 export interface IkpPageProps {
@@ -87,6 +92,55 @@ export interface IkpPageProps {
 }
 
 type ChartDisplayMode = 'composed' | 'side-by-side' | 'line';
+
+function getKelompokBadge(kelompok?: string | null) {
+    if (!kelompok) {
+        return {
+            label: '-',
+            className:
+                'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+        };
+    }
+    switch (kelompok) {
+        case 'Kelompok 6':
+            return {
+                label: kelompok,
+                className:
+                    'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800',
+            };
+        case 'Kelompok 5':
+            return {
+                label: kelompok,
+                className:
+                    'bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800',
+            };
+        case 'Kelompok 4':
+            return {
+                label: kelompok,
+                className:
+                    'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800',
+            };
+        case 'Kelompok 3':
+            return {
+                label: kelompok,
+                className:
+                    'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800',
+            };
+        case 'Kelompok 2':
+        case 'Kelompok 1':
+            return {
+                label: kelompok,
+                className:
+                    'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800',
+            };
+        default:
+            return {
+                label: kelompok,
+                className:
+                    'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+            };
+    }
+}
 
 function getCategoryBadge(status: string) {
     switch (status) {
@@ -147,7 +201,11 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
             'Target RENSTRA',
             'Deviasi (Poin)',
             'Capaian (%)',
-            'Status Ketahanan',
+            'Indeks Ketersediaan',
+            'Indeks Keterjangkauan',
+            'Indeks Pemanfaatan',
+            'Kelompok IKP',
+            'Status Kerentanan',
             'Keterangan',
         ];
 
@@ -158,7 +216,17 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
             row.target_renstra.toFixed(2),
             `${row.diff_renstra >= 0 ? '+' : ''}${row.diff_renstra.toFixed(2)}`,
             `${row.capaian_percentage.toFixed(1)}%`,
-            `"${row.status}"`,
+            row.indeks_ketersediaan !== null && row.indeks_ketersediaan !== undefined
+                ? row.indeks_ketersediaan.toFixed(2)
+                : '-',
+            row.indeks_keterjangkauan !== null && row.indeks_keterjangkauan !== undefined
+                ? row.indeks_keterjangkauan.toFixed(2)
+                : '-',
+            row.indeks_pemanfaatan !== null && row.indeks_pemanfaatan !== undefined
+                ? row.indeks_pemanfaatan.toFixed(2)
+                : '-',
+            `"${row.kelompok_ikp || '-'}"`,
+            `"${row.status_kerentanan || row.status}"`,
             `"${(row.keterangan || '-').replace(/"/g, '""')}"`,
         ]);
 
@@ -175,6 +243,10 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
             summary.avg_target_renstra.toFixed(2),
             `${avgDeviasi >= 0 ? '+' : ''}${avgDeviasi.toFixed(2)}`,
             `${avgCapaian.toFixed(1)}%`,
+            '-',
+            '-',
+            '-',
+            '-',
             `"${summary.latest_status}"`,
             '""',
         ];
@@ -233,6 +305,21 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                 ? 'background:#d1fae5;color:#065f46;border:1px solid #a7f3d0;'
                 : 'background:#fee2e2;color:#991b1b;border:1px solid #fecaca;';
 
+            const ketersediaan =
+                row.indeks_ketersediaan !== null && row.indeks_ketersediaan !== undefined
+                    ? row.indeks_ketersediaan.toFixed(2)
+                    : '-';
+            const keterjangkauan =
+                row.indeks_keterjangkauan !== null && row.indeks_keterjangkauan !== undefined
+                    ? row.indeks_keterjangkauan.toFixed(2)
+                    : '-';
+            const pemanfaatan =
+                row.indeks_pemanfaatan !== null && row.indeks_pemanfaatan !== undefined
+                    ? row.indeks_pemanfaatan.toFixed(2)
+                    : '-';
+            const kelompok = row.kelompok_ikp || '-';
+            const status = row.status_kerentanan || row.status;
+
             tableRowsHtml += `
                 <tr>
                     <td style="text-align:center;color:#64748b;">${idx + 1}</td>
@@ -243,12 +330,16 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                         ${diffSign}${row.diff_renstra.toFixed(2)}
                     </td>
                     <td style="text-align:center;">
-                        <span style="padding:2px 8px;border-radius:12px;font-size:7pt;font-weight:bold;${statusBadgeColor}">
+                        <span style="padding:2px 6px;border-radius:10px;font-size:6.5pt;font-weight:bold;${statusBadgeColor}">
                             ${row.capaian_percentage.toFixed(1)}%
                         </span>
                     </td>
-                    <td style="text-align:center;font-weight:600;color:#0f172a;">${row.status}</td>
-                    <td style="color:#64748b;font-size:7.5pt;">${row.keterangan || '-'}</td>
+                    <td style="text-align:right;font-family:monospace;color:#065f46;">${ketersediaan}</td>
+                    <td style="text-align:right;font-family:monospace;color:#0369a1;">${keterjangkauan}</td>
+                    <td style="text-align:right;font-family:monospace;color:#b45309;">${pemanfaatan}</td>
+                    <td style="text-align:center;font-weight:600;">${kelompok}</td>
+                    <td style="text-align:center;font-weight:600;color:#0f172a;">${status}</td>
+                    <td style="color:#64748b;font-size:7pt;">${row.keterangan || '-'}</td>
                 </tr>
             `;
         });
@@ -261,8 +352,8 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
             <title>Laporan_Capaian_IKP_dan_Target_Renstra_${summary.latest_year}</title>
             <style>
                 @page {
-                    size: A4 portrait;
-                    margin: 12mm 15mm;
+                    size: A4 landscape;
+                    margin: 10mm 12mm;
                 }
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -468,13 +559,17 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 28px;">No</th>
-                        <th style="width: 80px;">Tahun Evaluasi</th>
+                        <th style="width: 24px;">No</th>
+                        <th style="width: 60px;">Tahun</th>
                         <th>Nilai IKP</th>
                         <th>Target RENSTRA</th>
-                        <th>Deviasi (Poin)</th>
-                        <th>Capaian (%)</th>
-                        <th>Status Ketahanan</th>
+                        <th>Deviasi</th>
+                        <th>Capaian</th>
+                        <th>Ketersediaan</th>
+                        <th>Keterjangkauan</th>
+                        <th>Pemanfaatan</th>
+                        <th>Kelompok IKP</th>
+                        <th>Status Kerentanan</th>
                         <th>Keterangan</th>
                     </tr>
                 </thead>
@@ -490,6 +585,8 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                             ${avgDeviasi >= 0 ? '+' : ''}${avgDeviasi.toFixed(2)}
                         </td>
                         <td style="text-align:center;">${avgCapaian.toFixed(1)}%</td>
+                        <td colspan="3" style="text-align:center;color:#64748b;font-size:7pt;">Integrasi 3 Pilar Komposit</td>
+                        <td style="text-align:center;">-</td>
                         <td style="text-align:center;">${summary.latest_status}</td>
                         <td style="color:#64748b;font-size:7pt;">Rata-rata Historis ${summary.total_years} Tahun</td>
                     </tr>
@@ -1033,37 +1130,42 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                             <table className="w-full text-left text-xs sm:text-sm">
                                 <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:border-slate-800 dark:bg-slate-850 dark:text-slate-300">
                                     <tr>
-                                        <th className="px-5 py-4 text-center">No</th>
-                                        <th className="px-5 py-4">Tahun Evaluasi</th>
-                                        <th className="px-5 py-4 text-right">Nilai IKP</th>
-                                        <th className="px-5 py-4 text-right">Target RENSTRA</th>
-                                        <th className="px-5 py-4 text-right">Deviasi (Poin)</th>
-                                        <th className="px-5 py-4 text-center">Capaian (%)</th>
-                                        <th className="px-5 py-4">Status Ketahanan</th>
-                                        <th className="px-5 py-4">Keterangan</th>
+                                        <th className="px-3.5 py-4 text-center">No</th>
+                                        <th className="px-3.5 py-4">Tahun Evaluasi</th>
+                                        <th className="px-3.5 py-4 text-right">Nilai IKP</th>
+                                        <th className="px-3.5 py-4 text-right">Target RENSTRA</th>
+                                        <th className="px-3.5 py-4 text-right">Deviasi</th>
+                                        <th className="px-3.5 py-4 text-center">Capaian (%)</th>
+                                        <th className="px-3.5 py-4 text-right">Indeks Ketersediaan</th>
+                                        <th className="px-3.5 py-4 text-right">Indeks Keterjangkauan</th>
+                                        <th className="px-3.5 py-4 text-right">Indeks Pemanfaatan</th>
+                                        <th className="px-3.5 py-4 text-center">Kelompok IKP</th>
+                                        <th className="px-3.5 py-4">Status Kerentanan</th>
+                                        <th className="px-3.5 py-4">Keterangan</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {yearlyScores.map((row, idx) => {
-                                        const badge = getCategoryBadge(row.status);
+                                        const badge = getCategoryBadge(row.status_kerentanan || row.status);
+                                        const kelompokBadge = getKelompokBadge(row.kelompok_ikp);
                                         return (
                                             <tr
                                                 key={row.id}
                                                 className="hover:bg-slate-50/80 transition-colors dark:hover:bg-slate-850/50"
                                             >
-                                                <td className="px-5 py-3.5 text-center text-slate-400 font-medium">
+                                                <td className="px-3.5 py-3.5 text-center text-slate-400 font-medium">
                                                     {idx + 1}
                                                 </td>
-                                                <td className="px-5 py-3.5 font-extrabold text-slate-900 dark:text-white">
+                                                <td className="px-3.5 py-3.5 font-extrabold text-slate-900 dark:text-white">
                                                     {row.tahun}
                                                 </td>
-                                                <td className="px-5 py-3.5 text-right font-black text-emerald-700 dark:text-emerald-400 font-mono text-sm">
+                                                <td className="px-3.5 py-3.5 text-right font-black text-emerald-700 dark:text-emerald-400 font-mono text-sm">
                                                     {row.nilai_ikp.toFixed(2)}
                                                 </td>
-                                                <td className="px-5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300 font-mono text-sm">
+                                                <td className="px-3.5 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-300 font-mono text-sm">
                                                     {row.target_renstra.toFixed(2)}
                                                 </td>
-                                                <td className="px-5 py-3.5 text-right font-bold font-mono">
+                                                <td className="px-3.5 py-3.5 text-right font-bold font-mono">
                                                     <span
                                                         className={
                                                             row.diff_renstra >= 0
@@ -1075,7 +1177,7 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                                                         {row.diff_renstra.toFixed(2)}
                                                     </span>
                                                 </td>
-                                                <td className="px-5 py-3.5 text-center">
+                                                <td className="px-3.5 py-3.5 text-center">
                                                     <Badge
                                                         className={`font-mono text-[10px] font-bold ${
                                                             row.is_achieved
@@ -1086,15 +1188,38 @@ export default function IkpPage({ yearlyScores, summary }: IkpPageProps) {
                                                         {row.capaian_percentage.toFixed(1)}%
                                                     </Badge>
                                                 </td>
-                                                <td className="px-5 py-3.5">
+                                                <td className="px-3.5 py-3.5 text-right font-mono font-semibold text-emerald-800 dark:text-emerald-300">
+                                                    {row.indeks_ketersediaan !== null && row.indeks_ketersediaan !== undefined
+                                                        ? row.indeks_ketersediaan.toFixed(2)
+                                                        : '-'}
+                                                </td>
+                                                <td className="px-3.5 py-3.5 text-right font-mono font-semibold text-sky-800 dark:text-sky-300">
+                                                    {row.indeks_keterjangkauan !== null && row.indeks_keterjangkauan !== undefined
+                                                        ? row.indeks_keterjangkauan.toFixed(2)
+                                                        : '-'}
+                                                </td>
+                                                <td className="px-3.5 py-3.5 text-right font-mono font-semibold text-amber-800 dark:text-amber-300">
+                                                    {row.indeks_pemanfaatan !== null && row.indeks_pemanfaatan !== undefined
+                                                        ? row.indeks_pemanfaatan.toFixed(2)
+                                                        : '-'}
+                                                </td>
+                                                <td className="px-3.5 py-3.5 text-center">
                                                     <Badge
                                                         variant="outline"
-                                                        className={`font-bold text-[11px] ${badge.badgeClass}`}
+                                                        className={`font-mono text-[10px] font-bold whitespace-nowrap ${kelompokBadge.className}`}
+                                                    >
+                                                        {kelompokBadge.label}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-3.5 py-3.5">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`font-bold text-[11px] whitespace-nowrap ${badge.badgeClass}`}
                                                     >
                                                         {badge.label}
                                                     </Badge>
                                                 </td>
-                                                <td className="px-5 py-3.5 text-slate-500 max-w-xs truncate dark:text-slate-400">
+                                                <td className="px-3.5 py-3.5 text-slate-500 max-w-xs truncate dark:text-slate-400">
                                                     {row.keterangan || '-'}
                                                 </td>
                                             </tr>

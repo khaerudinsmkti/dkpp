@@ -26,6 +26,11 @@ class IkpScore extends Model
         'tahun',
         'nilai_ikp',
         'target_renstra',
+        'indeks_ketersediaan',
+        'indeks_keterjangkauan',
+        'indeks_pemanfaatan',
+        'kelompok_ikp',
+        'status_kerentanan',
         'keterangan',
         'created_by',
     ];
@@ -41,6 +46,9 @@ class IkpScore extends Model
             'tahun' => 'integer',
             'nilai_ikp' => 'float',
             'target_renstra' => 'float',
+            'indeks_ketersediaan' => 'float',
+            'indeks_keterjangkauan' => 'float',
+            'indeks_pemanfaatan' => 'float',
         ];
     }
 
@@ -57,6 +65,10 @@ class IkpScore extends Model
      */
     public function getCategoryAttribute(): string
     {
+        if (!empty($this->attributes['status_kerentanan'])) {
+            return (string) $this->attributes['status_kerentanan'];
+        }
+
         $val = (float) $this->nilai_ikp;
         if ($val >= 80) {
             return 'Sangat Tahan';
@@ -75,5 +87,34 @@ class IkpScore extends Model
         }
 
         return 'Sangat Rentan';
+    }
+
+    /**
+     * Get default Kelompok IKP based on standard Badan Pangan Nasional classification.
+     */
+    public function getDefaultKelompokAttribute(): string
+    {
+        if (!empty($this->attributes['kelompok_ikp'])) {
+            return (string) $this->attributes['kelompok_ikp'];
+        }
+
+        $val = (float) $this->nilai_ikp;
+        if ($val >= 80) {
+            return 'Kelompok 6';
+        }
+        if ($val >= 70) {
+            return 'Kelompok 5';
+        }
+        if ($val >= 60) {
+            return 'Kelompok 4';
+        }
+        if ($val >= 50) {
+            return 'Kelompok 3';
+        }
+        if ($val >= 40) {
+            return 'Kelompok 2';
+        }
+
+        return 'Kelompok 1';
     }
 }
