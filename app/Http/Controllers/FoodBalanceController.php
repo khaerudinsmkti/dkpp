@@ -467,6 +467,8 @@ class FoodBalanceController extends Controller
                 'slug' => $commodity->slug,
                 'unit' => $commodity->unit,
                 'order' => $commodity->order,
+                'image' => $commodity->image,
+                'image_url' => $commodity->image_url,
                 'produksi' => $produksi,
                 'ketersediaan' => $ketersediaan,
                 'kebutuhan' => $kebutuhan,

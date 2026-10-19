@@ -1,0 +1,1 @@
+import e,{DEFAULT_CONSUMER_COMMODITIES as t}from"./harga-konsumen-Be9fsmUG.js";var n=e;export{t as DEFAULT_CONSUMER_COMMODITIES,n as default};

@@ -381,14 +381,6 @@ export default function CppdPublicPage({
                 </tbody>
             </table>
 
-            <div class="sig-box">
-                <div class="sig-inner">
-                    <p style="margin:0">Indramayu, ${currentDateFormatted}</p>
-                    <p style="margin:4px 0 54px 0;font-weight:bold">Kepala Dinas Ketahanan Pangan dan Pertanian<br/>Kabupaten Indramayu</p>
-                    <p style="margin:0;font-weight:bold;text-decoration:underline">Drs. H. Sugeng Heryanto, M.Si</p>
-                    <p style="margin:2px 0 0 0;font-size:7.5pt;color:#64748b">Pembina Utama Muda (IV/c)</p>
-                </div>
-            </div>
         </body>
         </html>
         `;

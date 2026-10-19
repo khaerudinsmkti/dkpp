@@ -7,7 +7,6 @@ import {
     Calendar,
     CheckCircle2,
     Download,
-    FileSpreadsheet,
     FileText,
     Layers,
     Printer,
@@ -53,6 +52,8 @@ interface NeracaItem {
     slug: string;
     unit: string;
     order: number;
+    image?: string | null;
+    image_url?: string | null;
     produksi: number | null;
     ketersediaan: number | null;
     kebutuhan: number | null;
@@ -133,6 +134,48 @@ function formatCompactNumber(num: number): string {
         return `${(num / 1_000).toFixed(0)}k`;
     }
     return String(Math.round(num));
+}
+
+function CommodityThumbnail({ item }: { item: NeracaItem }) {
+    const [hasError, setHasError] = useState(false);
+
+    const imageUrl = useMemo(() => {
+        if (item.image_url) return item.image_url;
+        if (item.image) {
+            if (
+                item.image.startsWith('http://') ||
+                item.image.startsWith('https://') ||
+                item.image.startsWith('/storage/')
+            ) {
+                return item.image;
+            }
+            return `/storage/${item.image}`;
+        }
+        return null;
+    }, [item.image, item.image_url]);
+
+    if (imageUrl && !hasError) {
+        return (
+            <div className="relative mx-auto size-10 shrink-0 overflow-hidden rounded-xl border border-slate-200/90 bg-white p-1 shadow-2xs transition-transform duration-200 hover:scale-110 dark:border-slate-700/80 dark:bg-slate-800">
+                <img
+                    src={imageUrl}
+                    alt={item.name}
+                    className="h-full w-full object-contain"
+                    loading="lazy"
+                    onError={() => setHasError(true)}
+                />
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="mx-auto flex size-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 text-emerald-600/70 dark:border-slate-800 dark:bg-slate-900/60 dark:text-emerald-400/70"
+            title={item.name}
+        >
+            <Wheat className="size-4 opacity-75" />
+        </div>
+    );
 }
 
 function CustomTrendTooltip({
@@ -265,10 +308,6 @@ export default function NeracaPanganPublic({
             { year: yr, month: mo },
             { preserveState: true, preserveScroll: true }
         );
-    };
-
-    const handleDownloadExcel = () => {
-        window.location.href = `/neraca-pangan/export-excel?year=${selectedYear}&month=${selectedMonth}`;
     };
 
     const handleDownloadPdf = () => {
@@ -560,16 +599,6 @@ export default function NeracaPanganPublic({
                 </tfoot>
             </table>
 
-            <div class="signatures">
-                <div class="sign-box">
-                    <div>Indramayu, ${currentDateFormatted}</div>
-                    <div style="font-weight: 600; margin-top: 4px;">Kepala Dinas Ketahanan Pangan dan Pertanian<br/>Kabupaten Indramayu</div>
-                    <div class="sign-space"></div>
-                    <div style="font-weight: bold; text-decoration: underline;">( .................................................... )</div>
-                    <div style="color: #64748b; font-size: 7pt; margin-top: 2px;">NIP. ....................................................</div>
-                </div>
-            </div>
-
             <div class="footer-info">
                 <span>Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
                 <span>Dicetak dari Sistem Informasi DKPP pada: ${new Date().toLocaleString('id-ID')}</span>
@@ -745,8 +774,8 @@ export default function NeracaPanganPublic({
                                     <span>Analisis Real-Time</span>
                                 </div>
                                 <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
-                                    <FileSpreadsheet className="size-3.5 text-teal-300" />
-                                    <span>Ekspor PDF &amp; Excel Resmi</span>
+                                    <FileText className="size-3.5 text-teal-300" />
+                                    <span>Ekspor Laporan PDF Resmi</span>
                                 </div>
                             </div>
                         </div>
@@ -1046,17 +1075,6 @@ export default function NeracaPanganPublic({
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleDownloadExcel}
-                            className="h-9 gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/80 font-medium text-xs shadow-sm"
-                            title="Download data neraca pangan format Microsoft Excel (.xlsx)"
-                        >
-                            <FileSpreadsheet className="size-4 text-emerald-600 dark:text-emerald-400" />
-                            <span>Download Excel</span>
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="sm"
                             onClick={handleDownloadPdf}
                             className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm"
                             title="Download atau cetak dokumen laporan neraca pangan resmi sebagai PDF"
@@ -1081,26 +1099,7 @@ export default function NeracaPanganPublic({
                                 </p>
                             </div>
 
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleDownloadExcel}
-                                    className="h-8 gap-1.5 border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-400 dark:hover:bg-emerald-950 text-xs font-semibold"
-                                >
-                                    <FileSpreadsheet className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                                    <span>Download Excel</span>
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={handleDownloadPdf}
-                                    className="h-8 gap-1.5 border-rose-300 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950 text-xs font-semibold"
-                                >
-                                    <Printer className="size-3.5 text-rose-600 dark:text-rose-400" />
-                                    <span>Download PDF</span>
-                                </Button>
-                            </div>
+
                         </div>
                     </CardHeader>
                     <div className="overflow-x-auto">
@@ -1108,6 +1107,7 @@ export default function NeracaPanganPublic({
                             <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
                                 <tr>
                                     <th className="py-3.5 px-4 w-12 text-center">No</th>
+                                    <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
                                     <th className="py-3.5 px-4">Nama Komoditas</th>
                                     <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
                                     <th className="py-3.5 px-4 text-right">Produksi</th>
@@ -1121,7 +1121,7 @@ export default function NeracaPanganPublic({
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filteredItems.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="py-8 text-center text-slate-400">
+                                        <td colSpan={10} className="py-8 text-center text-slate-400">
                                             Tidak ada data komoditas ditemukan.
                                         </td>
                                     </tr>
@@ -1133,6 +1133,9 @@ export default function NeracaPanganPublic({
                                         >
                                             <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
                                                 {idx + 1}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-center">
+                                                <CommodityThumbnail item={item} />
                                             </td>
                                             <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
                                                 {item.name}
@@ -1196,7 +1199,7 @@ export default function NeracaPanganPublic({
                             </tbody>
                             <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
                                 <tr>
-                                    <td colSpan={3} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                    <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                                         Total Kumulatif
                                     </td>
                                     <td className="py-3 px-4 text-right font-mono">
