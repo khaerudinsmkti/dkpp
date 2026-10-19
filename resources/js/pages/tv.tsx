@@ -26,6 +26,7 @@ import {
     Sun,
     TrendingDown,
     TrendingUp,
+    Video,
     Volume2,
     Wheat,
 } from 'lucide-react';
@@ -410,32 +411,51 @@ export default function TvPage({
                 {/* LAYOUT 1 (70%): VIDEO PLAYLIST YOUTUBE (Diperbesar Tanpa Margin Hitam) */}
                 {/* --------------------------------------------------------------------- */}
                 <section className="flex flex-col min-h-0 w-full lg:w-[70%] lg:flex-[7]">
-                    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-black shadow-sm">
-                        {/* Video Frame - Skala proporsional 118% dengan tombol fine-tuning zoom */}
-                        <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-black group">
-                            {/* Floating Zoom Control di pojok kanan atas frame video */}
-                            <div className="absolute top-3 right-3 z-20 flex items-center gap-1 rounded-xl bg-black/60 px-2.5 py-1.5 backdrop-blur-md border border-white/20 text-white shadow-lg opacity-40 hover:opacity-100 transition-opacity">
-                                <button
-                                    type="button"
-                                    onClick={() => setVideoScale((prev) => Math.max(1.0, Number((prev - 0.02).toFixed(2))))}
-                                    title="Perkecil Zoom (-)"
-                                    className="rounded-lg bg-white/20 hover:bg-white/30 p-1 text-xs font-black transition-colors cursor-pointer"
-                                >
-                                    <Minus className="h-3.5 w-3.5" />
-                                </button>
-                                <span className="font-mono text-xs font-bold px-1 select-none">
-                                    {Math.round(videoScale * 100)}%
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setVideoScale((prev) => Math.min(1.3, Number((prev + 0.02).toFixed(2))))}
-                                    title="Perbesar Zoom (+)"
-                                    className="rounded-lg bg-white/20 hover:bg-white/30 p-1 text-xs font-black transition-colors cursor-pointer"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                </button>
+                    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-sm">
+                        {/* Panel Header */}
+                        <div className="mb-2.5 flex shrink-0 items-center justify-between border-b border-slate-100 pb-2.5">
+                            <div className="flex items-center gap-2.5">
+                                <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${brightBlueGradient} shadow-xs`}>
+                                    <Video className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <h2 className="text-sm font-black tracking-wide uppercase text-slate-900 sm:text-base">
+                                        VIDEO INFORMASI
+                                    </h2>
+                                    <p className="text-[11px] font-semibold text-slate-500">
+                                        Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu
+                                    </p>
+                                </div>
                             </div>
 
+                            {/* Zoom Control */}
+                            <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700 shadow-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setVideoScale((prev) => Math.max(1.0, Number((prev - 0.02).toFixed(2))))}
+                                        title="Perkecil Zoom (-)"
+                                        className="rounded-lg bg-white p-1 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200 shadow-xs"
+                                    >
+                                        <Minus className="h-3.5 w-3.5" />
+                                    </button>
+                                    <span className="font-mono text-xs font-bold px-1 select-none text-slate-800">
+                                        {Math.round(videoScale * 100)}%
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVideoScale((prev) => Math.min(1.3, Number((prev + 0.02).toFixed(2))))}
+                                        title="Perbesar Zoom (+)"
+                                        className="rounded-lg bg-white p-1 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer border border-slate-200 shadow-xs"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Video Frame */}
+                        <div className="relative flex flex-1 min-h-0 w-full items-center justify-center overflow-hidden rounded-xl bg-black group">
                             <iframe
                                 src="https://www.youtube.com/embed/videoseries?list=PL28h8nQalyhkRoOd27-h2vvMhB7PybZTw&autoplay=1&mute=0&loop=1&controls=1&rel=0&modestbranding=1&enablejsapi=1"
                                 title="Video Informasi DKPP Indramayu"
