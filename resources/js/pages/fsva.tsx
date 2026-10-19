@@ -879,7 +879,7 @@ export default function FsvaPage({
                     </div>
 
                     {/* 4. PETA SEBARAN DESA STATUS FSVA (LEAFLET JS) */}
-                    <section className="space-y-3 relative z-0 isolate">
+                    <section className="space-y-3 relative">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">

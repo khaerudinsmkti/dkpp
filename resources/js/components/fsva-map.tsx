@@ -84,6 +84,7 @@ export default function FsvaMap({
     selectedYear,
     onSelectVillage,
 }: FsvaMapProps) {
+    const mapCardRef = useRef<HTMLDivElement>(null);
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const geoJsonLayerRef = useRef<L.GeoJSON | null>(null);
@@ -367,15 +368,94 @@ export default function FsvaMap({
         setSearchQuery('');
     };
 
-    // Toggle Fullscreen
-    const toggleFullscreen = () => {
-        setIsFullscreen(!isFullscreen);
+    // Toggle Fullscreen (Native Fullscreen API with CSS fallback)
+    const toggleFullscreen = async () => {
+        try {
+            if (!document.fullscreenElement && !isFullscreen) {
+                if (mapCardRef.current?.requestFullscreen) {
+                    await mapCardRef.current.requestFullscreen();
+                } else if ((mapCardRef.current as any)?.webkitRequestFullscreen) {
+                    await (mapCardRef.current as any).webkitRequestFullscreen();
+                } else {
+                    setIsFullscreen(true);
+                }
+            } else {
+                if (document.fullscreenElement) {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if ((document as any).webkitExitFullscreen) {
+                        await (document as any).webkitExitFullscreen();
+                    }
+                }
+                setIsFullscreen(false);
+            }
+        } catch {
+            setIsFullscreen((prev) => !prev);
+        }
+
         setTimeout(() => {
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.invalidateSize();
             }
-        }, 200);
+        }, 150);
+        setTimeout(() => {
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.invalidateSize();
+            }
+        }, 350);
     };
+
+    // Listen for fullscreen change events, Escape key, and map invalidation
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isFs = Boolean(document.fullscreenElement);
+            setIsFullscreen(isFs);
+            setTimeout(() => {
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.invalidateSize();
+                }
+            }, 150);
+            setTimeout(() => {
+                if (mapInstanceRef.current) {
+                    mapInstanceRef.current.invalidateSize();
+                }
+            }, 350);
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isFullscreen) {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen().catch(() => {});
+                }
+                setIsFullscreen(false);
+                setTimeout(() => {
+                    if (mapInstanceRef.current) {
+                        mapInstanceRef.current.invalidateSize();
+                    }
+                }, 150);
+            }
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isFullscreen]);
+
+    // Lock body scroll during CSS fullscreen
+    useEffect(() => {
+        if (isFullscreen) {
+            document.body.style.overflow = 'hidden';
+            return () => {
+                document.body.style.overflow = '';
+            };
+        }
+    }, [isFullscreen]);
 
     // Count per priority based on selected indicator
     const priorityCounts = useMemo(() => {
@@ -389,12 +469,15 @@ export default function FsvaMap({
 
     return (
         <div
-            className={`rounded-2xl border border-slate-200/90 bg-white shadow-xl overflow-hidden transition-all duration-300 dark:border-slate-800 dark:bg-slate-900 ${
-                isFullscreen ? 'fixed inset-0 z-[9999] rounded-none' : 'relative w-full z-0 isolate'
+            ref={mapCardRef}
+            className={`flex flex-col bg-white dark:bg-slate-900 transition-colors duration-200 ${
+                isFullscreen
+                    ? 'fixed inset-0 z-[99999] h-screen w-screen m-0 p-0 rounded-none border-0 overflow-hidden'
+                    : 'relative w-full rounded-2xl border border-slate-200/90 shadow-xl overflow-hidden'
             }`}
         >
-            {/* Map Top Toolbar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/90">
+            {/* Map Top Toolbar - Displays title, subtitle, search, and fullscreen actions */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-white px-4 py-2.5 shrink-0 transition-colors dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-center gap-2">
                     <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-[#006565] dark:bg-emerald-950/60 dark:text-emerald-400">
                         <Compass className="h-4 w-4" />
@@ -417,11 +500,11 @@ export default function FsvaMap({
                             placeholder="Cari desa / kecamatan..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="h-8 w-44 sm:w-56 rounded-xl pr-8 text-xs bg-white dark:bg-slate-800"
+                            className="h-8 w-44 sm:w-56 rounded-xl pr-8 text-xs bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 dark:bg-slate-800 dark:border-slate-700 dark:text-white"
                         />
                         <button
                             type="submit"
-                            className="absolute right-2.5 text-slate-400 hover:text-[#006565] transition-colors"
+                            className="absolute right-2.5 text-slate-400 hover:text-[#006565] transition-colors cursor-pointer"
                         >
                             <Search className="h-3.5 w-3.5" />
                         </button>
@@ -432,7 +515,7 @@ export default function FsvaMap({
                         variant="outline"
                         size="sm"
                         onClick={handleResetView}
-                        className="h-8 rounded-xl px-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                        className="h-8 rounded-xl px-2.5 text-xs text-slate-700 border-slate-200 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 dark:border-slate-700 cursor-pointer"
                         title="Reset Tampilan Peta"
                     >
                         <RotateCcw className="h-3.5 w-3.5 mr-1" />
@@ -441,24 +524,36 @@ export default function FsvaMap({
 
                     <Button
                         type="button"
-                        variant="outline"
                         size="sm"
                         onClick={toggleFullscreen}
-                        className="h-8 rounded-xl px-2.5 text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                        title={isFullscreen ? 'Keluar Fullscreen' : 'Layar Penuh'}
+                        className={`h-8 rounded-xl px-2.5 text-xs font-bold transition-all cursor-pointer ${
+                            isFullscreen
+                                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                        }`}
+                        title={isFullscreen ? 'Keluar Layar Penuh (ESC)' : 'Layar Penuh'}
                     >
                         {isFullscreen ? (
-                            <Minimize2 className="h-3.5 w-3.5" />
+                            <>
+                                <Minimize2 className="h-3.5 w-3.5 mr-1.5" />
+                                <span>Keluar Layar Penuh</span>
+                                <kbd className="ml-1.5 hidden sm:inline-block rounded bg-black/25 px-1 py-0.2 text-[10px] font-mono text-white">
+                                    ESC
+                                </kbd>
+                            </>
                         ) : (
-                            <Maximize2 className="h-3.5 w-3.5" />
+                            <>
+                                <Maximize2 className="h-3.5 w-3.5 sm:mr-1" />
+                                <span className="hidden sm:inline">Layar Penuh</span>
+                            </>
                         )}
                     </Button>
                 </div>
             </div>
 
-            {/* Quick Priority Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-100 bg-white px-4 py-2 text-xs scrollbar-none dark:border-slate-800 dark:bg-slate-900/60">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+            {/* Quick Priority Filter Pills - Always shown in clean light theme */}
+            <div className="flex items-center gap-1.5 overflow-x-auto border-b border-slate-200/80 bg-slate-50/90 px-4 py-2 text-xs scrollbar-none shrink-0 dark:border-slate-800 dark:bg-slate-900/60">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
                     Filter Prioritas:
                 </span>
                 <button
@@ -467,7 +562,7 @@ export default function FsvaMap({
                     className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shrink-0 ${
                         activePriorityFilter === null
                             ? 'bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
                     }`}
                 >
                     Semua ({items.length})
@@ -484,7 +579,7 @@ export default function FsvaMap({
                             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer shrink-0 border ${
                                 isActive
                                     ? 'ring-2 ring-slate-900 text-white shadow-xs'
-                                    : 'hover:bg-slate-50 border-slate-200/80 text-slate-700 dark:border-slate-700 dark:text-slate-300'
+                                    : 'bg-white hover:bg-slate-100/80 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                             }`}
                             style={{
                                 backgroundColor: isActive ? cfg.color : undefined,
@@ -511,12 +606,10 @@ export default function FsvaMap({
             </div>
 
             {/* Map Canvas Container */}
-            <div className="relative z-0">
+            <div className={`relative ${isFullscreen ? 'flex-1 min-h-0 w-full' : 'h-[540px] sm:h-[600px] w-full'}`}>
                 <div
                     ref={mapContainerRef}
-                    className={`w-full bg-slate-100 dark:bg-slate-950 transition-all ${
-                        isFullscreen ? 'h-[calc(100vh-110px)]' : 'h-[540px] sm:h-[600px]'
-                    }`}
+                    className="w-full h-full bg-slate-100 dark:bg-slate-950"
                 />
 
                 {/* Loading State Overlay */}
@@ -625,7 +718,9 @@ export default function FsvaMap({
 
                 {/* Village Detail Modal / Card Floating (Top/Bottom Right) */}
                 {selectedVillage && (
-                    <div className="absolute top-4 right-4 z-[1000] w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-right-3 duration-200 dark:border-slate-700 dark:bg-slate-900/95 pointer-events-auto">
+                    <div
+                        className="absolute top-4 right-4 z-[1000] w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-right-3 duration-200 dark:border-slate-700 dark:bg-slate-900/95 pointer-events-auto"
+                    >
                         <div className="flex items-start justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
                             <div>
                                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
