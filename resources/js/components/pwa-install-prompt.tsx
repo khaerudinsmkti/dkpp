@@ -1,4 +1,4 @@
-import { Download, Laptop, Smartphone, Sparkles, X, Share, PlusSquare, Check } from 'lucide-react';
+import { Download, Laptop, Smartphone, Sparkles, X, Share, PlusSquare, Check, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usePwa } from '@/hooks/use-pwa';
 
@@ -8,6 +8,20 @@ export default function PwaInstallPrompt() {
     const [showIosGuide, setShowIosGuide] = useState(false);
     const [installing, setInstalling] = useState(false);
     const [installedSuccess, setInstalledSuccess] = useState(false);
+    const [imgSrc, setImgSrc] = useState('/storage/indramayu_logo.png');
+    const [imgFailed, setImgFailed] = useState(false);
+
+    const handleImgError = () => {
+        if (imgSrc === '/storage/indramayu_logo.png') {
+            setImgSrc('/apple-touch-icon.png');
+        } else if (imgSrc === '/apple-touch-icon.png') {
+            setImgSrc('/pwa-icons/icon-192x192.png');
+        } else if (imgSrc === '/pwa-icons/icon-192x192.png') {
+            setImgSrc('/favicon.png');
+        } else {
+            setImgFailed(true);
+        }
+    };
 
     useEffect(() => {
         // If already installed, never show prompt
@@ -93,12 +107,19 @@ export default function PwaInstallPrompt() {
                         <div className="flex flex-col gap-3">
                             <div className="flex items-start gap-3">
                                 {/* App Icon */}
-                                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-500/20 p-1.5 border border-emerald-500/30 shadow-xs dark:from-emerald-950/40 dark:to-teal-950/40">
-                                    <img
-                                        src="/icons/icon-192x192.png"
-                                        alt="Logo DKPP"
-                                        className="h-full w-full object-contain"
-                                    />
+                                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#006565]/10 to-teal-500/20 p-1.5 border border-emerald-500/30 shadow-xs dark:from-emerald-950/40 dark:to-teal-950/40 overflow-hidden">
+                                    {!imgFailed ? (
+                                        <img
+                                            src={imgSrc}
+                                            alt="Logo DKPP Indramayu"
+                                            className="h-full w-full object-contain drop-shadow-xs"
+                                            onError={handleImgError}
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center rounded-lg bg-[#006565] text-white">
+                                            <ShieldCheck className="h-6 w-6" />
+                                        </div>
+                                    )}
                                     <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xs">
                                         <Sparkles className="h-2.5 w-2.5" />
                                     </span>
