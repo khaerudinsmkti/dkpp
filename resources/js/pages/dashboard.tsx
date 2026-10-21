@@ -265,29 +265,29 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 1: Nilai IKP tahun ini dan target renstra */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
                                     <ShieldCheck className="size-5" />
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         Tahun {ikp?.tahun ?? new Date().getFullYear()}
                                     </Badge>
-                                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 text-xs">
+                                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 text-[11px] px-2 py-0.5 shrink-0">
                                         {ikp?.status ?? 'Sangat Tahan'}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Indeks Ketahanan Pangan (IKP)
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Skor komposit ketahanan pangan daerah
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4 pb-3">
+                        <CardContent className="space-y-4 px-4 sm:px-5 pb-3">
                             <div className="flex items-baseline justify-between">
                                 <div>
                                     <div className="text-3xl font-extrabold tracking-tight text-foreground">
@@ -345,7 +345,7 @@ export default function Dashboard({
                                 </div>
                             )}
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/ikp-scores"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
@@ -359,24 +359,26 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 2: Total Stok CPPD, total penyaluran CPPD tahun ini */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
                                     <Package className="size-5" />
                                 </span>
-                                <Badge variant="outline" className="text-xs font-semibold">
-                                    Tahun {cppd.tahun}
-                                </Badge>
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
+                                        Tahun {cppd.tahun}
+                                    </Badge>
+                                </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Cadangan Pangan (CPPD)
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Stok beras & penyaluran darurat Pemda
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3.5 pb-3">
+                        <CardContent className="space-y-3.5 px-4 sm:px-5 pb-3">
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="rounded-xl border border-blue-200/60 bg-blue-50/50 p-2.5 dark:border-blue-900/40 dark:bg-blue-950/20">
                                     <span className="text-[11px] font-medium text-blue-800 dark:text-blue-300">
@@ -407,7 +409,7 @@ export default function Dashboard({
                                 <span>Pengadaan: <strong className="text-foreground">+{formatNumber(cppd.total_pengadaan, 0)} Kg</strong></span>
                             </div>
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/cppd-admin"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
@@ -421,35 +423,35 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 3: Total Neraca bulan ini (ketersediaan - kebutuhan) */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-400">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-400">
                                     <Scale className="size-5" />
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         {foodBalance.period_label}
                                     </Badge>
                                     <Badge
-                                        className={
+                                        className={`text-[11px] px-2 py-0.5 text-white shrink-0 ${
                                             foodBalance.status === 'Surplus'
-                                                ? 'bg-teal-600 text-white hover:bg-teal-700 text-xs'
-                                                : 'bg-rose-600 text-white hover:bg-rose-700 text-xs'
-                                        }
+                                                ? 'bg-teal-600 hover:bg-teal-700'
+                                                : 'bg-rose-600 hover:bg-rose-700'
+                                        }`}
                                     >
                                         {foodBalance.status}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Total Neraca Pangan
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Ketersediaan dikurangi kebutuhan bulan ini
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3.5 pb-3">
+                        <CardContent className="space-y-3.5 px-4 sm:px-5 pb-3">
                             <div>
                                 <div className="text-3xl font-extrabold tracking-tight text-foreground">
                                     {foodBalance.total_neraca >= 0 ? '+' : ''}
@@ -485,7 +487,7 @@ export default function Dashboard({
                                 </span>
                             </div>
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/food-balances"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400"
@@ -499,29 +501,29 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 4: Skor PPh tahun ini dibandingkan dengan target renstra */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400">
                                     <PieChart className="size-5" />
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         Tahun {pph?.tahun ?? new Date().getFullYear()}
                                     </Badge>
-                                    <Badge className="bg-purple-600 text-white hover:bg-purple-700 text-xs">
+                                    <Badge className="bg-purple-600 text-white hover:bg-purple-700 text-[11px] px-2 py-0.5 shrink-0">
                                         {pph?.is_achieved ? 'Target Tercapai' : 'Perlu Peningkatan'}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Skor Pola Pangan Harapan (PPH)
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Diversifikasi konsumsi pangan gizi seimbang
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4 pb-3">
+                        <CardContent className="space-y-4 px-4 sm:px-5 pb-3">
                             <div className="flex items-baseline justify-between">
                                 <div>
                                     <div className="text-3xl font-extrabold tracking-tight text-foreground">
@@ -573,7 +575,7 @@ export default function Dashboard({
                                 {pph?.keterangan ?? 'Konsumsi pangan penduduk memenuhi standar mutu gizi seimbang.'}
                             </p>
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/pph-scores"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-purple-600 hover:text-purple-700 dark:text-purple-400"
@@ -587,24 +589,29 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 5: Persentase desa rentan (1-3) & desa tahan (4-6) */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <span className="flex size-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2 overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400">
                                     <Compass className="size-5" />
                                 </span>
-                                <Badge variant="outline" className="text-xs font-semibold">
-                                    FSVA Tahun {fsva.tahun} • Total {fsva.total_desa} Desa/Kelurahan
-                                </Badge>
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
+                                        Tahun {fsva.tahun}
+                                    </Badge>
+                                    <Badge className="bg-amber-600 text-white hover:bg-amber-700 text-[11px] px-2 py-0.5 shrink-0">
+                                        {fsva.total_desa} Desa
+                                    </Badge>
+                                </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Peta Kerentanan Desa (FSVA)
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Perbandingan desa tahan pangan (Prioritas 4-6) dan desa rentan pangan (Prioritas 1-3)
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4 pb-3">
+                        <CardContent className="space-y-4 px-4 sm:px-5 pb-3">
                             <div className="grid grid-cols-2 gap-3">
                                 {/* Tahan Pangan */}
                                 <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
@@ -701,7 +708,7 @@ export default function Dashboard({
                                 </div>
                             </div>
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/fsva-admin"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400"
@@ -715,11 +722,11 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 8: Kecamatan yang kompositnya status waspada/rentan pada SKPG */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2 overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
                                 <span
-                                    className={`flex size-10 items-center justify-center rounded-xl ${
+                                    className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
                                         skpg.alert_count > 0
                                             ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
                                             : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
@@ -731,29 +738,29 @@ export default function Dashboard({
                                         <MapPin className="size-5" />
                                     )}
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         {skpg.period_label}
                                     </Badge>
                                     <Badge
-                                        className={
+                                        className={`text-[11px] px-2 py-0.5 text-white shrink-0 ${
                                             skpg.alert_count > 0
-                                                ? 'bg-rose-600 text-white hover:bg-rose-700 text-xs'
-                                                : 'bg-emerald-600 text-white hover:bg-emerald-700 text-xs'
-                                        }
+                                                ? 'bg-rose-600 hover:bg-rose-700'
+                                                : 'bg-emerald-600 hover:bg-emerald-700'
+                                        }`}
                                     >
-                                        {skpg.alert_count > 0 ? `${skpg.alert_count} Kecamatan Waspada/Rentan` : '31 Kecamatan Aman'}
+                                        {skpg.alert_count > 0 ? `${skpg.alert_count} Waspada/Rentan` : '31 Kec Aman'}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Status Kerawanan Pangan SKPG
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Indikator komposit (IKB) Sistem Peringatan Dini Kerawanan Pangan dan Gizi
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4 pb-3">
+                        <CardContent className="space-y-4 px-4 sm:px-5 pb-3">
                             <div className="grid grid-cols-3 gap-2">
                                 <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/50 p-2.5 text-center dark:border-emerald-900/40 dark:bg-emerald-950/20">
                                     <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
@@ -846,7 +853,7 @@ export default function Dashboard({
                                 </div>
                             )}
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/skpg-admin"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
@@ -860,11 +867,11 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 6: Card Harga konsumen hari ini yang di atas HET */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2 overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
                                 <span
-                                    className={`flex size-10 items-center justify-center rounded-xl ${
+                                    className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
                                         consumerPrices.above_het_count > 0
                                             ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
                                             : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
@@ -872,32 +879,32 @@ export default function Dashboard({
                                 >
                                     <TrendingUp className="size-5" />
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         {consumerPrices.effective_date_formatted}
                                         {consumerPrices.is_today && ' (Hari Ini)'}
                                     </Badge>
                                     <Badge
-                                        className={
+                                        className={`text-[11px] px-2 py-0.5 text-white shrink-0 ${
                                             consumerPrices.above_het_count > 0
-                                                ? 'bg-rose-600 text-white hover:bg-rose-700 text-xs'
-                                                : 'bg-emerald-600 text-white hover:bg-emerald-700 text-xs'
-                                        }
+                                                ? 'bg-rose-600 hover:bg-rose-700'
+                                                : 'bg-emerald-600 hover:bg-emerald-700'
+                                        }`}
                                     >
                                         {consumerPrices.above_het_count > 0
-                                            ? `${consumerPrices.above_het_count} Komoditas di Atas HET`
+                                            ? `${consumerPrices.above_het_count} Di Atas HET`
                                             : 'Semua Sesuai HET'}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Harga Konsumen di Atas HET
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Pemantauan komoditas pangan yang melampaui Harga Eceran Tertinggi di {consumerPrices.market_name}
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3.5 pb-3">
+                        <CardContent className="space-y-3.5 px-4 sm:px-5 pb-3">
                             {consumerPrices.above_het_count > 0 ? (
                                 <div className="space-y-2.5">
                                     <div className="flex items-center justify-between text-xs">
@@ -970,7 +977,7 @@ export default function Dashboard({
                                 </div>
                             )}
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/consumer-prices"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-rose-600 hover:text-rose-700 dark:text-rose-400"
@@ -984,11 +991,11 @@ export default function Dashboard({
                     {/* ======================================================== */}
                     {/* CARD 7: Card Harga produsen hari ini yang di Bawah HAP */}
                     {/* ======================================================== */}
-                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
+                    <Card className="flex flex-col justify-between border-border/70 shadow-sm transition-all hover:shadow-md md:col-span-2 overflow-hidden">
+                        <CardHeader className="p-4 sm:p-5 pb-3 sm:pb-3">
+                            <div className="flex items-start justify-between gap-2">
                                 <span
-                                    className={`flex size-10 items-center justify-center rounded-xl ${
+                                    className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
                                         producerPrices.below_hap_count > 0
                                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400'
                                             : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
@@ -996,32 +1003,32 @@ export default function Dashboard({
                                 >
                                     <Wheat className="size-5" />
                                 </span>
-                                <div className="flex items-center gap-1.5">
-                                    <Badge variant="outline" className="text-xs font-semibold">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5 max-w-[calc(100%-2.75rem)]">
+                                    <Badge variant="outline" className="text-[11px] px-2 py-0.5 font-medium shrink-0">
                                         {producerPrices.effective_date_formatted}
                                         {producerPrices.is_today && ' (Hari Ini)'}
                                     </Badge>
                                     <Badge
-                                        className={
+                                        className={`text-[11px] px-2 py-0.5 text-white shrink-0 ${
                                             producerPrices.below_hap_count > 0
-                                                ? 'bg-amber-600 text-white hover:bg-amber-700 text-xs'
-                                                : 'bg-emerald-600 text-white hover:bg-emerald-700 text-xs'
-                                        }
+                                                ? 'bg-amber-600 hover:bg-amber-700'
+                                                : 'bg-emerald-600 hover:bg-emerald-700'
+                                        }`}
                                     >
                                         {producerPrices.below_hap_count > 0
-                                            ? `${producerPrices.below_hap_count} Komoditas di Bawah HAP`
-                                            : 'Harga Produsen Terjaga'}
+                                            ? `${producerPrices.below_hap_count} Di Bawah HAP`
+                                            : 'Sesuai HAP'}
                                     </Badge>
                                 </div>
                             </div>
-                            <CardTitle className="pt-2 text-base font-semibold">
+                            <CardTitle className="pt-2 text-base font-semibold leading-snug">
                                 Harga Produsen di Bawah HAP
                             </CardTitle>
                             <CardDescription className="text-xs">
                                 Pemantauan harga di tingkat produsen/petani terhadap Harga Acuan Pembelian (HAP) Bapanas
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-3.5 pb-3">
+                        <CardContent className="space-y-3.5 px-4 sm:px-5 pb-3">
                             {producerPrices.below_hap_count > 0 ? (
                                 <div className="space-y-2.5">
                                     <div className="flex items-center justify-between text-xs">
@@ -1094,7 +1101,7 @@ export default function Dashboard({
                                 </div>
                             )}
                         </CardContent>
-                        <CardFooter className="border-t border-border/50 pt-3">
+                        <CardFooter className="border-t border-border/50 px-4 sm:px-5 py-3">
                             <Link
                                 href="/producer-prices"
                                 className="inline-flex w-full items-center justify-between text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400"
