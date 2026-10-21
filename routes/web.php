@@ -4,6 +4,7 @@ use App\Http\Controllers\CommodityController;
 use App\Http\Controllers\CommodityHetController;
 use App\Http\Controllers\ConsumerPriceController;
 use App\Http\Controllers\CppdController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FoodBalanceCommodityController;
 use App\Http\Controllers\FoodBalanceController;
 use App\Http\Controllers\FsvaController;
@@ -379,7 +380,7 @@ Route::get('/cppd', [CppdController::class, 'publicIndex'])->name('cppd');
 Route::get('/cppd/export-excel', [CppdController::class, 'exportExcel'])->name('cppd.export-excel');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Modul FSVA (Peta Ketahanan dan Kerentanan Pangan / Food Security and Vulnerability Atlas)
     Route::get('/fsva-admin', [FsvaController::class, 'index'])->name('fsva.index');

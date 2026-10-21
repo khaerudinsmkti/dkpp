@@ -46,43 +46,36 @@ const navGroups: NavGroup[] = [
                 title: 'Indeks Ketahanan Pangan (IKP)',
                 href: '/ikp-scores',
                 icon: ShieldCheck,
-                badge: 'IKP vs Renstra',
             },
             {
                 title: 'Kerawanan Pangan (SKPG)',
                 href: '/skpg-admin',
                 icon: MapPin,
-                badge: '31 Kecamatan',
             },
             {
                 title: 'FSVA (Ketahanan Desa)',
                 href: '/fsva-admin',
                 icon: Compass,
-                badge: '317 Desa',
             },
             {
                 title: 'Cadangan Pangan (CPPD)',
                 href: cppdIndex(),
                 icon: Package,
-                badge: 'Stok & Distribusi',
             },
             {
                 title: 'Harga Konsumen',
                 href: consumerPricesIndex(),
                 icon: TrendingUp,
-                badge: '25 Komoditas',
             },
             {
                 title: 'Harga Produsen',
                 href: producerPricesIndex(),
                 icon: Wheat,
-                badge: '6 Komoditas',
             },
             {
                 title: 'Neraca Pangan',
                 href: foodBalancesIndex(),
                 icon: Layers,
-                badge: '11 Komoditas',
             },
             {
                 title: 'Skor PPH',
@@ -93,7 +86,6 @@ const navGroups: NavGroup[] = [
                 title: 'Detail Skor PPH',
                 href: pphScoreDetailsIndex(),
                 icon: FileSpreadsheet,
-                badge: '9 Kelompok',
             },
             {
                 title: 'Kelola HET Konsumen',
@@ -145,11 +137,15 @@ function SidebarPromoCard() {
 
 export function AppSidebar() {
     return (
-        <Sidebar collapsible="icon" variant="sidebar" className="border-r border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <Sidebar
+            collapsible="icon"
+            variant="sidebar"
+            className="border-r border-teal-200/80 bg-gradient-to-b from-[#eaf6f4] via-[#f5fbf9] to-[#dff0ec] shadow-xs dark:border-emerald-950/70 dark:from-[#062421] dark:via-[#041a18] dark:to-[#02100e]"
+        >
             <SidebarHeader className="px-3 pt-3.5 pb-2">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild className="h-auto rounded-2xl p-2 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                        <SidebarMenuButton size="lg" asChild className="h-auto rounded-2xl p-2 hover:bg-emerald-100/60 dark:hover:bg-white/5 transition-colors">
                             <Link href={dashboard()} prefetch>
                                 <AppLogo />
                             </Link>
@@ -162,7 +158,7 @@ export function AppSidebar() {
                 <NavMain groups={navGroups} />
             </SidebarContent>
 
-            <SidebarFooter className="mt-auto gap-3 p-3">
+            <SidebarFooter className="mt-auto gap-3 p-3 border-t border-teal-200/50 dark:border-emerald-950/60">
                 <SidebarPromoCard />
                 <NavUser />
             </SidebarFooter>

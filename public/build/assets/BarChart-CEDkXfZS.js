@@ -1,1 +1,0 @@
-import{r as e}from"./rolldown-runtime-hePW80VL.js";import{t,tt as n}from"./CartesianChart-BTEEhvgQ.js";import{u as r}from"./jsx-runtime-DEpx1154.js";var i=e(r()),a=[`axis`,`item`],o=(0,i.forwardRef)((e,r)=>i.createElement(t,{chartName:`BarChart`,defaultTooltipEventType:`axis`,validateTooltipEventTypes:a,tooltipPayloadSearcher:n,categoricalChartProps:e,ref:r}));export{o as t};

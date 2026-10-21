@@ -1,1 +1,0 @@
-import e,{DEFAULT_CONSUMER_COMMODITIES as t}from"./harga-konsumen-C6Tp-2sx.js";var n=e;export{t as DEFAULT_CONSUMER_COMMODITIES,n as default};

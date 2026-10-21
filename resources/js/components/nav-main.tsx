@@ -25,7 +25,7 @@ export function NavMain({ items, groups }: NavMainProps) {
             {normalizedGroups.map((group, groupIndex) => (
                 <SidebarGroup key={group.title ?? groupIndex} className="px-3 py-0">
                     {group.title && (
-                        <SidebarGroupLabel className="px-3 pb-1.5 text-[10px] font-extrabold tracking-wider text-slate-400 uppercase select-none">
+                        <SidebarGroupLabel className="px-3 pb-1.5 text-[10.5px] font-extrabold tracking-wider text-[#006565]/80 uppercase select-none dark:text-emerald-400/90">
                             {group.title}
                         </SidebarGroupLabel>
                     )}
@@ -40,16 +40,16 @@ export function NavMain({ items, groups }: NavMainProps) {
                                         isActive={active}
                                         tooltip={{ children: item.title }}
                                         className={cn(
-                                            'transition-all duration-200',
+                                            'transition-all duration-200 rounded-xl px-3 py-2',
                                             active
-                                                ? 'bg-[#F5F3FF] font-semibold text-[#7C3AED] shadow-xs dark:bg-purple-950/60 dark:text-purple-300'
-                                                : 'font-medium text-slate-600 hover:bg-[#F5F3FF]/60 hover:text-[#7C3AED] dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200',
+                                                ? 'bg-gradient-to-r from-[#006565] via-emerald-700 to-teal-700 font-bold !text-white shadow-md shadow-[#006565]/20 ring-1 ring-[#006565]/30 data-[active=true]:!text-white dark:from-emerald-500 dark:via-emerald-600 dark:to-teal-600 dark:!text-white dark:shadow-emerald-950/60 dark:ring-white/20 dark:data-[active=true]:!text-white'
+                                                : 'font-medium text-slate-700 hover:bg-emerald-100/70 hover:text-[#006565] active:bg-emerald-100/90 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white',
                                         )}
                                     >
                                         <Link
                                             href={item.href}
                                             prefetch
-                                            className="flex w-full items-center justify-between"
+                                            className={cn("flex w-full items-center", active && "!text-white")}
                                         >
                                             <div className="flex min-w-0 items-center gap-3">
                                                 {item.icon && (
@@ -58,26 +58,15 @@ export function NavMain({ items, groups }: NavMainProps) {
                                                         className={cn(
                                                             'shrink-0 transition-colors',
                                                             active
-                                                                ? 'text-[#7C3AED] dark:text-purple-300'
-                                                                : 'text-slate-400 group-hover:text-[#7C3AED] dark:text-slate-500 dark:group-hover:text-slate-300',
+                                                                ? '!text-white drop-shadow-xs'
+                                                                : 'text-teal-700/60 group-hover:text-[#006565] dark:text-emerald-400/60 dark:group-hover:text-emerald-300',
                                                         )}
                                                     />
                                                 )}
-                                                <span className="truncate">{item.title}</span>
-                                            </div>
-
-                                            {item.badge && (
-                                                <span
-                                                    className={cn(
-                                                        'ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors group-data-[collapsible=icon]:hidden',
-                                                        active
-                                                            ? 'bg-[#7C3AED] text-white dark:bg-purple-500 dark:text-white'
-                                                            : 'border border-purple-200/60 bg-[#F5F3FF] text-[#7C3AED] dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
-                                                    )}
-                                                >
-                                                    {item.badge}
+                                                <span className={cn("truncate", active ? "!text-white font-bold" : "")}>
+                                                    {item.title}
                                                 </span>
-                                            )}
+                                            </div>
                                         </Link>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
