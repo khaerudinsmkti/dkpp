@@ -8,6 +8,7 @@ import {
     Scale,
     Search,
     Trash2,
+    Upload,
     Wheat,
     X,
     XCircle,
@@ -152,6 +153,47 @@ export default function ProducerCommoditiesIndex({
     const formatCurrency = (amount: number | null | undefined) => {
         if (!amount) return '-';
         return 'Rp ' + Number(amount).toLocaleString('id-ID');
+    };
+
+    // Handle Image Selection for Create
+    const handleCreateImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+            toast.error('Ukuran gambar maksimal 3MB.');
+            return;
+        }
+        setCreateImage(file);
+        setCreateImagePreview(URL.createObjectURL(file));
+    };
+
+    const handleRemoveCreateImage = () => {
+        setCreateImage(null);
+        setCreateImagePreview(null);
+    };
+
+    // Handle Image Selection for Edit
+    const handleEditImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+            toast.error('Ukuran gambar maksimal 3MB.');
+            return;
+        }
+        setEditImage(file);
+        setEditImagePreview(URL.createObjectURL(file));
+        setEditRemoveImage(false);
+    };
+
+    const handleRemoveEditImage = () => {
+        setEditImage(null);
+        setEditImagePreview(null);
+        setEditRemoveImage(true);
+    };
+
+    const handleCancelRemoveEditImage = () => {
+        setEditRemoveImage(false);
+        setEditImagePreview(editingItem?.image_url || null);
     };
 
     // Open Create Modal
@@ -455,6 +497,7 @@ export default function ProducerCommoditiesIndex({
                                 <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/60">
                                     <tr>
                                         <th className="px-4 py-3.5 text-center w-12">No</th>
+                                        <th className="px-3 py-3.5 text-center w-16">Foto</th>
                                         <th className="px-4 py-3.5">Nama Komoditas</th>
                                         <th className="px-4 py-3.5">Key Field</th>
                                         <th className="px-4 py-3.5">Kategori</th>
@@ -474,6 +517,25 @@ export default function ProducerCommoditiesIndex({
                                             >
                                                 <td className="px-4 py-3.5 text-center font-bold text-slate-400">
                                                     {idx + 1}
+                                                </td>
+                                                <td className="px-3 py-3 text-center">
+                                                    {item.image_url ? (
+                                                        <div className="relative mx-auto size-11 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-2xs hover:scale-105 transition-transform dark:border-slate-700 dark:bg-slate-800">
+                                                            <img
+                                                                src={item.image_url}
+                                                                alt={item.name}
+                                                                className="h-full w-full object-cover"
+                                                                loading="lazy"
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div
+                                                            className="mx-auto flex size-11 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40"
+                                                            title="Belum ada foto komoditas"
+                                                        >
+                                                            <ImageIcon className="size-4 opacity-40" />
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3.5">
                                                     <div className="font-bold text-slate-900 dark:text-white">
@@ -552,7 +614,7 @@ export default function ProducerCommoditiesIndex({
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                                            <td colSpan={10} className="px-4 py-8 text-center text-slate-400">
                                                 Tidak ditemukan komoditas produsen yang sesuai kriteria pencarian.
                                             </td>
                                         </tr>
@@ -714,6 +776,60 @@ export default function ProducerCommoditiesIndex({
                                 />
                             </div>
 
+                            {/* Foto Komoditas Produsen */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold">Foto Komoditas (Opsional)</Label>
+                                {createImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={createImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {createImage?.name || 'Gambar terpilih'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {createImage ? `${(createImage.size / 1024).toFixed(0)} KB` : 'Siap diunggah'}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleRemoveCreateImage}
+                                            className="h-8 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                                        >
+                                            <X className="size-4 mr-1" />
+                                            Hapus
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="create-producer-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-amber-500 hover:bg-amber-50/20 dark:border-slate-700 dark:hover:border-amber-500 dark:hover:bg-amber-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-amber-600 font-semibold dark:text-amber-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="create-producer-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleCreateImageChange}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+
                             <DialogFooter className="pt-2">
                                 <Button
                                     type="button"
@@ -845,6 +961,90 @@ export default function ProducerCommoditiesIndex({
                                     onChange={(e) => setEditDescription(e.target.value)}
                                     className="mt-1 w-full rounded-xl border border-slate-300 p-2 text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                                 />
+                            </div>
+
+                            {/* Foto Komoditas Produsen */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold">Foto Komoditas</Label>
+                                {editRemoveImage ? (
+                                    <div className="flex items-center justify-between rounded-lg border border-dashed border-red-200 bg-red-50/50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+                                        <span>Foto komoditas akan dihapus saat disimpan.</span>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCancelRemoveEditImage}
+                                            className="h-7 text-xs"
+                                        >
+                                            Batalkan
+                                        </Button>
+                                    </div>
+                                ) : editImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={editImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {editImage ? editImage.name : 'Foto komoditas saat ini'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {editImage
+                                                    ? `${(editImage.size / 1024).toFixed(0)} KB (Baru)`
+                                                    : 'Tersimpan di sistem'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <label
+                                                htmlFor="edit-producer-image-replace"
+                                                className="cursor-pointer inline-flex items-center justify-center rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium shadow-2xs hover:bg-accent hover:text-accent-foreground"
+                                            >
+                                                Ganti
+                                                <input
+                                                    id="edit-producer-image-replace"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="sr-only"
+                                                    onChange={handleEditImageChange}
+                                                />
+                                            </label>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleRemoveEditImage}
+                                                className="h-7 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50"
+                                                title="Hapus Foto"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="edit-producer-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-amber-500 hover:bg-amber-50/20 dark:border-slate-700 dark:hover:border-amber-500 dark:hover:bg-amber-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-amber-600 font-semibold dark:text-amber-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="edit-producer-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleEditImageChange}
+                                        />
+                                    </label>
+                                )}
                             </div>
 
                             <DialogFooter className="pt-2">

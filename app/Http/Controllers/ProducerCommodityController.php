@@ -111,7 +111,7 @@ class ProducerCommodityController extends Controller
             'order' => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
-            'image' => ['nullable', 'image', 'max:2048'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
             'initial_hap_price' => ['nullable', 'numeric', 'min:0'],
             'initial_hap_regulation' => ['nullable', 'string', 'max:255'],
         ]);
@@ -183,7 +183,7 @@ class ProducerCommodityController extends Controller
             'order' => ['nullable', 'integer', 'min:0'],
             'description' => ['nullable', 'string', 'max:1000'],
             'is_active' => ['nullable', 'boolean'],
-            'image' => ['nullable', 'image', 'max:2048'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp,svg', 'max:3072'],
             'remove_image' => ['nullable', 'boolean'],
         ]);
 
