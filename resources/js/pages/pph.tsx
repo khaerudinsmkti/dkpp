@@ -207,7 +207,7 @@ function CustomYearTooltip({
 
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                    <span className="text-slate-600 dark:text-slate-400 font-medium">Skor PPH:</span>
+                    <span className="text-slate-600 dark:text-slate-400 font-medium">Skor PPH Ketersediaan:</span>
                     <span className="font-mono font-black text-sm text-[#006565] dark:text-emerald-400">
                         {formatNumber(data.skor_pph)} / 100.0
                     </span>
@@ -613,8 +613,8 @@ export default function PphPublic({
                 </div>
 
                 <div class="title-section">
-                    <h1>Laporan Komparasi Pola Pangan Harapan (PPH)</h1>
-                    <p>Kabupaten Indramayu: Perbandingan Tahun ${selectedYear} vs Tahun ${compareYear}</p>
+                    <h1>Laporan Komparasi Pola Pangan Harapan (PPH) Ketersediaan</h1>
+                    <p>Kabupaten Indramayu: Perbandingan Skor PPH Ketersediaan Tahun ${selectedYear} vs Tahun ${compareYear}</p>
                 </div>
 
                 <div class="summary-box">
@@ -790,13 +790,13 @@ export default function PphPublic({
             </div>
 
             <div class="title-section">
-                <h1>Laporan Pola Pangan Harapan (PPH)</h1>
-                <p>Kabupaten Indramayu - Tahun ${selectedYear} (Standar AKE: 2.100 Kkal/kapita/hari)</p>
+                <h1>Laporan Pola Pangan Harapan (PPH) Ketersediaan</h1>
+                <p>Kabupaten Indramayu - Tahun ${selectedYear} (Skor PPH Ketersediaan Pangan Daerah)</p>
             </div>
 
             <div class="summary-box">
                 <div class="summary-item">
-                    <div class="label">Skor PPH Akhir</div>
+                    <div class="label">Skor PPH Ketersediaan</div>
                     <div class="val">${formatNumber(totals.total_skor_pph)} / 100.0</div>
                 </div>
                 <div class="summary-item">
@@ -862,7 +862,7 @@ export default function PphPublic({
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-emerald-500 selection:text-white dark:bg-slate-950 dark:text-slate-100">
-            <Head title={`Skor Pola Pangan Harapan (PPH) Tahun ${selectedYear} - DKPP Kabupaten Indramayu`} />
+            <Head title={`Skor Pola Pangan Harapan (PPH) Ketersediaan Tahun ${selectedYear} - DKPP Kabupaten Indramayu`} />
 
             {/* Public Portal Top Navigation Bar */}
             <PortalNavbar activePage="pph" />
@@ -885,19 +885,19 @@ export default function PphPublic({
                                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                                 </span>
-                                <span>STANDAR MUTU &amp; KEANEKARAGAMAN PANGAN DAERAH</span>
+                                <span>SKOR PPH KETERSEDIAAN &amp; KEANEKARAGAMAN PANGAN DAERAH</span>
                             </div>
 
                             <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl leading-tight">
                                 Pola Pangan Harapan{' '}
                                 <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text text-transparent">
-                                    (PPH) Indramayu
+                                    (PPH) Ketersediaan
                                 </span>
                             </h1>
 
                             <p className="text-sm font-medium text-emerald-100/90 sm:text-base leading-relaxed max-w-2xl">
-                                Indikator penilaian kualitas konsumsi dan keragaman pangan masyarakat Kabupaten Indramayu
-                                berbasis 9 kelompok pangan pokok dengan standar kecukupan energi 2.100 Kkal/kapita/hari.
+                                Indikator penilaian mutu gizi dan keanekaragaman <strong>ketersediaan pangan</strong> daerah Kabupaten Indramayu
+                                melalui <strong>Skor PPH Ketersediaan</strong> berbasis 9 kelompok bahan pangan pokok dengan standar Angka Kecukupan Energi (AKE).
                             </p>
 
                             {/* Action Buttons */}
@@ -984,7 +984,7 @@ export default function PphPublic({
                                 <div className="rounded-2xl border border-white/15 bg-black/20 p-4 sm:p-5 backdrop-blur-md">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-semibold text-emerald-200 uppercase tracking-wider">
-                                            Skor PPH {selectedYear}
+                                            Skor PPH Ketersediaan {selectedYear}
                                         </span>
                                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black border ${badgeMeta.badge}`}>
                                             <Sparkles className="size-3" />
@@ -1044,7 +1044,7 @@ export default function PphPublic({
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                     <div className="rounded-xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
                                         <span className="block text-[10px] font-semibold text-emerald-200/70 uppercase">
-                                            Total Energi
+                                            Energi Ketersediaan
                                         </span>
                                         <span className="text-base font-black font-mono text-white">
                                             {formatNumber(totals.total_energi, 1)}
@@ -1059,7 +1059,7 @@ export default function PphPublic({
                                         <span className="text-base font-black font-mono text-white">
                                             {formatNumber(totals.total_ake, 1)}%
                                         </span>
-                                        <span className="block text-[9px] text-emerald-200/60">dari target 2.100 Kkal</span>
+                                        <span className="block text-[9px] text-emerald-200/60">ketersediaan energi</span>
                                     </div>
                                 </div>
                             </div>
@@ -1078,11 +1078,11 @@ export default function PphPublic({
                                             <TrendingUp className="size-4.5" />
                                         </div>
                                         <CardTitle className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
-                                            Grafik Perkembangan Skor PPH Antar Tahun
+                                            Grafik Perkembangan Skor PPH Ketersediaan Antar Tahun
                                         </CardTitle>
                                     </div>
                                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                        Tren capaian mutu konsumsi pangan penduduk Kabupaten Indramayu antar periode tahunan terhadap Target RENSTRA dan Skor Ideal (100.0).
+                                        Tren capaian Skor PPH Ketersediaan pangan Kabupaten Indramayu antar periode tahunan terhadap Target RENSTRA dan Skor Ideal (100.0).
                                     </p>
                                 </div>
 
@@ -1194,7 +1194,7 @@ export default function PphPublic({
                                             />
                                             <Bar
                                                 dataKey="skor_pph"
-                                                name="Skor PPH Indramayu"
+                                                name="Skor PPH Ketersediaan"
                                                 radius={[10, 10, 0, 0]}
                                                 maxBarSize={56}
                                                 onClick={(entry: any) => {
@@ -1259,7 +1259,7 @@ export default function PphPublic({
                                             <Line
                                                 type="monotone"
                                                 dataKey="skor_pph"
-                                                name="Skor PPH Indramayu"
+                                                name="Skor PPH Ketersediaan"
                                                 stroke="#006565"
                                                 strokeWidth={3.5}
                                                 dot={{ r: 6, fill: '#006565', stroke: '#fff', strokeWidth: 2 }}
@@ -1309,7 +1309,7 @@ export default function PphPublic({
                                             <Area
                                                 type="monotone"
                                                 dataKey="skor_pph"
-                                                name="Skor PPH Indramayu"
+                                                name="Skor PPH Ketersediaan"
                                                 stroke="#006565"
                                                 strokeWidth={3}
                                                 fill="url(#areaGradient)"
@@ -1393,11 +1393,11 @@ export default function PphPublic({
                                             <Utensils className="size-4.5" />
                                         </div>
                                         <CardTitle className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
-                                            Tabel Rincian Skor PPH 9 Kelompok Bahan Pangan
+                                            Tabel Rincian Skor PPH Ketersediaan 9 Kelompok Bahan Pangan
                                         </CardTitle>
                                     </div>
                                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                                        Rincian konsumsi energi, persentase AKE, bobot, skor riil, dan skor akhir per kelompok pangan untuk Tahun{' '}
+                                        Rincian ketersediaan energi, persentase AKE, bobot, skor riil, dan Skor PPH Ketersediaan akhir per kelompok pangan untuk Tahun{' '}
                                         <strong className="text-slate-800 dark:text-slate-200">{selectedYear}</strong>.
                                     </p>
                                 </div>
@@ -1539,7 +1539,7 @@ export default function PphPublic({
                                                     </Badge>
                                                 </div>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                                                    Analisis perbedaan konsumsi energi, capaian % AKE, dan skor mutu pangan antar tahun.
+                                                    Analisis perbedaan ketersediaan energi, capaian % AKE, dan Skor PPH Ketersediaan antar tahun.
                                                 </p>
                                             </div>
                                         </div>
@@ -1646,7 +1646,7 @@ export default function PphPublic({
                                                     Kelompok Bahan Pangan
                                                 </th>
                                                 <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-emerald-50/70 text-[#006565] dark:border-slate-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                                                    Konsumsi Energi (Kkal)
+                                                    Ketersediaan Energi (Kkal)
                                                 </th>
                                                 <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-teal-50/70 text-teal-800 dark:border-slate-700 dark:bg-teal-950/40 dark:text-teal-300">
                                                     % AKE
@@ -1655,7 +1655,7 @@ export default function PphPublic({
                                                     Bobot
                                                 </th>
                                                 <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-amber-50/70 text-amber-800 dark:border-slate-700 dark:bg-amber-950/40 dark:text-amber-300">
-                                                    Skor PPH
+                                                    Skor PPH Ketersediaan
                                                 </th>
                                                 <th rowSpan={2} className="py-3 pr-5 pl-3 text-center min-w-[130px]">
                                                     Status Tren
@@ -2085,7 +2085,7 @@ export default function PphPublic({
                                             <tr>
                                                 <td colSpan={2} className="py-4 pl-5 pr-3 text-left">
                                                     <div className="text-xs uppercase tracking-wider text-[#006565] dark:text-emerald-400">
-                                                        TOTAL POLA PANGAN HARAPAN {selectedYear}
+                                                        TOTAL PPH KETERSEDIAAN {selectedYear}
                                                     </div>
                                                     <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400">
                                                         Kabupaten Indramayu (9 Kelompok Komoditas)
@@ -2138,13 +2138,13 @@ export default function PphPublic({
                             </div>
                             <div>
                                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                                    Capaian Mutu Pangan
+                                    Capaian PPH Ketersediaan
                                 </h3>
                                 <p className="text-[11px] text-slate-500">Klasifikasi Skor {selectedYear}</p>
                             </div>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed dark:text-slate-400">
-                            Dengan skor <strong className="text-[#006565] dark:text-emerald-400">{formatNumber(currentYearScore)}</strong>, mutu konsumsi pangan penduduk Kabupaten Indramayu berada pada kategori <strong>{badgeMeta.label}</strong>
+                            Dengan Skor PPH Ketersediaan sebesar <strong className="text-[#006565] dark:text-emerald-400">{formatNumber(currentYearScore)}</strong>, mutu dan keanekaragaman ketersediaan pangan Kabupaten Indramayu berada pada kategori <strong>{badgeMeta.label}</strong>
                             {currentYearScore >= currentTargetRenstra ? (
                                 <>, berhasil melampaui Target RENSTRA ({formatNumber(currentTargetRenstra)}).</>
                             ) : (
@@ -2161,13 +2161,13 @@ export default function PphPublic({
                             </div>
                             <div>
                                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                                    Diversifikasi Kelompok
+                                    Diversifikasi Ketersediaan
                                 </h3>
                                 <p className="text-[11px] text-slate-500">Kelompok Optimal</p>
                             </div>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed dark:text-slate-400">
-                            Sebanyak <strong className="text-teal-700 dark:text-teal-300">{statistics.achieved_count} dari {statistics.total_groups} kelompok bahan pangan</strong> telah mencapai skor maksimal standar. Konsumsi padi-padian, pangan hewani, dan kacang-kacangan menjadi kontributor gizi terkuat.
+                            Sebanyak <strong className="text-teal-700 dark:text-teal-300">{statistics.achieved_count} dari {statistics.total_groups} kelompok bahan pangan</strong> telah mencapai skor maksimal standar. Ketersediaan padi-padian, pangan hewani, dan kacang-kacangan menjadi kontributor gizi utama.
                         </p>
                     </Card>
 
@@ -2179,13 +2179,13 @@ export default function PphPublic({
                             </div>
                             <div>
                                 <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                                    Promosi Pangan B2SA
+                                    Penguatan Ketersediaan B2SA
                                 </h3>
                                 <p className="text-[11px] text-slate-500">Rekomendasi DKPP</p>
                             </div>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed dark:text-slate-400">
-                            Peningkatan konsumsi sayuran, buah-buahan lokal khas Indramayu (mangga, jeruk), serta diversifikasi karbohidrat berbasis umbi-umbian terus didorong untuk mencapai skor ideal 100.
+                            Penguatan ketersediaan sayuran, buah-buahan lokal khas Indramayu (mangga, jeruk), serta diversifikasi pasokan karbohidrat berbasis umbi-umbian terus didorong untuk mencapai Skor PPH Ketersediaan ideal 100.
                         </p>
                     </Card>
                 </section>
@@ -2204,7 +2204,7 @@ export default function PphPublic({
                                     <Info className="size-4.5" />
                                 </div>
                                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                                    Metodologi &amp; Rumus Pola Pangan Harapan (PPH)
+                                    Metodologi &amp; Rumus Pola Pangan Harapan (PPH) Ketersediaan
                                 </h3>
                             </div>
                             <button
@@ -2218,18 +2218,18 @@ export default function PphPublic({
 
                         <div className="space-y-3.5 text-xs text-slate-600 leading-relaxed dark:text-slate-300">
                             <p>
-                                <strong>Pola Pangan Harapan (PPH)</strong> adalah susunan beragam pangan atau kelompok pangan yang didasarkan atas proporsi keseimbangan energi dari 9 kelompok pangan pokok untuk memenuhi kebutuhan gizi yang cukup, seimbang, dan aman.
+                                <strong>Pola Pangan Harapan (PPH) Ketersediaan</strong> adalah indikator mutu gizi dan keragaman ketersediaan pangan daerah yang dihitung berdasarkan proporsi keseimbangan energi dari 9 kelompok bahan pangan pokok pada Neraca Bahan Makanan (NBM) untuk memenuhi kebutuhan gizi masyarakat yang cukup, beragam, dan seimbang.
                             </p>
 
                             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2 dark:border-emerald-900 dark:bg-emerald-950/40">
                                 <span className="block font-bold text-emerald-900 dark:text-emerald-200">
-                                    Rumus Perhitungan Standar:
+                                    Rumus Perhitungan Standar PPH Ketersediaan:
                                 </span>
                                 <ul className="space-y-1.5 list-disc list-inside font-mono text-[11px]">
-                                    <li>% AKE = (Energi Konsumsi ÷ 2.100 Kkal) × 100%</li>
+                                    <li>% AKE = (Energi Ketersediaan ÷ Standar AKE) × 100%</li>
                                     <li>Skor Riil = % AKE × Bobot Kelompok Pangan</li>
-                                    <li>Skor PPH = MIN(Skor Riil, Skor Maksimal)</li>
-                                    <li>Skor Total PPH = SUM(Skor PPH 9 Kelompok Pangan) [Maksimal 100.0]</li>
+                                    <li>Skor PPH Ketersediaan = MIN(Skor Riil, Skor Maksimal)</li>
+                                    <li>Skor Total PPH Ketersediaan = SUM(Skor PPH 9 Kelompok Pangan) [Maksimal 100.0]</li>
                                 </ul>
                             </div>
 

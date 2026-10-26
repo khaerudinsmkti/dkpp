@@ -135,7 +135,7 @@ export default function PortalFooter({
                                         className="inline-flex items-center gap-2 hover:text-[#006565] transition-colors dark:hover:text-emerald-400"
                                     >
                                         <PieChart className="h-3.5 w-3.5 text-[#006565] dark:text-emerald-400" />
-                                        <span>Pola Pangan Harapan (PPH Antar Tahun &amp; Komoditas)</span>
+                                        <span>Pola Pangan Harapan (Skor PPH Ketersediaan)</span>
                                     </Link>
                                 </li>
                             </ul>

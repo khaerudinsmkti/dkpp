@@ -335,7 +335,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                                             )}
                                                         </div>
                                                         <p className="mt-0.5 text-[11px] text-slate-500 leading-tight dark:text-slate-400">
-                                                            Skor konsumsi &amp; mutu gizi pangan
+                                                            Skor PPH Ketersediaan &amp; mutu gizi pangan
                                                         </p>
                                                     </div>
                                                 </Link>
@@ -675,7 +675,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                                         >
                                             <div className="flex items-center gap-2.5">
                                                 <PieChart className="h-4 w-4 text-[#006565] dark:text-cyan-400" />
-                                                <span>PPH (Pola Pangan Harapan)</span>
+                                                <span>PPH Ketersediaan (Pola Pangan Harapan)</span>
                                             </div>
                                             {isPphActive && (
                                                 <span className="rounded-full bg-cyan-200/80 px-2 py-0.5 text-[10px] font-black text-[#006565] dark:bg-cyan-800 dark:text-cyan-100">

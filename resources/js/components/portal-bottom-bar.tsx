@@ -108,8 +108,8 @@ export default function PortalBottomBar({ activePage }: PortalBottomBarProps) {
         },
         {
             title: 'PPH',
-            fullTitle: 'Pola Pangan Harapan',
-            desc: 'Skor konsumsi & mutu keanekaragaman gizi pangan',
+            fullTitle: 'Pola Pangan Harapan (Ketersediaan)',
+            desc: 'Skor PPH Ketersediaan & mutu keanekaragaman pangan',
             href: '/pph',
             icon: PieChart,
             color: 'text-cyan-700 bg-cyan-100 dark:bg-cyan-950/60 dark:text-cyan-300',
