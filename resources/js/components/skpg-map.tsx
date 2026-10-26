@@ -5,6 +5,7 @@ import {
     Download,
     Eye,
     EyeOff,
+    FileText,
     HelpCircle,
     Info,
     Maximize2,
@@ -23,6 +24,7 @@ import {
     INDRAMAYU_MAP_VIEWBOX,
     type KecamatanMapFeature,
 } from '@/data/indramayu-map';
+import { generateSkpgPdfReport, generateSkpgPngReport } from '@/lib/skpg-pdf';
 
 export interface SkpgKecamatanItem {
     id?: number | null;
@@ -140,6 +142,7 @@ export default function SkpgMap({
     const [viewMode, setViewMode] = useState<'mainland' | 'full'>('mainland');
     const [zoomLevel, setZoomLevel] = useState<number>(1);
     const [isExporting, setIsExporting] = useState<boolean>(false);
+    const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
 
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const svgRef = useRef<SVGSVGElement>(null);
@@ -212,245 +215,48 @@ export default function SkpgMap({
         });
     };
 
-    // Download Map as High-Resolution PNG Image
-    const handleDownloadMapImage = () => {
-        if (!svgRef.current || isExporting) return;
+    // Download Map Report as Official A4 Landscape PDF (matching Bapanas cartography format)
+    const handleDownloadPdf = async () => {
+        if (isExportingPdf) return;
+        setIsExportingPdf(true);
+        try {
+            const effectiveMonth = month || items[0]?.month || new Date().getMonth() + 1;
+            const effectiveYear = year || items[0]?.year || new Date().getFullYear();
+            await generateSkpgPdfReport({
+                items,
+                selectedIndicator,
+                indicatorLabel,
+                month: effectiveMonth,
+                year: effectiveYear,
+            });
+        } catch (error) {
+            console.error('Failed to generate PDF:', error);
+            alert('Terjadi kesalahan saat memproses laporan PDF. Silakan coba kembali.');
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
+
+    // Download Map as High-Resolution PNG Image (matching Official Bapanas PDF layout)
+    const handleDownloadMapImage = async () => {
+        if (isExporting) return;
         setIsExporting(true);
 
         try {
-            const svgEl = svgRef.current;
-            const clonedSvg = svgEl.cloneNode(true) as SVGSVGElement;
-
-            clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
-            // Force high-res dimensions matching viewBox ratio
-            const isMainland = viewMode === 'mainland';
-            const svgWidth = 1400;
-            const svgHeight = isMainland ? 850 : 1000;
-            clonedSvg.setAttribute('width', String(svgWidth));
-            clonedSvg.setAttribute('height', String(svgHeight));
-
-            // Remove blink / pulse animations so polygons are 100% solid in the exported image
-            const animatedPaths = clonedSvg.querySelectorAll(
-                '.skpg-pulse-awas, .skpg-pulse-rentan, .skpg-pulse-siaga, .skpg-pulse-waspada'
-            );
-            animatedPaths.forEach((path) => {
-                path.classList.remove(
-                    'skpg-pulse-awas',
-                    'skpg-pulse-rentan',
-                    'skpg-pulse-siaga',
-                    'skpg-pulse-waspada'
-                );
-                (path as SVGElement).style.fillOpacity = '1';
-                (path as SVGElement).style.strokeOpacity = '1';
+            const effectiveMonth = month || items[0]?.month || new Date().getMonth() + 1;
+            const effectiveYear = year || items[0]?.year || new Date().getFullYear();
+            await generateSkpgPngReport({
+                items,
+                selectedIndicator,
+                indicatorLabel,
+                month: effectiveMonth,
+                year: effectiveYear,
             });
-
-            // Ensure subdistrict text labels are styled with standard system font
-            const textNodes = clonedSvg.querySelectorAll('text');
-            textNodes.forEach((node) => {
-                (node as SVGElement).style.fontFamily = "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
-                (node as SVGElement).style.fontWeight = 'bold';
-            });
-
-            const svgXml = new XMLSerializer().serializeToString(clonedSvg);
-            const svgBlob = new Blob([svgXml], { type: 'image/svg+xml;charset=utf-8' });
-            const blobUrl = URL.createObjectURL(svgBlob);
-
-            const img = new Image();
-            img.onload = () => {
-                try {
-                    const canvasWidth = 1600;
-                    const canvasHeight = 1100;
-                    const canvas = document.createElement('canvas');
-                    canvas.width = canvasWidth;
-                    canvas.height = canvasHeight;
-                    const ctx = canvas.getContext('2d');
-
-                    if (!ctx) {
-                        URL.revokeObjectURL(blobUrl);
-                        setIsExporting(false);
-                        return;
-                    }
-
-                    // 1. Clean white background
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-                    // 2. Top emerald decorative stripe
-                    ctx.fillStyle = '#006565';
-                    ctx.fillRect(0, 0, canvasWidth, 10);
-
-                    // 3. Map display card container
-                    ctx.fillStyle = '#f8fafc';
-                    ctx.beginPath();
-                    if (typeof ctx.roundRect === 'function') {
-                        ctx.roundRect(40, 130, 1520, 810, 20);
-                    } else {
-                        ctx.rect(40, 130, 1520, 810);
-                    }
-                    ctx.fill();
-                    ctx.strokeStyle = '#e2e8f0';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-
-                    // 4. Header Section
-                    // Sub-header organization
-                    ctx.fillStyle = '#006565';
-                    ctx.font = "bold 15px system-ui, -apple-system, sans-serif";
-                    ctx.fillText('PEMERINTAH KABUPATEN INDRAMAYU • DINAS KETAHANAN PANGAN DAN PERTANIAN', 40, 48);
-
-                    // Main title
-                    ctx.fillStyle = '#0f172a';
-                    ctx.font = "900 28px system-ui, -apple-system, sans-serif";
-                    ctx.fillText(`PETA SEBARAN SKPG: ${indicatorLabel.toUpperCase()}`, 40, 85);
-
-                    // Period info
-                    const effectiveMonth = month || items[0]?.month || new Date().getMonth() + 1;
-                    const effectiveYear = year || items[0]?.year || new Date().getFullYear();
-                    const monthText = MONTH_NAMES[effectiveMonth - 1] || `Bulan ${effectiveMonth}`;
-                    ctx.fillStyle = '#64748b';
-                    ctx.font = "600 15px system-ui, -apple-system, sans-serif";
-                    ctx.fillText(`Periode: ${monthText} ${effectiveYear} • Total 31 Kecamatan • Standar Bapanas RI`, 40, 114);
-
-                    // Top-right pill
-                    ctx.fillStyle = '#006565';
-                    ctx.beginPath();
-                    if (typeof ctx.roundRect === 'function') {
-                        ctx.roundRect(1380, 42, 180, 44, 12);
-                    } else {
-                        ctx.rect(1380, 42, 180, 44);
-                    }
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
-                    ctx.textAlign = 'center';
-                    ctx.fillText('SKPG INDRAMAYU', 1470, 69);
-                    ctx.textAlign = 'left';
-
-                    // 5. Compass Indicator on top-left of map
-                    ctx.fillStyle = '#ffffff';
-                    ctx.beginPath();
-                    if (typeof ctx.roundRect === 'function') {
-                        ctx.roundRect(65, 155, 42, 60, 8);
-                    } else {
-                        ctx.rect(65, 155, 42, 60);
-                    }
-                    ctx.fill();
-                    ctx.strokeStyle = '#cbd5e1';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-
-                    ctx.fillStyle = '#ef4444';
-                    ctx.font = "bold 16px system-ui, -apple-system, sans-serif";
-                    ctx.textAlign = 'center';
-                    ctx.fillText('U', 86, 178);
-                    ctx.fillRect(85, 182, 2, 13);
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
-                    ctx.fillText('N', 86, 207);
-                    ctx.textAlign = 'left';
-
-                    // 6. Draw the SVG Map image onto canvas
-                    const mapDrawX = 60;
-                    const mapDrawY = 145;
-                    const mapDrawW = 1480;
-                    const mapDrawH = 780;
-                    ctx.drawImage(img, mapDrawX, mapDrawY, mapDrawW, mapDrawH);
-
-                    // 7. Legend bar at bottom
-                    ctx.fillStyle = '#ffffff';
-                    ctx.beginPath();
-                    if (typeof ctx.roundRect === 'function') {
-                        ctx.roundRect(40, 960, 1520, 95, 16);
-                    } else {
-                        ctx.rect(40, 960, 1520, 95);
-                    }
-                    ctx.fill();
-                    ctx.strokeStyle = '#cbd5e1';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-
-                    // Legend title
-                    ctx.fillStyle = '#0f172a';
-                    ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
-                    ctx.fillText('LEGENDA STATUS:', 65, 1014);
-
-                    // Legend items
-                    const legendItems = isClimateIndicator
-                        ? [
-                              { label: `AMAN (${legendCounts.aman})`, color: '#10b981' },
-                              { label: `WASPADA (${legendCounts.waspada})`, color: '#f59e0b' },
-                              { label: `SIAGA (${legendCounts.siaga})`, color: '#f97316' },
-                              { label: `AWAS (${legendCounts.awas})`, color: '#ef4444' },
-                          ]
-                        : [
-                              { label: `AMAN (${legendCounts.aman})`, color: '#10b981' },
-                              { label: `WASPADA (${legendCounts.waspada})`, color: '#f59e0b' },
-                              { label: `RENTAN (${legendCounts.rentan})`, color: '#ef4444' },
-                          ];
-
-                    let chipX = 225;
-                    legendItems.forEach((item) => {
-                        // Colored circular chip
-                        ctx.fillStyle = item.color;
-                        ctx.beginPath();
-                        ctx.arc(chipX, 1010, 8, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-
-                        // Label
-                        ctx.fillStyle = '#1e293b';
-                        ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
-                        ctx.fillText(item.label, chipX + 16, 1015);
-
-                        chipX += 175;
-                    });
-
-                    // Right attribution & timestamp
-                    ctx.fillStyle = '#64748b';
-                    ctx.font = "13px system-ui, -apple-system, sans-serif";
-                    ctx.textAlign = 'right';
-                    const downloadDateStr = new Date().toLocaleDateString('id-ID', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                    });
-                    ctx.fillText(`DKPP Kab. Indramayu • Diunduh: ${downloadDateStr}`, 1530, 1014);
-                    ctx.textAlign = 'left';
-
-                    // 8. Trigger PNG Download
-                    const pngDataUrl = canvas.toDataURL('image/png');
-                    const link = document.createElement('a');
-                    const safeIndicator = selectedIndicator.toLowerCase().replace(/[^a-z0-9]/g, '_');
-                    link.download = `Peta_SKPG_Indramayu_${safeIndicator}_${effectiveYear}_${String(effectiveMonth).padStart(2, '0')}.png`;
-                    link.href = pngDataUrl;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                } catch (canvasErr) {
-                    console.error('Error drawing map image to canvas:', canvasErr);
-                    alert('Terjadi kesalahan saat memproses gambar peta.');
-                } finally {
-                    URL.revokeObjectURL(blobUrl);
-                    setIsExporting(false);
-                }
-            };
-
-            img.onerror = (err) => {
-                console.error('Error loading SVG image for export:', err);
-                URL.revokeObjectURL(blobUrl);
-                setIsExporting(false);
-                alert('Gagal mengekspor gambar peta. Silakan coba kembali.');
-            };
-
-            img.src = blobUrl;
         } catch (err) {
-            console.error('Failed to export map:', err);
+            console.error('Failed to export map PNG:', err);
+            alert('Gagal mengekspor gambar peta. Silakan coba kembali.');
+        } finally {
             setIsExporting(false);
-            alert('Gagal mengekspor gambar peta.');
         }
     };
 
@@ -553,6 +359,21 @@ export default function SkpgMap({
                     >
                         <Download className={`h-3.5 w-3.5 ${isExporting ? 'animate-bounce' : ''}`} />
                         <span>{isExporting ? 'Memproses...' : 'Unduh Peta (PNG)'}</span>
+                    </Button>
+
+                    {/* Download Map as Official PDF (A4 Landscape) */}
+                    <Button
+                        id="btn-download-skpg-pdf"
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isExportingPdf}
+                        onClick={handleDownloadPdf}
+                        className="h-8 gap-1.5 rounded-xl border-rose-300 bg-rose-50/80 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 shadow-xs"
+                        title="Download laporan peta resmi format PDF A4 Landscape standar Bapanas"
+                    >
+                        <FileText className={`h-3.5 w-3.5 ${isExportingPdf ? 'animate-spin' : 'text-rose-600 dark:text-rose-400'}`} />
+                        <span>{isExportingPdf ? 'Membuat PDF...' : 'Unduh Peta (PDF)'}</span>
                     </Button>
                 </div>
             </div>
@@ -694,36 +515,6 @@ export default function SkpgMap({
                             <filter id="map-glow" x="-20%" y="-20%" width="140%" height="140%">
                                 <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#000" floodOpacity="0.3" />
                             </filter>
-                            <style>{`
-                                @keyframes skpg-blink-awas {
-                                    0%, 100% { fill-opacity: 1; stroke-opacity: 1; }
-                                    50% { fill-opacity: 0.25; stroke-opacity: 0.45; }
-                                }
-                                @keyframes skpg-blink-rentan {
-                                    0%, 100% { fill-opacity: 1; stroke-opacity: 1; }
-                                    50% { fill-opacity: 0.3; stroke-opacity: 0.5; }
-                                }
-                                @keyframes skpg-blink-siaga {
-                                    0%, 100% { fill-opacity: 1; stroke-opacity: 1; }
-                                    50% { fill-opacity: 0.38; stroke-opacity: 0.58; }
-                                }
-                                @keyframes skpg-blink-waspada {
-                                    0%, 100% { fill-opacity: 1; stroke-opacity: 1; }
-                                    50% { fill-opacity: 0.45; stroke-opacity: 0.65; }
-                                }
-                                .skpg-pulse-awas {
-                                    animation: skpg-blink-awas 0.9s ease-in-out infinite;
-                                }
-                                .skpg-pulse-rentan {
-                                    animation: skpg-blink-rentan 1.1s ease-in-out infinite;
-                                }
-                                .skpg-pulse-siaga {
-                                    animation: skpg-blink-siaga 1.3s ease-in-out infinite;
-                                }
-                                .skpg-pulse-waspada {
-                                    animation: skpg-blink-waspada 1.6s ease-in-out infinite;
-                                }
-                            `}</style>
                         </defs>
 
                         {/* Polygons for each of the 31 subdistricts */}
@@ -738,14 +529,6 @@ export default function SkpgMap({
 
                             const isSelected = selectedKecamatan?.toUpperCase() === feature.name.toUpperCase();
                             const isHovered = hoveredKecamatan?.toUpperCase() === feature.name.toUpperCase();
-                            const isBlinking = !isHovered && !isSelected && (status === 'AWAS' || status === 'RENTAN' || status === 'SIAGA' || status === 'WASPADA');
-                            let blinkClass = '';
-                            if (isBlinking) {
-                                if (status === 'AWAS') blinkClass = 'skpg-pulse-awas';
-                                else if (status === 'RENTAN') blinkClass = 'skpg-pulse-rentan';
-                                else if (status === 'SIAGA') blinkClass = 'skpg-pulse-siaga';
-                                else if (status === 'WASPADA') blinkClass = 'skpg-pulse-waspada';
-                            }
 
                             return (
                                 <g
@@ -761,7 +544,7 @@ export default function SkpgMap({
                                         strokeWidth={isSelected ? 3.5 : isHovered ? 2.5 : 1.2}
                                         strokeLinejoin="round"
                                         strokeLinecap="round"
-                                        className={`transition-all duration-150 ${blinkClass}`}
+                                        className="transition-all duration-150"
                                         style={{
                                             filter: isSelected ? 'url(#map-glow)' : undefined,
                                             transformOrigin: `${feature.centroid[0]}px ${feature.centroid[1]}px`,

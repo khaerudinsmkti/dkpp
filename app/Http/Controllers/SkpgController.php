@@ -20,11 +20,12 @@ class SkpgController extends Controller
      */
     public function publicIndex(Request $request): Response
     {
-        $maxYear = Skpg::max('year') ?? (int) now()->year;
-        $selectedYear = (int) $request->query('year', $maxYear);
+        $requestedYear = $request->filled('year') ? (int) $request->query('year') : null;
+        $requestedMonth = $request->filled('month') ? (int) $request->query('month') : null;
 
-        $maxMonthInYear = Skpg::where('year', $selectedYear)->max('month') ?? (int) now()->month;
-        $selectedMonth = (int) $request->query('month', $maxMonthInYear);
+        $resolved = $this->resolveDefaultPeriod($requestedYear, $requestedMonth);
+        $selectedYear = $resolved['year'];
+        $selectedMonth = $resolved['month'];
 
         $selectedIndicator = (string) $request->query('indicator', 'ikb');
         if (! array_key_exists($selectedIndicator, Skpg::INDICATORS)) {
@@ -105,8 +106,10 @@ class SkpgController extends Controller
             ->pluck('year')
             ->toArray();
 
-        if (empty($availableYears)) {
-            $availableYears = [(int) now()->year];
+        $currentYear = (int) now()->year;
+        if (! in_array($currentYear, $availableYears, true)) {
+            $availableYears[] = $currentYear;
+            rsort($availableYears);
         }
 
         $availableMonths = Skpg::where('year', $selectedYear)
@@ -117,6 +120,9 @@ class SkpgController extends Controller
 
         if (empty($availableMonths)) {
             $availableMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        } elseif (! in_array($selectedMonth, $availableMonths, true)) {
+            $availableMonths[] = $selectedMonth;
+            sort($availableMonths);
         }
 
         // Summary for current selected indicator
@@ -207,8 +213,13 @@ class SkpgController extends Controller
     public function index(Request $request): Response
     {
         $search = (string) $request->query('search', '');
-        $selectedYear = (int) $request->query('year', Skpg::max('year') ?? now()->year);
-        $selectedMonth = (int) $request->query('month', now()->month);
+        $requestedYear = $request->filled('year') ? (int) $request->query('year') : null;
+        $requestedMonth = $request->filled('month') ? (int) $request->query('month') : null;
+
+        $resolved = $this->resolveDefaultPeriod($requestedYear, $requestedMonth);
+        $selectedYear = $resolved['year'];
+        $selectedMonth = $resolved['month'];
+
         $filterStatus = (string) $request->query('status', '');
         $filterIndicator = (string) $request->query('indicator', 'ikb');
 
@@ -578,6 +589,118 @@ class SkpgController extends Controller
             'Content-Type' => 'application/geo+json',
             'Cache-Control' => 'public, max-age=86400',
         ]);
+    }
+
+    /**
+     * Tentukan periode default (tahun dan bulan):
+     * Default ke bulan & tahun saat ini jika datanya sudah tersedia.
+     * Apabila data bulan saat ini belum ada, tampilkan data terakhir sebelum bulan saat ini.
+     *
+     * @return array{year: int, month: int}
+     */
+    private function resolveDefaultPeriod(?int $requestedYear = null, ?int $requestedMonth = null): array
+    {
+        $currentYear = (int) now()->year;
+        $currentMonth = (int) now()->month;
+
+        // Jika user secara spesifik memilih tahun DAN bulan dari filter UI
+        if ($requestedYear !== null && $requestedMonth !== null) {
+            return [
+                'year' => $requestedYear,
+                'month' => $requestedMonth,
+            ];
+        }
+
+        // Jika user hanya memilih tahun
+        if ($requestedYear !== null) {
+            if ($requestedYear === $currentYear) {
+                // Untuk tahun berjalan, cek apakah bulan saat ini ada data
+                $hasCurrentMonthData = Skpg::where('year', $currentYear)->where('month', $currentMonth)->exists();
+                if ($hasCurrentMonthData) {
+                    return [
+                        'year' => $currentYear,
+                        'month' => $currentMonth,
+                    ];
+                }
+
+                // Jika belum ada, cari bulan terakhir sebelum bulan saat ini pada tahun berjalan
+                $latestBeforeInCurrentYear = Skpg::where('year', $currentYear)
+                    ->where('month', '<', $currentMonth)
+                    ->max('month');
+
+                if ($latestBeforeInCurrentYear) {
+                    return [
+                        'year' => $currentYear,
+                        'month' => (int) $latestBeforeInCurrentYear,
+                    ];
+                }
+            }
+
+            // Jika tahun yang dipilih bukan tahun berjalan atau tidak ada data sebelum bulan saat ini,
+            // ambil bulan terakhir yang memiliki data pada tahun tersebut
+            $maxMonthInYear = Skpg::where('year', $requestedYear)->max('month');
+
+            return [
+                'year' => $requestedYear,
+                'month' => $maxMonthInYear ? (int) $maxMonthInYear : $currentMonth,
+            ];
+        }
+
+        // Jika user hanya memilih bulan tanpa tahun
+        if ($requestedMonth !== null) {
+            $hasDataOnCurrentYear = Skpg::where('year', $currentYear)->where('month', $requestedMonth)->exists();
+            if ($hasDataOnCurrentYear) {
+                return ['year' => $currentYear, 'month' => $requestedMonth];
+            }
+            $latestYearForMonth = Skpg::where('month', $requestedMonth)->max('year');
+            return [
+                'year' => $latestYearForMonth ? (int) $latestYearForMonth : $currentYear,
+                'month' => $requestedMonth,
+            ];
+        }
+
+        // Default saat membuka menu SKPG (tanpa query params):
+        // 1. Cek apakah ada data di bulan dan tahun saat ini
+        $hasCurrentMonthData = Skpg::where('year', $currentYear)->where('month', $currentMonth)->exists();
+        if ($hasCurrentMonthData) {
+            return [
+                'year' => $currentYear,
+                'month' => $currentMonth,
+            ];
+        }
+
+        // 2. Apabila data belum ada, cari data terakhir sebelum bulan saat ini
+        $latestBefore = Skpg::where(function ($q) use ($currentYear, $currentMonth) {
+                $q->where('year', '<', $currentYear)
+                  ->orWhere(function ($q2) use ($currentYear, $currentMonth) {
+                      $q2->where('year', $currentYear)
+                         ->where('month', '<', $currentMonth);
+                  });
+            })
+            ->orderByDesc('year')
+            ->orderByDesc('month')
+            ->first(['year', 'month']);
+
+        if ($latestBefore) {
+            return [
+                'year' => (int) $latestBefore->year,
+                'month' => (int) $latestBefore->month,
+            ];
+        }
+
+        // 3. Fallback jika tidak ada data sama sekali sebelum bulan saat ini
+        $anyLatest = Skpg::orderByDesc('year')->orderByDesc('month')->first(['year', 'month']);
+        if ($anyLatest) {
+            return [
+                'year' => (int) $anyLatest->year,
+                'month' => (int) $anyLatest->month,
+            ];
+        }
+
+        return [
+            'year' => $currentYear,
+            'month' => $currentMonth,
+        ];
     }
 
     /**

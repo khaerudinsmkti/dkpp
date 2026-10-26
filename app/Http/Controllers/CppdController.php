@@ -47,6 +47,11 @@ class CppdController extends Controller
         $defaultYear = $availableYears[0];
         $selectedYear = $requestedYear ?? $defaultYear;
 
+        if (count($availableYears) === 1) {
+            $availableYears[] = $selectedYear - 1;
+            rsort($availableYears);
+        }
+
         // Summary calculations
         $initialStockRecord = CppdInitialStock::where('year', $selectedYear)->first();
         $stokAwal = (float) ($initialStockRecord?->amount ?? 0);
@@ -125,6 +130,60 @@ class CppdController extends Controller
                 'keterangan' => $item->keterangan,
             ]);
 
+        // Monthly penyaluran (January - December) grouped by year for multi-year chart comparison
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        $monthlyPenyaluranByYear = [];
+        foreach ($availableYears as $yr) {
+            $monthlyPenyaluranByYear[$yr] = [];
+            for ($m = 1; $m <= 12; $m++) {
+                $monthlyPenyaluranByYear[$yr][$m] = [
+                    'month' => $m,
+                    'month_name' => $monthNames[$m],
+                    'month_short' => mb_substr($monthNames[$m], 0, 3),
+                    'total_penyaluran' => 0.0,
+                    'transaksi_count' => 0,
+                    'desa_keys' => [],
+                ];
+            }
+        }
+
+        $allPenyaluran = Cppd::where('status', Cppd::STATUS_PENYALURAN)->get();
+        foreach ($allPenyaluran as $row) {
+            $yr = (int) $row->tanggal->format('Y');
+            $mo = (int) $row->tanggal->format('n');
+            if (! isset($monthlyPenyaluranByYear[$yr][$mo])) {
+                continue;
+            }
+            $kec = strtoupper(trim($row->kecamatan));
+            $des = strtoupper(trim($row->desa));
+            $monthlyPenyaluranByYear[$yr][$mo]['total_penyaluran'] = round(
+                $monthlyPenyaluranByYear[$yr][$mo]['total_penyaluran'] + (float) $row->jumlah,
+                2
+            );
+            $monthlyPenyaluranByYear[$yr][$mo]['transaksi_count']++;
+            $monthlyPenyaluranByYear[$yr][$mo]['desa_keys'][$kec.'___'.$des] = true;
+        }
+
+        foreach ($monthlyPenyaluranByYear as $yr => $months) {
+            $formattedMonths = [];
+            foreach ($months as $mData) {
+                $formattedMonths[] = [
+                    'month' => $mData['month'],
+                    'month_name' => $mData['month_name'],
+                    'month_short' => $mData['month_short'],
+                    'total_penyaluran' => $mData['total_penyaluran'],
+                    'transaksi_count' => $mData['transaksi_count'],
+                    'desa_count' => count($mData['desa_keys']),
+                ];
+            }
+            $monthlyPenyaluranByYear[$yr] = $formattedMonths;
+        }
+
         return Inertia::render('cppd', [
             'selectedYear' => $selectedYear,
             'availableYears' => $availableYears,
@@ -138,6 +197,7 @@ class CppdController extends Controller
             ],
             'recipientVillages' => $recipientVillages,
             'recentTransactions' => $recentTransactions,
+            'monthlyPenyaluranByYear' => $monthlyPenyaluranByYear,
             'territory' => [
                 'kecamatanList' => IndramayuTerritoryService::getKecamatanList(),
                 'desaByKecamatan' => IndramayuTerritoryService::getDesaByKecamatan(),
@@ -175,6 +235,11 @@ class CppdController extends Controller
 
         $defaultYear = $availableYears[0];
         $selectedYear = $requestedYear ?? $defaultYear;
+
+        if (count($availableYears) === 1) {
+            $availableYears[] = $selectedYear - 1;
+            rsort($availableYears);
+        }
 
         $selectedStatus = $request->query('status');
         $selectedKecamatan = $request->query('kecamatan');

@@ -176,6 +176,13 @@ export default function SkpgPublicPage({
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedKecamatan, setSelectedKecamatan] = useState<string | null>(null);
 
+    // Keep state in sync with server-resolved period props
+    React.useEffect(() => {
+        if (summary.year) setSelectedYear(summary.year);
+        if (summary.month) setSelectedMonth(summary.month);
+        if (filters.indicator) setSelectedIndicator(filters.indicator);
+    }, [summary.year, summary.month, filters.indicator]);
+
     // Apply filter changes via Inertia visit
     const handlePeriodChange = (newYear: number, newMonth: number, newIndicator?: string) => {
         setSelectedYear(newYear);
@@ -559,6 +566,23 @@ export default function SkpgPublicPage({
                                     <Download className="h-3.5 w-3.5" />
                                     <span>Unduh GeoJSON</span>
                                 </a>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const btn = document.getElementById('btn-download-skpg-pdf');
+                                        if (btn) {
+                                            btn.click();
+                                        } else {
+                                            const mapEl = document.getElementById('peta-sebaran-skpg');
+                                            if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 px-3 py-1.5 backdrop-blur-md border border-rose-400/40 text-xs font-bold text-rose-100 transition-colors cursor-pointer shadow-xs"
+                                    title="Download Laporan Peta SKPG Resmi A4 Landscape (PDF)"
+                                >
+                                    <Download className="h-3.5 w-3.5 text-rose-300" />
+                                    <span>Unduh Peta (PDF)</span>
+                                </button>
                             </div>
                         </div>
 

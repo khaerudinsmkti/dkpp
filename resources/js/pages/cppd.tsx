@@ -3,6 +3,7 @@ import {
     Archive,
     ArrowDownRight,
     ArrowUpRight,
+    BarChart3,
     Building2,
     Calendar,
     CheckCircle2,
@@ -11,6 +12,7 @@ import {
     FileSpreadsheet,
     FileText,
     Filter,
+    GitCompare,
     HelpCircle,
     Info,
     Layers,
@@ -23,10 +25,23 @@ import {
     Printer,
     Search,
     ShieldCheck,
+    TrendingDown,
+    TrendingUp,
     Truck,
     Wheat,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
+import {
+    Bar,
+    CartesianGrid,
+    ComposedChart,
+    Legend,
+    Line,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 import CppdMap, { formatKg, type RecipientVillageItem } from '@/components/cppd-map';
 import PortalFooter from '@/components/portal-footer';
 import PortalNavbar from '@/components/portal-navbar';
@@ -41,6 +56,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+
+export interface MonthlyPenyaluranItem {
+    month: number;
+    month_name: string;
+    month_short: string;
+    total_penyaluran: number;
+    transaksi_count: number;
+    desa_count: number;
+}
 
 export interface CppdPublicPageProps {
     selectedYear: number;
@@ -64,10 +88,132 @@ export interface CppdPublicPageProps {
         jumlah: number;
         keterangan: string | null;
     }>;
+    monthlyPenyaluranByYear?: Record<number, MonthlyPenyaluranItem[]>;
     territory: {
         kecamatanList: string[];
         desaByKecamatan: Record<string, string[]>;
     };
+}
+
+const YEAR_SERIES_COLORS = [
+    '#006565', // Primary year (Teal/Emerald)
+    '#3b82f6', // Comparison year 1 (Blue)
+    '#f59e0b', // Comparison year 2 (Amber)
+    '#e11d48', // Comparison year 3 (Rose)
+    '#8b5cf6', // Comparison year 4 (Purple)
+];
+
+const DEFAULT_MONTHS: Array<{ month: number; month_name: string; month_short: string }> = [
+    { month: 1, month_name: 'Januari', month_short: 'Jan' },
+    { month: 2, month_name: 'Februari', month_short: 'Feb' },
+    { month: 3, month_name: 'Maret', month_short: 'Mar' },
+    { month: 4, month_name: 'April', month_short: 'Apr' },
+    { month: 5, month_name: 'Mei', month_short: 'Mei' },
+    { month: 6, month_name: 'Juni', month_short: 'Jun' },
+    { month: 7, month_name: 'Juli', month_short: 'Jul' },
+    { month: 8, month_name: 'Agustus', month_short: 'Agu' },
+    { month: 9, month_name: 'September', month_short: 'Sep' },
+    { month: 10, month_name: 'Oktober', month_short: 'Okt' },
+    { month: 11, month_name: 'November', month_short: 'Nov' },
+    { month: 12, month_name: 'Desember', month_short: 'Des' },
+];
+
+function formatCompactKg(num: number): string {
+    const abs = Math.abs(num);
+    if (abs >= 1_000_000) {
+        return `${(num / 1_000_000).toFixed(1)}M`;
+    }
+    if (abs >= 1_000) {
+        return `${(num / 1_000).toFixed(1).replace(/\.0$/, '')}k`;
+    }
+    return String(Math.round(num));
+}
+
+function CustomMonthlyCppdTooltip({
+    active,
+    payload,
+    activeYears,
+}: {
+    active?: boolean;
+    payload?: any[];
+    activeYears: number[];
+}) {
+    if (!active || !payload || !payload.length) return null;
+    const data = payload[0]?.payload;
+    if (!data) return null;
+
+    const primaryYear = activeYears[0];
+    const secondYear = activeYears.length === 2 ? activeYears[1] : null;
+    const primaryVal = Number(data[`penyaluran_${primaryYear}`] ?? 0);
+    const secondVal = secondYear !== null ? Number(data[`penyaluran_${secondYear}`] ?? 0) : null;
+    const diffVal = secondVal !== null ? primaryVal - secondVal : null;
+
+    return (
+        <div className="min-w-[240px] rounded-2xl border border-slate-200/90 bg-white/95 p-3.5 text-xs shadow-xl backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95">
+            <div className="mb-2.5 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-800">
+                <div className="flex items-center gap-1.5 font-extrabold text-slate-900 dark:text-white">
+                    <Calendar className="h-3.5 w-3.5 text-[#006565] dark:text-emerald-400" />
+                    <span>Bulan {data.month_name}</span>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-[#006565] dark:bg-emerald-950/70 dark:text-emerald-300">
+                    Penyaluran CPPD
+                </span>
+            </div>
+
+            <div className="space-y-2">
+                {activeYears.map((yr, idx) => {
+                    const val = Number(data[`penyaluran_${yr}`] ?? 0);
+                    const txCount = Number(data[`transaksi_${yr}`] ?? 0);
+                    const desaCount = Number(data[`desa_${yr}`] ?? 0);
+                    const color = YEAR_SERIES_COLORS[idx % YEAR_SERIES_COLORS.length];
+
+                    return (
+                        <div
+                            key={yr}
+                            className="rounded-xl bg-slate-50/80 p-2 dark:bg-slate-800/60"
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200">
+                                    <span
+                                        className="inline-block h-2.5 w-2.5 rounded-sm"
+                                        style={{ backgroundColor: color }}
+                                    />
+                                    Tahun {yr}
+                                </span>
+                                <span className="font-mono font-black text-slate-900 dark:text-white">
+                                    {formatKg(val)}
+                                </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between pl-4 text-[10px] text-slate-500 dark:text-slate-400">
+                                <span>{txCount} transaksi penyaluran</span>
+                                <span>{desaCount} desa penerima</span>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {secondYear !== null && diffVal !== null && (
+                    <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2 dark:border-slate-800">
+                        <span className="font-semibold text-slate-600 dark:text-slate-400">
+                            Selisih ({primaryYear} vs {secondYear}):
+                        </span>
+                        <span
+                            className={`font-mono font-black ${
+                                diffVal > 0
+                                    ? 'text-[#006565] dark:text-emerald-400'
+                                    : diffVal < 0
+                                      ? 'text-rose-600 dark:text-rose-400'
+                                      : 'text-slate-500'
+                            }`}
+                        >
+                            {diffVal > 0 ? '+' : ''}
+                            {formatKg(diffVal)}
+                        </span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 export default function CppdPublicPage({
@@ -76,6 +222,7 @@ export default function CppdPublicPage({
     summary,
     recipientVillages,
     recentTransactions,
+    monthlyPenyaluranByYear = {},
     territory,
 }: CppdPublicPageProps) {
     // Layout selection: 'map' (Layout 1) | 'list' (Layout 2) | 'both'
@@ -85,6 +232,10 @@ export default function CppdPublicPage({
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedKecamatan, setSelectedKecamatan] = useState<string>('all');
     const [selectedVillageKey, setSelectedVillageKey] = useState<string | null>(null);
+
+    // Monthly chart comparison & visualization controls
+    const [compareYearOption, setCompareYearOption] = useState<string>('none');
+    const [monthlyChartType, setMonthlyChartType] = useState<'bar' | 'line'>('bar');
 
     // Change year filter
     const handleYearChange = (year: number) => {
@@ -126,6 +277,96 @@ export default function CppdPublicPage({
         if (!selectedVillageKey) return null;
         return recipientVillages.find((v) => v.key === selectedVillageKey) || null;
     }, [recipientVillages, selectedVillageKey]);
+
+    // Other years available for comparison (excluding selectedYear)
+    const comparisonYearCandidates = useMemo(() => {
+        return availableYears.filter((yr) => yr !== selectedYear);
+    }, [availableYears, selectedYear]);
+
+    // Effective comparison option (reset if user switched selectedYear to the same as compareYearOption)
+    const effectiveCompareOption = useMemo(() => {
+        if (compareYearOption === 'none' || compareYearOption === 'all') {
+            return compareYearOption;
+        }
+        const num = Number(compareYearOption);
+        if (num === selectedYear) {
+            return comparisonYearCandidates.length > 0 ? String(comparisonYearCandidates[0]) : 'none';
+        }
+        return compareYearOption;
+    }, [compareYearOption, selectedYear, comparisonYearCandidates]);
+
+    // Active years to plot on the monthly chart
+    const activeChartYears = useMemo(() => {
+        if (effectiveCompareOption === 'none') {
+            return [selectedYear];
+        }
+        if (effectiveCompareOption === 'all') {
+            return [selectedYear, ...comparisonYearCandidates];
+        }
+        const compYr = Number(effectiveCompareOption);
+        if (!Number.isNaN(compYr) && compYr !== selectedYear) {
+            return [selectedYear, compYr];
+        }
+        return [selectedYear];
+    }, [selectedYear, effectiveCompareOption, comparisonYearCandidates]);
+
+    // Unified 12-month (Januari - Desember) dataset across activeChartYears
+    const monthlyChartData = useMemo(() => {
+        return DEFAULT_MONTHS.map((mInfo, idx) => {
+            const row: Record<string, any> = {
+                month: mInfo.month,
+                month_name: mInfo.month_name,
+                month_short: mInfo.month_short,
+            };
+
+            activeChartYears.forEach((yr) => {
+                const yearArr = monthlyPenyaluranByYear[yr] || [];
+                const found = yearArr[idx] || yearArr.find((item) => item.month === mInfo.month);
+                row[`penyaluran_${yr}`] = found ? found.total_penyaluran : 0;
+                row[`transaksi_${yr}`] = found ? found.transaksi_count : 0;
+                row[`desa_${yr}`] = found ? found.desa_count : 0;
+            });
+
+            return row;
+        });
+    }, [monthlyPenyaluranByYear, activeChartYears]);
+
+    // Summary & YoY comparison stats for the monthly chart
+    const monthlyChartStats = useMemo(() => {
+        const currentYearArr = monthlyPenyaluranByYear[selectedYear] || [];
+        const currentYearTotal = currentYearArr.reduce((acc, m) => acc + m.total_penyaluran, 0);
+        const activeMonthsCount = currentYearArr.filter((m) => m.total_penyaluran > 0).length;
+        const avgPerMonth = currentYearTotal / 12;
+
+        let peakMonth: MonthlyPenyaluranItem | null = null;
+        for (const m of currentYearArr) {
+            if (m.total_penyaluran > 0 && (!peakMonth || m.total_penyaluran > peakMonth.total_penyaluran)) {
+                peakMonth = m;
+            }
+        }
+
+        const primaryCompareYear =
+            activeChartYears.length >= 2
+                ? activeChartYears[1]
+                : comparisonYearCandidates[0] ?? null;
+
+        const compareYearArr = primaryCompareYear ? monthlyPenyaluranByYear[primaryCompareYear] || [] : [];
+        const compareYearTotal = compareYearArr.reduce((acc, m) => acc + m.total_penyaluran, 0);
+        const yoyDiff = currentYearTotal - compareYearTotal;
+        const yoyPercent =
+            compareYearTotal > 0 ? ((currentYearTotal - compareYearTotal) / compareYearTotal) * 100 : null;
+
+        return {
+            currentYearTotal,
+            activeMonthsCount,
+            avgPerMonth,
+            peakMonth,
+            primaryCompareYear,
+            compareYearTotal,
+            yoyDiff,
+            yoyPercent,
+        };
+    }, [monthlyPenyaluranByYear, selectedYear, activeChartYears, comparisonYearCandidates]);
 
     // Download PDF Report
     const handleDownloadPdf = () => {
@@ -831,6 +1072,357 @@ export default function CppdPublicPage({
                             </div>
                         </div>
                     )}
+
+                    {/* GRAFIK PENYALURAN CPPD BULANAN (JANUARI - DESEMBER) & PERBANDINGAN ANTAR TAHUN */}
+                    <Card
+                        id="grafik-penyaluran-bulanan"
+                        className="rounded-3xl border border-slate-200/90 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900/95 scroll-mt-20"
+                    >
+                        <CardHeader className="border-b border-slate-100 p-4 sm:p-6 pb-4 dark:border-slate-800">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-[#006565] dark:bg-emerald-950 dark:text-emerald-300">
+                                            <BarChart3 className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-base font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-lg">
+                                                Grafik Penyaluran CPPD Bulanan (Januari – Desember{' '}
+                                                {activeChartYears.length > 1
+                                                    ? `Perbandingan Tahun ${activeChartYears.join(' vs ')}`
+                                                    : `Tahun ${selectedYear}`}
+                                                )
+                                            </CardTitle>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                Tren volume distribusi cadangan pangan daerah setiap bulan sepanjang tahun serta analisis komparasi antar tahun anggaran.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Controls: Year Comparison Selector & Chart Type Toggle */}
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                    {/* Year Comparison Dropdown */}
+                                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-800/60">
+                                        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                            <GitCompare className="h-3.5 w-3.5 text-[#006565] dark:text-emerald-400" />
+                                            <span>Bandingkan Tahun:</span>
+                                        </span>
+                                        <Select
+                                            value={effectiveCompareOption}
+                                            onValueChange={(val) => setCompareYearOption(val)}
+                                        >
+                                            <SelectTrigger className="h-8 w-48 rounded-xl border-slate-200 bg-white text-xs font-bold text-slate-800 shadow-2xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                                                <SelectValue placeholder="Pilih Pembanding" />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                <SelectItem value="none" className="text-xs font-semibold">
+                                                    Tidak Dibandingkan ({selectedYear})
+                                                </SelectItem>
+                                                {comparisonYearCandidates.map((yr) => (
+                                                    <SelectItem
+                                                        key={yr}
+                                                        value={String(yr)}
+                                                        className="text-xs font-semibold"
+                                                    >
+                                                        Tahun {selectedYear} vs Tahun {yr}
+                                                    </SelectItem>
+                                                ))}
+                                                {comparisonYearCandidates.length > 1 && (
+                                                    <SelectItem
+                                                        value="all"
+                                                        className="text-xs font-bold text-[#006565] dark:text-emerald-400"
+                                                    >
+                                                        Semua Tahun ({availableYears.join(', ')})
+                                                    </SelectItem>
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Chart Type Toggle: Bar vs Line */}
+                                    <div className="inline-flex items-center rounded-2xl border border-slate-200/90 bg-slate-50/80 p-1 text-xs dark:border-slate-800 dark:bg-slate-800/60">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMonthlyChartType('bar')}
+                                            className={`rounded-xl px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                                monthlyChartType === 'bar'
+                                                    ? 'bg-[#006565] text-white shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            Grafik Batang
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setMonthlyChartType('line')}
+                                            className={`rounded-xl px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                                monthlyChartType === 'line'
+                                                    ? 'bg-[#006565] text-white shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            Garis Tren
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Quick Comparison Year Pills */}
+                            {comparisonYearCandidates.length > 0 && (
+                                <div className="mt-3 flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Pintasan Komparasi:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompareYearOption('none')}
+                                        className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer border ${
+                                            effectiveCompareOption === 'none'
+                                                ? 'border-[#006565] bg-emerald-50 text-[#006565] dark:border-emerald-500 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+                                        }`}
+                                    >
+                                        Hanya {selectedYear}
+                                    </button>
+                                    {comparisonYearCandidates.map((yr) => (
+                                        <button
+                                            key={yr}
+                                            type="button"
+                                            onClick={() =>
+                                                setCompareYearOption(
+                                                    effectiveCompareOption === String(yr) ? 'none' : String(yr)
+                                                )
+                                            }
+                                            className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer border ${
+                                                effectiveCompareOption === String(yr)
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-300'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            + Bandingkan {yr}
+                                        </button>
+                                    ))}
+                                    {comparisonYearCandidates.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setCompareYearOption(
+                                                    effectiveCompareOption === 'all' ? 'none' : 'all'
+                                                )
+                                            }
+                                            className={`rounded-full px-3 py-1 text-[11px] font-bold transition-all cursor-pointer border ${
+                                                effectiveCompareOption === 'all'
+                                                    ? 'border-amber-500 bg-amber-50 text-amber-800 dark:border-amber-400 dark:bg-amber-950/60 dark:text-amber-300'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            Semua Tahun ({availableYears.length})
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </CardHeader>
+
+                        <CardContent className="p-4 sm:p-6 pt-5 space-y-6">
+                            {/* Legend & Unit Info Bar */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    {activeChartYears.map((yr, idx) => {
+                                        const color = YEAR_SERIES_COLORS[idx % YEAR_SERIES_COLORS.length];
+                                        return (
+                                            <div
+                                                key={yr}
+                                                className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200"
+                                            >
+                                                <span
+                                                    className="inline-block h-3 w-3 rounded-sm"
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                                <span>
+                                                    Penyaluran Tahun {yr}
+                                                    {idx === 0 ? ' (Tahun Dipilih)' : ' (Pembanding)'}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="text-xs text-slate-400 font-semibold">
+                                    Satuan Volume:{' '}
+                                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                                        Kilogram (kg)
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Recharts Canvas (Januari - Desember) */}
+                            <div className="h-80 sm:h-96 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <ComposedChart
+                                        data={monthlyChartData}
+                                        margin={{ top: 15, right: 20, left: 10, bottom: 10 }}
+                                    >
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            vertical={false}
+                                            opacity={0.25}
+                                        />
+                                        <XAxis
+                                            dataKey="month_short"
+                                            tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }}
+                                            axisLine={{ stroke: '#cbd5e1' }}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            tickFormatter={(val) => `${formatCompactKg(Number(val))} kg`}
+                                            tick={{ fontSize: 11, fill: '#64748b' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            width={65}
+                                        />
+                                        <Tooltip
+                                            content={
+                                                <CustomMonthlyCppdTooltip
+                                                    activeYears={activeChartYears}
+                                                />
+                                            }
+                                        />
+                                        <Legend
+                                            verticalAlign="top"
+                                            height={36}
+                                            iconType="circle"
+                                            wrapperStyle={{ fontSize: '12px', fontWeight: 700, paddingBottom: '8px' }}
+                                        />
+
+                                        {activeChartYears.map((yr, idx) => {
+                                            const color =
+                                                YEAR_SERIES_COLORS[idx % YEAR_SERIES_COLORS.length];
+                                            const seriesName = `Tahun ${yr}`;
+
+                                            if (monthlyChartType === 'line') {
+                                                return (
+                                                    <Line
+                                                        key={yr}
+                                                        type="monotone"
+                                                        dataKey={`penyaluran_${yr}`}
+                                                        name={seriesName}
+                                                        stroke={color}
+                                                        strokeWidth={3}
+                                                        dot={{
+                                                            r: 4.5,
+                                                            fill: color,
+                                                            strokeWidth: 2,
+                                                            stroke: '#ffffff',
+                                                        }}
+                                                        activeDot={{
+                                                            r: 6.5,
+                                                            fill: color,
+                                                            strokeWidth: 2,
+                                                            stroke: '#ffffff',
+                                                        }}
+                                                    />
+                                                );
+                                            }
+
+                                            return (
+                                                <Bar
+                                                    key={yr}
+                                                    dataKey={`penyaluran_${yr}`}
+                                                    name={seriesName}
+                                                    fill={color}
+                                                    radius={[6, 6, 0, 0]}
+                                                    maxBarSize={activeChartYears.length > 1 ? 28 : 42}
+                                                />
+                                            );
+                                        })}
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Monthly Summary & Year-over-Year Comparison Metrics */}
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <div className="rounded-2xl bg-slate-50/90 p-3.5 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                        Total Penyaluran ({selectedYear})
+                                    </span>
+                                    <div className="mt-1 font-mono text-base font-black text-[#006565] dark:text-emerald-400">
+                                        {formatKg(monthlyChartStats.currentYearTotal)}
+                                    </div>
+                                    <span className="text-[11px] text-slate-400">
+                                        Tersalurkan pada {monthlyChartStats.activeMonthsCount} dari 12 bulan
+                                    </span>
+                                </div>
+
+                                <div className="rounded-2xl bg-slate-50/90 p-3.5 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                        Puncak Penyaluran ({selectedYear})
+                                    </span>
+                                    <div className="mt-1 text-base font-black text-slate-900 dark:text-white">
+                                        {monthlyChartStats.peakMonth
+                                            ? monthlyChartStats.peakMonth.month_name
+                                            : 'Belum Ada Data'}
+                                    </div>
+                                    <span className="text-[11px] text-slate-400">
+                                        {monthlyChartStats.peakMonth
+                                            ? `Volume: ${formatKg(monthlyChartStats.peakMonth.total_penyaluran)} (${monthlyChartStats.peakMonth.desa_count} desa)`
+                                            : 'Tidak ada penyaluran tercatat'}
+                                    </span>
+                                </div>
+
+                                <div className="rounded-2xl bg-slate-50/90 p-3.5 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                        Rata-rata Bulanan ({selectedYear})
+                                    </span>
+                                    <div className="mt-1 font-mono text-base font-black text-slate-900 dark:text-white">
+                                        {formatKg(monthlyChartStats.avgPerMonth)} / bln
+                                    </div>
+                                    <span className="text-[11px] text-slate-400">
+                                        Akumulasi Januari s/d Desember {selectedYear}
+                                    </span>
+                                </div>
+
+                                <div className="rounded-2xl bg-slate-50/90 p-3.5 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                        Perbandingan vs Tahun {monthlyChartStats.primaryCompareYear ?? '-'}
+                                    </span>
+                                    {monthlyChartStats.primaryCompareYear ? (
+                                        <>
+                                            <div className="mt-1 flex items-center gap-1.5">
+                                                {monthlyChartStats.yoyDiff > 0 ? (
+                                                    <TrendingUp className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
+                                                ) : monthlyChartStats.yoyDiff < 0 ? (
+                                                    <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                                ) : null}
+                                                <span
+                                                    className={`font-mono text-base font-black ${
+                                                        monthlyChartStats.yoyDiff > 0
+                                                            ? 'text-[#006565] dark:text-emerald-400'
+                                                            : monthlyChartStats.yoyDiff < 0
+                                                              ? 'text-rose-600 dark:text-rose-400'
+                                                              : 'text-slate-700 dark:text-slate-300'
+                                                    }`}
+                                                >
+                                                    {monthlyChartStats.yoyDiff > 0 ? '+' : ''}
+                                                    {formatKg(monthlyChartStats.yoyDiff)}
+                                                </span>
+                                            </div>
+                                            <span className="text-[11px] text-slate-400">
+                                                Tahun {monthlyChartStats.primaryCompareYear}:{' '}
+                                                {formatKg(monthlyChartStats.compareYearTotal)}
+                                                {monthlyChartStats.yoyPercent !== null
+                                                    ? ` (${monthlyChartStats.yoyPercent >= 0 ? '+' : ''}${monthlyChartStats.yoyPercent.toFixed(1)}%)`
+                                                    : ''}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <div className="mt-1 text-xs text-slate-400">
+                                            Belum ada tahun pembanding lain
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
                     {/* LAYOUT 2: LIST DESA PENERIMA BANTUAN */}
                     {(activeLayout === 'list' || activeLayout === 'both') && (

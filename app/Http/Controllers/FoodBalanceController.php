@@ -15,15 +15,50 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 class FoodBalanceController extends Controller
 {
     /**
+     * Resolve default year and month:
+     * Default to current month/year if data exists, otherwise fallback to the most recent previous month with data.
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function resolveDefaultPeriod(): array
+    {
+        $currentDate = now();
+        $currentYear = (int) $currentDate->format('Y');
+        $currentMonth = (int) $currentDate->format('n');
+
+        $hasCurrentMonthData = FoodBalance::where('year', $currentYear)
+            ->where('month', $currentMonth)
+            ->exists();
+
+        if ($hasCurrentMonthData) {
+            return [$currentYear, $currentMonth];
+        }
+
+        $previousRecord = FoodBalance::where(function ($query) use ($currentYear, $currentMonth) {
+            $query->where('year', '<', $currentYear)
+                ->orWhere(function ($q) use ($currentYear, $currentMonth) {
+                    $q->where('year', $currentYear)
+                        ->where('month', '<', $currentMonth);
+                });
+        })
+            ->orderByDesc('year')
+            ->orderByDesc('month')
+            ->first();
+
+        if ($previousRecord) {
+            return [(int) $previousRecord->year, (int) $previousRecord->month];
+        }
+
+        return [$currentYear, $currentMonth];
+    }
+
+    /**
      * Display a listing of monthly food balances for admin.
      */
     public function index(Request $request): Response
     {
         $currentDate = now();
-        $latestRecord = FoodBalance::orderByDesc('year')->orderByDesc('month')->first();
-
-        $defaultYear = $latestRecord?->year ?? (int) $currentDate->format('Y');
-        $defaultMonth = $latestRecord?->month ?? (int) $currentDate->format('n');
+        [$defaultYear, $defaultMonth] = $this->resolveDefaultPeriod();
 
         $year = (int) $request->query('year', $defaultYear);
         $month = (int) $request->query('month', $defaultMonth);
@@ -420,10 +455,7 @@ class FoodBalanceController extends Controller
     public function publicIndex(Request $request): Response
     {
         $currentDate = now();
-        $latestRecord = FoodBalance::orderByDesc('year')->orderByDesc('month')->first();
-
-        $defaultYear = $latestRecord?->year ?? (int) $currentDate->format('Y');
-        $defaultMonth = $latestRecord?->month ?? (int) $currentDate->format('n');
+        [$defaultYear, $defaultMonth] = $this->resolveDefaultPeriod();
 
         $year = (int) $request->query('year', $defaultYear);
         $month = (int) $request->query('month', $defaultMonth);

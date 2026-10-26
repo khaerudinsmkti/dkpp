@@ -313,6 +313,12 @@ export default function SkpgAdminIndex({
         setBulkData(initialBulkItems);
     }, [initialBulkItems]);
 
+    // Keep year and month filter in sync with server-resolved period
+    React.useEffect(() => {
+        if (filters.year) setSelectedYear(filters.year);
+        if (filters.month) setSelectedMonth(filters.month);
+    }, [filters.year, filters.month]);
+
     // Apply period filter in table or bulk view
     const handlePeriodFilter = (newYear: number, newMonth: number) => {
         setSelectedYear(newYear);

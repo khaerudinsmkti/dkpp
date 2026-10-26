@@ -20,7 +20,6 @@ import {
 import React, { useMemo, useState } from 'react';
 import {
     Bar,
-    BarChart,
     CartesianGrid,
     ComposedChart,
     Legend,
@@ -644,18 +643,6 @@ export default function NeracaPanganPublic({
         });
     }, [items, searchTerm, statusFilter]);
 
-    // Data for single-month Recharts comparison
-    const chartData = useMemo(() => {
-        return items
-            .filter((item) => item.is_recorded)
-            .map((item) => ({
-                name: item.name,
-                Ketersediaan: item.ketersediaan || 0,
-                Kebutuhan: item.kebutuhan || 0,
-                Selisih: item.selisih || 0,
-            }));
-    }, [items]);
-
     // Trend commodity metadata
     const activeTrendCommodity = useMemo(() => {
         if (selectedTrendCommodity === 'all') {
@@ -709,15 +696,16 @@ export default function NeracaPanganPublic({
             {/* Top Navigation Bar */}
             <PortalNavbar activePage="neraca-pangan" />
 
-            {/* Main Content Container */}
-            <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
-                {/* Modern & Kekinian Hero Banner */}
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-emerald-950 to-teal-900 p-6 sm:p-8 lg:p-10 text-white shadow-2xl shadow-emerald-950/25 border border-white/10">
-                    {/* Background Decorative Mesh & Glow Orbs */}
-                    <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl" />
-                    <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-teal-400/20 blur-3xl" />
-                    <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-64 w-64 rounded-full bg-cyan-500/10 blur-2xl" />
+            {/* Full-Width Hero Section Banner (seperti pada menu IKP) */}
+            <section className="relative overflow-hidden bg-gradient-to-br from-[#003d3d] via-[#005757] to-[#002828] text-white">
+                {/* Background Decorative Mesh & Glow Orbs */}
+                <div className="pointer-events-none absolute inset-0 opacity-15">
+                    <div className="absolute -top-20 -left-20 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" />
+                    <div className="absolute -right-20 -bottom-20 h-96 w-96 rounded-full bg-teal-300 blur-3xl" />
+                    <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] opacity-10" />
+                </div>
 
+                <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
                     <div className="relative z-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
                         {/* Left Column: Heading, Description, Action Buttons & Value Badges */}
                         <div className="lg:col-span-7 xl:col-span-7 space-y-4">
@@ -905,6 +893,10 @@ export default function NeracaPanganPublic({
                         </div>
                     </div>
                 </div>
+            </section>
+
+            {/* Main Content Container */}
+            <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
 
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -985,248 +977,6 @@ export default function NeracaPanganPublic({
                         </CardContent>
                     </Card>
                 </div>
-
-                {/* Comparison Bar Chart Card */}
-                {chartData.length > 0 && (
-                    <Card className="border-slate-200/80 shadow-sm dark:border-slate-800">
-                        <CardHeader className="pb-2">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <BarChart3 className="size-4 text-emerald-600" />
-                                    <CardTitle className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                                        Grafik Perbandingan Ketersediaan vs Kebutuhan ({getMonthLabel(selectedMonth)} {selectedYear})
-                                    </CardTitle>
-                                </div>
-                                <span className="text-xs text-slate-400">Satuan: Ton</span>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="pt-4">
-                            <div className="h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={chartData}
-                                        margin={{ top: 10, right: 20, left: 10, bottom: 40 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                                        <XAxis
-                                            dataKey="name"
-                                            angle={-30}
-                                            textAnchor="end"
-                                            interval={0}
-                                            height={50}
-                                            tick={{ fontSize: 11 }}
-                                        />
-                                        <YAxis
-                                            tickFormatter={(val) =>
-                                                val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val
-                                            }
-                                            tick={{ fontSize: 11 }}
-                                        />
-                                        <Tooltip
-                                            formatter={(value: any) => [
-                                                formatNumber(Number(value)) + ' Ton',
-                                            ]}
-                                        />
-                                        <Legend verticalAlign="top" height={36} />
-                                        <Bar
-                                            dataKey="Ketersediaan"
-                                            fill="#059669"
-                                            radius={[4, 4, 0, 0]}
-                                        />
-                                        <Bar
-                                            dataKey="Kebutuhan"
-                                            fill="#3b82f6"
-                                            radius={[4, 4, 0, 0]}
-                                        />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Filter and Search Bar */}
-                <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                        <Input
-                            type="text"
-                            placeholder="Cari komoditas..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 h-9 border-slate-200 dark:border-slate-700"
-                        />
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2.5">
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-36 h-9 border-slate-200 dark:border-slate-700">
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua Status</SelectItem>
-                                <SelectItem value="surplus">Surplus</SelectItem>
-                                <SelectItem value="defisit">Defisit</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
-
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadPdf}
-                            className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm"
-                            title="Download atau cetak dokumen laporan neraca pangan resmi sebagai PDF"
-                        >
-                            <Printer className="size-4 text-rose-600 dark:text-rose-400" />
-                            <span>Download PDF</span>
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Food Balance Public Table */}
-                <Card id="tabel-neraca" className="border-slate-200/80 shadow-sm overflow-hidden dark:border-slate-800 scroll-mt-20">
-                    <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                                    <Layers className="size-4 text-emerald-600" />
-                                    Tabel Neraca Pangan Bulanan ({getMonthLabel(selectedMonth)} {selectedYear})
-                                </CardTitle>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Informasi produksi, ketersediaan, kebutuhan, dan posisi neraca pangan komoditas strategis
-                                </p>
-                            </div>
-
-
-                        </div>
-                    </CardHeader>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
-                            <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
-                                <tr>
-                                    <th className="py-3.5 px-4 w-12 text-center">No</th>
-                                    <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
-                                    <th className="py-3.5 px-4">Nama Komoditas</th>
-                                    <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
-                                    <th className="py-3.5 px-4 text-right">Produksi</th>
-                                    <th className="py-3.5 px-4 text-right">Ketersediaan</th>
-                                    <th className="py-3.5 px-4 text-right">Kebutuhan</th>
-                                    <th className="py-3.5 px-4 text-right">Selisih</th>
-                                    <th className="py-3.5 px-4 w-32 text-center">Status Neraca</th>
-                                    <th className="py-3.5 px-4">Catatan</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {filteredItems.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={10} className="py-8 text-center text-slate-400">
-                                            Tidak ada data komoditas ditemukan.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredItems.map((item, idx) => (
-                                        <tr
-                                            key={item.id}
-                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                                        >
-                                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
-                                                {idx + 1}
-                                            </td>
-                                            <td className="py-2.5 px-3 text-center">
-                                                <CommodityThumbnail item={item} />
-                                            </td>
-                                            <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
-                                                {item.name}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-center">
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                                >
-                                                    {item.unit}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
-                                                {item.is_recorded ? formatNumber(item.produksi) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
-                                                {item.is_recorded ? (
-                                                    <span
-                                                        className={
-                                                            item.selisih !== null && item.selisih < 0
-                                                                ? 'text-rose-600 dark:text-rose-400'
-                                                                : 'text-emerald-600 dark:text-emerald-400'
-                                                        }
-                                                    >
-                                                        {item.selisih !== null && item.selisih >= 0 ? '+' : ''}
-                                                        {formatNumber(item.selisih)}
-                                                    </span>
-                                                ) : (
-                                                    '-'
-                                                )}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-center">
-                                                {!item.is_recorded ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                                        Belum Ada Data
-                                                    </span>
-                                                ) : item.keterangan === 'Surplus' ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                                        <CheckCircle2 className="size-3" />
-                                                        Surplus
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                                                        <AlertCircle className="size-3" />
-                                                        Defisit
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
-                                                {item.notes || '-'}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                            <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
-                                <tr>
-                                    <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                        Total Kumulatif
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono">
-                                        {formatNumber(statistics.total_produksi)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                        {formatNumber(statistics.total_ketersediaan)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                        {formatNumber(statistics.total_kebutuhan)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold">
-                                        <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                            {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
-                                            {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-xs text-slate-400">-</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </Card>
 
                 {/* Yearly Trend Chart (January - December) */}
                 <Card id="grafik-tren-tahunan" className="border-slate-200/80 shadow-sm dark:border-slate-800 scroll-mt-20">
@@ -1518,6 +1268,189 @@ export default function NeracaPanganPublic({
                             </div>
                         )}
                     </CardContent>
+                </Card>
+
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                            type="text"
+                            placeholder="Cari komoditas..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 h-9 border-slate-200 dark:border-slate-700"
+                        />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-36 h-9 border-slate-200 dark:border-slate-700">
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua Status</SelectItem>
+                                <SelectItem value="surplus">Surplus</SelectItem>
+                                <SelectItem value="defisit">Defisit</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadPdf}
+                            className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm"
+                            title="Download atau cetak dokumen laporan neraca pangan resmi sebagai PDF"
+                        >
+                            <Printer className="size-4 text-rose-600 dark:text-rose-400" />
+                            <span>Download PDF</span>
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Food Balance Public Table */}
+                <Card id="tabel-neraca" className="border-slate-200/80 shadow-sm overflow-hidden dark:border-slate-800 scroll-mt-20">
+                    <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                                    <Layers className="size-4 text-emerald-600" />
+                                    Tabel Neraca Pangan Bulanan ({getMonthLabel(selectedMonth)} {selectedYear})
+                                </CardTitle>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Informasi produksi, ketersediaan, kebutuhan, dan posisi neraca pangan komoditas strategis
+                                </p>
+                            </div>
+
+
+                        </div>
+                    </CardHeader>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
+                            <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
+                                <tr>
+                                    <th className="py-3.5 px-4 w-12 text-center">No</th>
+                                    <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
+                                    <th className="py-3.5 px-4">Nama Komoditas</th>
+                                    <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
+                                    <th className="py-3.5 px-4 text-right">Produksi</th>
+                                    <th className="py-3.5 px-4 text-right">Ketersediaan</th>
+                                    <th className="py-3.5 px-4 text-right">Kebutuhan</th>
+                                    <th className="py-3.5 px-4 text-right">Selisih</th>
+                                    <th className="py-3.5 px-4 w-32 text-center">Status Neraca</th>
+                                    <th className="py-3.5 px-4">Catatan</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {filteredItems.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={10} className="py-8 text-center text-slate-400">
+                                            Tidak ada data komoditas ditemukan.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredItems.map((item, idx) => (
+                                        <tr
+                                            key={item.id}
+                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                        >
+                                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
+                                                {idx + 1}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-center">
+                                                <CommodityThumbnail item={item} />
+                                            </td>
+                                            <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
+                                                {item.name}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                                >
+                                                    {item.unit}
+                                                </Badge>
+                                            </td>
+                                            <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
+                                                {item.is_recorded ? formatNumber(item.produksi) : '-'}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                                                {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                                                {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
+                                                {item.is_recorded ? (
+                                                    <span
+                                                        className={
+                                                            item.selisih !== null && item.selisih < 0
+                                                                ? 'text-rose-600 dark:text-rose-400'
+                                                                : 'text-emerald-600 dark:text-emerald-400'
+                                                        }
+                                                    >
+                                                        {item.selisih !== null && item.selisih >= 0 ? '+' : ''}
+                                                        {formatNumber(item.selisih)}
+                                                    </span>
+                                                ) : (
+                                                    '-'
+                                                )}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-center">
+                                                {!item.is_recorded ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                                        Belum Ada Data
+                                                    </span>
+                                                ) : item.keterangan === 'Surplus' ? (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                        <CheckCircle2 className="size-3" />
+                                                        Surplus
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                                        <AlertCircle className="size-3" />
+                                                        Defisit
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
+                                                {item.notes || '-'}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                            <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
+                                <tr>
+                                    <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                        Total Kumulatif
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono">
+                                        {formatNumber(statistics.total_produksi)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                        {formatNumber(statistics.total_ketersediaan)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                        {formatNumber(statistics.total_kebutuhan)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right font-mono font-bold">
+                                        <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                            {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-center">
+                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                                            {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-xs text-slate-400">-</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </Card>
 
                 {/* Explanatory Callout */}
