@@ -5,11 +5,14 @@ import {
     CheckCircle2,
     Edit3,
     FileSpreadsheet,
+    Image as ImageIcon,
     Layers,
     Plus,
     Search,
     Trash2,
+    Upload,
     Wheat,
+    X,
     XCircle,
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
@@ -56,6 +59,8 @@ export interface FoodGroupRow {
     order: number;
     is_active: boolean;
     description: string | null;
+    image?: string | null;
+    image_url?: string | null;
     details_count: number;
     created_at?: string | null;
     updated_at?: string | null;
@@ -94,6 +99,33 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
     const [formOrder, setFormOrder] = useState('1');
     const [formIsActive, setFormIsActive] = useState(true);
     const [formDescription, setFormDescription] = useState('');
+    const [formImage, setFormImage] = useState<File | null>(null);
+    const [formImagePreview, setFormImagePreview] = useState<string | null>(null);
+    const [formRemoveImage, setFormRemoveImage] = useState(false);
+
+    // Handle Image Selection
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 3 * 1024 * 1024) {
+            toast.error('Ukuran gambar maksimal 3MB.');
+            return;
+        }
+        setFormImage(file);
+        setFormImagePreview(URL.createObjectURL(file));
+        setFormRemoveImage(false);
+    };
+
+    const handleRemoveImage = () => {
+        setFormImage(null);
+        setFormImagePreview(null);
+        setFormRemoveImage(true);
+    };
+
+    const handleCancelRemoveImage = () => {
+        setFormRemoveImage(false);
+        setFormImagePreview(selectedGroup?.image_url || null);
+    };
 
     // Filtered groups
     const filteredGroups = useMemo(() => {
@@ -121,6 +153,9 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
         setFormOrder(nextOrder.toString());
         setFormIsActive(true);
         setFormDescription('');
+        setFormImage(null);
+        setFormImagePreview(null);
+        setFormRemoveImage(false);
         setIsCreateModalOpen(true);
     };
 
@@ -133,6 +168,9 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
         setFormOrder(group.order.toString());
         setFormIsActive(group.is_active);
         setFormDescription(group.description || '');
+        setFormImage(null);
+        setFormImagePreview(group.image_url || null);
+        setFormRemoveImage(false);
         setIsEditModalOpen(true);
     };
 
@@ -151,17 +189,20 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
         }
 
         setIsSubmitting(true);
+        const formData = new FormData();
+        formData.append('name', formName.trim());
+        formData.append('bobot', String(parseFloat(formBobot) || 0));
+        formData.append('skor_maksimal', String(parseFloat(formSkorMaksimal) || 0));
+        formData.append('order', String(parseInt(formOrder, 10) || 1));
+        formData.append('is_active', formIsActive ? '1' : '0');
+        if (formDescription.trim()) formData.append('description', formDescription.trim());
+        if (formImage) formData.append('image', formImage);
+
         router.post(
             storeGroupAction.url(),
+            formData,
             {
-                name: formName.trim(),
-                bobot: parseFloat(formBobot) || 0,
-                skor_maksimal: parseFloat(formSkorMaksimal) || 0,
-                order: parseInt(formOrder, 10) || 1,
-                is_active: formIsActive,
-                description: formDescription.trim() || null,
-            },
-            {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(`Kelompok pangan '${formName}' berhasil ditambahkan.`);
@@ -183,17 +224,25 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
         if (!selectedGroup) return;
 
         setIsSubmitting(true);
-        router.put(
+        const formData = new FormData();
+        formData.append('_method', 'PUT');
+        formData.append('name', formName.trim());
+        formData.append('bobot', String(parseFloat(formBobot) || 0));
+        formData.append('skor_maksimal', String(parseFloat(formSkorMaksimal) || 0));
+        formData.append('order', String(parseInt(formOrder, 10) || 1));
+        formData.append('is_active', formIsActive ? '1' : '0');
+        if (formDescription.trim()) formData.append('description', formDescription.trim());
+        if (formRemoveImage) {
+            formData.append('remove_image', '1');
+        } else if (formImage) {
+            formData.append('image', formImage);
+        }
+
+        router.post(
             updateGroupAction.url({ pphFoodGroup: selectedGroup.id }),
+            formData,
             {
-                name: formName.trim(),
-                bobot: parseFloat(formBobot) || 0,
-                skor_maksimal: parseFloat(formSkorMaksimal) || 0,
-                order: parseInt(formOrder, 10) || 1,
-                is_active: formIsActive,
-                description: formDescription.trim() || null,
-            },
-            {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(`Kelompok pangan '${formName}' berhasil diperbarui.`);
@@ -402,6 +451,7 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
                             <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                                 <tr>
                                     <th className="px-3 py-3.5 text-center w-14">Urutan</th>
+                                    <th className="px-3 py-3.5 text-center w-16">Foto</th>
                                     <th className="px-4 py-3.5">Nama Kelompok Bahan Pangan</th>
                                     <th className="px-4 py-3.5 text-right w-28">Bobot Standar</th>
                                     <th className="px-4 py-3.5 text-right w-28">Skor Maksimal</th>
@@ -414,7 +464,7 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
                             <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
                                 {filteredGroups.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                                        <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
                                             <div className="flex flex-col items-center justify-center gap-2">
                                                 <AlertCircle className="size-8 text-slate-400" />
                                                 <p className="font-medium">Tidak ada kelompok bahan pangan ditemukan.</p>
@@ -433,6 +483,25 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
                                                 <span className="inline-flex size-6 items-center justify-center rounded-full bg-slate-100 text-xs dark:bg-slate-800">
                                                     {row.order}
                                                 </span>
+                                            </td>
+                                            <td className="px-3 py-3 text-center">
+                                                {row.image_url ? (
+                                                    <div className="relative mx-auto size-11 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-2xs hover:scale-105 transition-transform dark:border-slate-700 dark:bg-slate-800">
+                                                        <img
+                                                            src={row.image_url}
+                                                            alt={row.name}
+                                                            className="h-full w-full object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        className="mx-auto flex size-11 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60 text-slate-400 dark:border-slate-800 dark:bg-slate-900/40"
+                                                        title="Belum ada foto kelompok pangan"
+                                                    >
+                                                        <Apple className="size-4 opacity-40" />
+                                                    </div>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3.5">
                                                 <div className="flex flex-col">
@@ -515,7 +584,7 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
 
                 {/* Create Modal */}
                 <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Tambah Kelompok Bahan Pangan</DialogTitle>
                             <DialogDescription>
@@ -599,6 +668,60 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
                                 />
                             </div>
 
+                            {/* Foto Kelompok Pangan */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold">Foto Komoditas (Opsional)</Label>
+                                {formImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={formImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {formImage?.name || 'Gambar terpilih'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {formImage ? `${(formImage.size / 1024).toFixed(0)} KB` : 'Siap diunggah'}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleRemoveImage}
+                                            className="h-8 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+                                        >
+                                            <X className="size-4 mr-1" />
+                                            Hapus
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="create-pph-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-emerald-600 font-semibold dark:text-emerald-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="create-pph-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleImageChange}
+                                        />
+                                    </label>
+                                )}
+                            </div>
+
                             <DialogFooter className="pt-2">
                                 <Button
                                     type="button"
@@ -622,7 +745,7 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
 
                 {/* Edit Modal */}
                 <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>Edit Kelompok Bahan Pangan</DialogTitle>
                             <DialogDescription>
@@ -700,6 +823,90 @@ export default function PphFoodGroupsIndex({ groups, filters, statistics }: Page
                                     value={formDescription}
                                     onChange={(e) => setFormDescription(e.target.value)}
                                 />
+                            </div>
+
+                            {/* Foto Kelompok Pangan */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold">Foto Komoditas</Label>
+                                {formRemoveImage ? (
+                                    <div className="flex items-center justify-between rounded-lg border border-dashed border-red-200 bg-red-50/50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+                                        <span>Foto komoditas akan dihapus saat disimpan.</span>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCancelRemoveImage}
+                                            className="h-7 text-xs"
+                                        >
+                                            Batalkan
+                                        </Button>
+                                    </div>
+                                ) : formImagePreview ? (
+                                    <div className="relative flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/50">
+                                        <img
+                                            src={formImagePreview}
+                                            alt="Preview"
+                                            className="size-16 rounded-md object-cover border border-slate-200 shadow-2xs dark:border-slate-700"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                                {formImage ? formImage.name : 'Foto komoditas saat ini'}
+                                            </p>
+                                            <p className="text-[11px] text-slate-500">
+                                                {formImage
+                                                    ? `${(formImage.size / 1024).toFixed(0)} KB (Baru)`
+                                                    : 'Tersimpan di sistem'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <label
+                                                htmlFor="edit-pph-image-replace"
+                                                className="cursor-pointer inline-flex items-center justify-center rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium shadow-2xs hover:bg-accent hover:text-accent-foreground"
+                                            >
+                                                Ganti
+                                                <input
+                                                    id="edit-pph-image-replace"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="sr-only"
+                                                    onChange={handleImageChange}
+                                                />
+                                            </label>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={handleRemoveImage}
+                                                className="h-7 px-2 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/50"
+                                                title="Hapus Foto"
+                                            >
+                                                <Trash2 className="size-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label
+                                        htmlFor="edit-pph-image-upload"
+                                        className="flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-slate-200 p-4 text-center cursor-pointer transition-colors hover:border-emerald-500 hover:bg-emerald-50/20 dark:border-slate-700 dark:hover:border-emerald-500 dark:hover:bg-emerald-950/20"
+                                    >
+                                        <div className="flex size-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+                                            <Upload className="size-4" />
+                                        </div>
+                                        <div className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                                            <span className="text-emerald-600 font-semibold dark:text-emerald-400">Klik untuk upload foto</span> atau seret file ke sini
+                                        </div>
+                                        <p className="text-[11px] text-slate-400">
+                                            PNG, JPG, JPEG, WEBP, SVG (Maks. 3MB)
+                                        </p>
+                                        <input
+                                            id="edit-pph-image-upload"
+                                            type="file"
+                                            accept="image/*"
+                                            className="sr-only"
+                                            onChange={handleImageChange}
+                                        />
+                                    </label>
+                                )}
                             </div>
 
                             <DialogFooter className="pt-2">
