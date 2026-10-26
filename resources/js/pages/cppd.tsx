@@ -635,6 +635,24 @@ export default function CppdPublicPage({
         }, 300);
     };
 
+    const scrollToSection = (id: string) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
+    const totalPasokanTersedia =
+        summary.stok_awal + summary.total_pengadaan + summary.total_addendum;
+    const rasioStokAkhir =
+        totalPasokanTersedia > 0
+            ? Math.min(100, Math.max(0, (summary.stok_akhir / totalPasokanTersedia) * 100))
+            : 0;
+    const rasioPenyaluran =
+        totalPasokanTersedia > 0
+            ? Math.min(100, Math.max(0, (summary.total_penyaluran / totalPasokanTersedia) * 100))
+            : 0;
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 flex flex-col font-sans">
             <Head title={`Cadangan Pangan Pemerintah Daerah (CPPD) Tahun ${selectedYear} - DKPP Indramayu`} />
@@ -643,63 +661,194 @@ export default function CppdPublicPage({
             <PortalNavbar activePage="cppd" />
 
             {/* HERO BANNER */}
-            <section className="relative overflow-hidden bg-gradient-to-br from-[#004e4e] via-[#006565] to-emerald-800 text-white shadow-xl">
-                {/* Background patterns */}
-                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] pointer-events-none" />
-                <div className="absolute -right-20 -bottom-20 w-96 h-96 rounded-full bg-emerald-400/20 blur-3xl pointer-events-none" />
-                <div className="absolute left-1/4 -top-20 w-80 h-80 rounded-full bg-teal-300/15 blur-2xl pointer-events-none" />
+            <section className="relative overflow-hidden bg-gradient-to-br from-[#003d3d] via-[#005757] to-[#002828] text-white">
+                {/* Ambient Decorative Glow Orbs & Mesh Pattern */}
+                <div className="pointer-events-none absolute inset-0">
+                    <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-emerald-400/20 blur-3xl" />
+                    <div className="absolute -right-24 -bottom-24 h-96 w-96 rounded-full bg-teal-300/20 blur-3xl" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-72 w-72 rounded-full bg-cyan-400/10 blur-2xl" />
+                    <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.07]" />
+                </div>
 
-                <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                        {/* Title & Description */}
-                        <div className="max-w-3xl space-y-3">
-                            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-emerald-100 backdrop-blur-md border border-white/20">
-                                <Wheat className="h-3.5 w-3.5 text-emerald-300" />
-                                <span>Cadangan Pangan Pemerintah Daerah (CPPD)</span>
-                                <span className="text-white/40">•</span>
-                                <span className="text-emerald-200">Kabupaten Indramayu</span>
+                <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+                    <div className="relative z-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+                        {/* Left Column: Live Badge, Heading, Description, Action Buttons & Value Pillars */}
+                        <div className="lg:col-span-7 space-y-5">
+                            {/* Live Badge with Ping Dot */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3.5 py-1 text-xs font-bold text-emerald-200 backdrop-blur-md shadow-inner">
+                                    <span className="relative flex h-2 w-2">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                                    </span>
+                                    <span>CADANGAN PANGAN PEMERINTAH DAERAH (CPPD)</span>
+                                </div>
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-teal-100 backdrop-blur-md">
+                                    <Wheat className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span>Lumbung Beras Indramayu</span>
+                                </span>
                             </div>
 
-                            <h1 className="text-2xl font-black tracking-tight sm:text-3xl lg:text-4xl">
-                                Transparansi Stok &amp; Penyaluran Cadangan Beras Daerah
+                            <h1 className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl leading-tight sm:leading-tight">
+                                Transparansi Stok &amp; Distribusi{' '}
+                                <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text text-transparent">
+                                    Cadangan Beras Daerah
+                                </span>
                             </h1>
 
-                            <p className="text-sm sm:text-base text-emerald-100/90 leading-relaxed font-normal">
-                                Pemantauan saldo stok awal, pengadaan beras APBD, addendum volume, serta peta persebaran distribusi bantuan cadangan pangan pokok ke desa-desa di seluruh wilayah Kabupaten Indramayu.
+                            <p className="text-sm sm:text-base font-medium text-emerald-100/90 leading-relaxed max-w-2xl">
+                                Pantau secara terbuka posisi stok awal, pengadaan beras APBD, penyesuaian kontrak (addendum), hingga peta geospasial dan tren bulanan penyaluran bantuan pangan ke desa-desa di seluruh wilayah Kabupaten Indramayu.
                             </p>
-                        </div>
 
-                        {/* Year Filter Dropdown */}
-                        <div className="flex flex-col gap-2 rounded-2xl bg-white/10 p-3 sm:p-4 backdrop-blur-md border border-white/20 shadow-lg shrink-0 w-full sm:w-64">
-                            <div className="flex items-center justify-between gap-2 text-xs font-bold text-emerald-100">
-                                <span className="flex items-center gap-1.5">
-                                    <Calendar className="h-4 w-4 text-emerald-300" />
-                                    <span>Pilih Tahun Anggaran</span>
-                                </span>
-                                <Badge className="bg-emerald-400 text-slate-900 font-extrabold text-[10px] px-2">
-                                    Tahun {selectedYear}
-                                </Badge>
+                            {/* Quick Navigation Action Buttons */}
+                            <div className="flex flex-wrap items-center gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('peta-sebaran-cppd')}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-emerald-950/40 transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-500 active:scale-[0.98] cursor-pointer"
+                                >
+                                    <Map className="h-4 w-4" />
+                                    <span>Eksplorasi Peta Sebaran</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('grafik-penyaluran-bulanan')}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-xs sm:text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-[0.98] cursor-pointer"
+                                >
+                                    <BarChart3 className="h-4 w-4 text-emerald-300" />
+                                    <span>Grafik Tren &amp; Komparasi Tahun</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => scrollToSection('riwayat-transaksi-cppd')}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-xs sm:text-sm font-semibold text-emerald-100 backdrop-blur-md transition-all hover:bg-white/15 active:scale-[0.98] cursor-pointer"
+                                >
+                                    <FileText className="h-4 w-4 text-teal-300" />
+                                    <span>Riwayat &amp; Laporan</span>
+                                </button>
                             </div>
 
-                            <Select
-                                value={String(selectedYear)}
-                                onValueChange={(val) => handleYearChange(Number(val))}
-                            >
-                                <SelectTrigger className="h-10 w-full rounded-xl bg-white/95 text-slate-900 border-white/30 font-bold text-xs sm:text-sm shadow-md hover:bg-white focus:ring-2 focus:ring-emerald-400 focus:outline-none dark:bg-slate-900 dark:text-white dark:border-slate-700 cursor-pointer">
-                                    <SelectValue placeholder="Pilih Tahun" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 z-50">
-                                    {availableYears.map((y) => (
-                                        <SelectItem
-                                            key={y}
-                                            value={String(y)}
-                                            className="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer"
-                                        >
-                                            Tahun Anggaran {y}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            {/* Value Pillars */}
+                            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10 text-xs text-emerald-100/85">
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+                                    <span>Stok Siap Salur Terjaga</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <MapPin className="h-3.5 w-3.5 text-cyan-300" />
+                                    <span>{recipientVillages.length} Desa Penerima Bantuan</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 backdrop-blur-xs">
+                                    <FileSpreadsheet className="h-3.5 w-3.5 text-teal-300" />
+                                    <span>Ekspor Laporan PDF &amp; Excel Resmi</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Modern Glassmorphic Control & Stock Radar Card */}
+                        <div className="lg:col-span-5">
+                            <div className="rounded-3xl border border-white/20 bg-white/10 p-5 sm:p-6 backdrop-blur-xl shadow-2xl ring-1 ring-white/10 space-y-4">
+                                {/* Card Header */}
+                                <div className="flex items-center justify-between border-b border-white/15 pb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-emerald-300" />
+                                        <span className="text-xs font-extrabold text-white uppercase tracking-wider">
+                                            Panel Tahun &amp; Radar Stok
+                                        </span>
+                                    </div>
+
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/25 px-2.5 py-0.5 text-[11px] font-bold text-emerald-100">
+                                        <CheckCircle2 className="h-3 w-3 text-emerald-300" />
+                                        <span>Stok Siaga Aman</span>
+                                    </span>
+                                </div>
+
+                                {/* Year Selector */}
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between text-[11px] font-semibold text-emerald-100/80">
+                                        <span>Pilih Tahun Anggaran Pantau:</span>
+                                        <span className="font-bold text-emerald-300">TA {selectedYear}</span>
+                                    </div>
+                                    <Select
+                                        value={String(selectedYear)}
+                                        onValueChange={(val) => handleYearChange(Number(val))}
+                                    >
+                                        <SelectTrigger className="h-10 w-full rounded-xl bg-white text-slate-900 border-none font-bold text-xs sm:text-sm shadow-md hover:bg-emerald-50/95 focus:ring-2 focus:ring-emerald-400 cursor-pointer">
+                                            <SelectValue placeholder="Pilih Tahun" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 z-50">
+                                            {availableYears.map((y) => (
+                                                <SelectItem
+                                                    key={y}
+                                                    value={String(y)}
+                                                    className="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer"
+                                                >
+                                                    Tahun Anggaran {y}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* 3 Quick Gauges */}
+                                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-emerald-200/80 uppercase">
+                                            Total Pasokan
+                                        </div>
+                                        <div className="mt-1 font-mono text-sm sm:text-base font-black text-white truncate">
+                                            {formatCompactKg(totalPasokanTersedia)} kg
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/60">awal + masuk</div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-rose-200/85 uppercase">
+                                            Tersalurkan
+                                        </div>
+                                        <div className="mt-1 font-mono text-sm sm:text-base font-black text-rose-300 truncate">
+                                            {formatCompactKg(summary.total_penyaluran)} kg
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/60">
+                                            {recipientVillages.length} desa
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/20 p-2.5 backdrop-blur-xs">
+                                        <div className="text-[10px] font-bold text-emerald-200 uppercase">
+                                            Stok Akhir
+                                        </div>
+                                        <div className="mt-1 font-mono text-sm sm:text-base font-black text-emerald-300 truncate">
+                                            {formatCompactKg(summary.stok_akhir)} kg
+                                        </div>
+                                        <div className="text-[10px] text-emerald-100/75">siap salur</div>
+                                    </div>
+                                </div>
+
+                                {/* Stock Ratio Progress Bar & Summary */}
+                                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 space-y-2 text-xs">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                        <span className="font-semibold text-emerald-100/90">
+                                            Rasio Ketersediaan Stok Akhir:
+                                        </span>
+                                        <span className="font-mono font-extrabold text-emerald-300">
+                                            {rasioStokAkhir.toFixed(1)}% Tersedia ({rasioPenyaluran.toFixed(1)}% Tersalurkan)
+                                        </span>
+                                    </div>
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/15">
+                                        <div
+                                            className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-300 transition-all duration-500"
+                                            style={{ width: `${rasioStokAkhir}%` }}
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] text-emerald-100/75 pt-0.5">
+                                        <span>Saldo Akhir: <strong className="text-white font-mono">{formatKg(summary.stok_akhir)}</strong></span>
+                                        <span>Penyaluran: <strong className="text-rose-200 font-mono">{formatKg(summary.total_penyaluran)}</strong></span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -805,7 +954,7 @@ export default function CppdPublicPage({
                 </section>
 
                 {/* 4. LAYOUT CONTROLS (SWITCHER ANTARA LAYOUT 1 & LAYOUT 2) */}
-                <section className="space-y-4">
+                <section id="peta-sebaran-cppd" className="space-y-4 scroll-mt-20">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200/80 pb-3 dark:border-slate-800">
                         <div>
                             <h3 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
@@ -1527,7 +1676,7 @@ export default function CppdPublicPage({
                 </section>
 
                 {/* 5. LOG RIWAYAT TRANSAKSI TERAKHIR (PENGADAAN, PENYALURAN, ADDENDUM) */}
-                <section className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/95 sm:p-6">
+                <section id="riwayat-transaksi-cppd" className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/95 sm:p-6 scroll-mt-20">
                     <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
                         <div>
                             <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
