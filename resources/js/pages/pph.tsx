@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import {
     Activity,
     AlertCircle,
+    Apple,
     ArrowDown,
     ArrowUpRight,
     Award,
@@ -13,6 +14,7 @@ import {
     FileSpreadsheet,
     FileText,
     HelpCircle,
+    Image as ImageIcon,
     Info,
     Layers,
     LineChart as LineChartIcon,
@@ -78,6 +80,8 @@ export interface CommodityDetailItem {
     food_group_slug: string;
     food_group_order: number;
     food_group_description: string | null;
+    food_group_image?: string | null;
+    food_group_image_url?: string | null;
     energi: number;
     ake_percentage: number;
     bobot: number;
@@ -1642,7 +1646,7 @@ export default function PphPublic({
                                                 <th rowSpan={2} className="py-3 pl-5 pr-2 w-10 text-center border-r border-slate-200/80 dark:border-slate-700">
                                                     No
                                                 </th>
-                                                <th rowSpan={2} className="py-3 px-3 min-w-[200px] border-r border-slate-200/80 dark:border-slate-700">
+                                                <th rowSpan={2} className="py-3 px-3 min-w-[260px] border-r border-slate-200/80 dark:border-slate-700">
                                                     Kelompok Bahan Pangan
                                                 </th>
                                                 <th colSpan={3} className="py-2 px-2 text-center border-r border-slate-200/80 bg-emerald-50/70 text-[#006565] dark:border-slate-700 dark:bg-emerald-950/40 dark:text-emerald-300">
@@ -1701,7 +1705,7 @@ export default function PphPublic({
                                         <thead className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
                                             <tr>
                                                 <th className="py-3.5 pl-5 pr-2 w-12 text-center">No</th>
-                                                <th className="py-3.5 px-3 min-w-[220px]">Kelompok Bahan Pangan</th>
+                                                <th className="py-3.5 px-3 min-w-[260px]">Kelompok Bahan Pangan</th>
                                                 <th className="py-3.5 px-3 text-right">Energi (Kkal)</th>
                                                 <th className="py-3.5 px-3 text-right">% AKE</th>
                                                 <th className="py-3.5 px-3 text-center">Bobot</th>
@@ -1758,14 +1762,35 @@ export default function PphPublic({
 
                                                         {/* Kelompok Bahan Pangan */}
                                                         <td className="py-3 px-3 border-r border-slate-100 dark:border-slate-800">
-                                                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm dark:text-white">
-                                                                {item.food_group_name}
-                                                            </div>
-                                                            {item.food_group_description && (
-                                                                <div className="text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1 dark:text-slate-400">
-                                                                    {item.food_group_description}
+                                                            <div className="flex items-center gap-3">
+                                                                {item.food_group_image_url ? (
+                                                                    <div className="relative size-10 sm:size-11 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100 shadow-2xs hover:scale-105 transition-transform dark:border-slate-700 dark:bg-slate-800">
+                                                                        <img
+                                                                            src={item.food_group_image_url}
+                                                                            alt={item.food_group_name}
+                                                                            className="h-full w-full object-cover"
+                                                                            loading="lazy"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div
+                                                                        className="flex size-10 sm:size-11 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/60"
+                                                                        title={item.food_group_name}
+                                                                    >
+                                                                        <Apple className="size-5 text-emerald-600/70 dark:text-emerald-400/70" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="font-extrabold text-slate-900 text-xs sm:text-sm dark:text-white">
+                                                                        {item.food_group_name}
+                                                                    </div>
+                                                                    {item.food_group_description && (
+                                                                        <div className="text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1 dark:text-slate-400">
+                                                                            {item.food_group_description}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
+                                                            </div>
                                                         </td>
 
                                                         {/* Energi compareYear */}
@@ -1901,14 +1926,35 @@ export default function PphPublic({
 
                                                         {/* Kelompok Bahan Pangan */}
                                                         <td className="py-3 px-3">
-                                                            <div className="font-extrabold text-slate-900 text-xs sm:text-sm dark:text-white">
-                                                                {item.food_group_name}
-                                                            </div>
-                                                            {item.food_group_description && (
-                                                                <div className="text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1 dark:text-slate-400">
-                                                                    {item.food_group_description}
+                                                            <div className="flex items-center gap-3">
+                                                                {item.food_group_image_url ? (
+                                                                    <div className="relative size-10 sm:size-11 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-slate-100 shadow-2xs hover:scale-105 transition-transform dark:border-slate-700 dark:bg-slate-800">
+                                                                        <img
+                                                                            src={item.food_group_image_url}
+                                                                            alt={item.food_group_name}
+                                                                            className="h-full w-full object-cover"
+                                                                            loading="lazy"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div
+                                                                        className="flex size-10 sm:size-11 shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/60"
+                                                                        title={item.food_group_name}
+                                                                    >
+                                                                        <Apple className="size-5 text-emerald-600/70 dark:text-emerald-400/70" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="font-extrabold text-slate-900 text-xs sm:text-sm dark:text-white">
+                                                                        {item.food_group_name}
+                                                                    </div>
+                                                                    {item.food_group_description && (
+                                                                        <div className="text-[11px] text-slate-500 leading-tight mt-0.5 line-clamp-1 dark:text-slate-400">
+                                                                            {item.food_group_description}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
+                                                            </div>
                                                         </td>
 
                                                         {/* Energi (Kkal) */}

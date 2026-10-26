@@ -217,6 +217,8 @@ class PphScoreController extends Controller
                     'food_group_slug' => $group->slug,
                     'food_group_order' => (int) $group->order,
                     'food_group_description' => $group->description,
+                    'food_group_image' => $group->image,
+                    'food_group_image_url' => $group->image_url,
                     'energi' => $energi,
                     'ake_percentage' => $akePercentage,
                     'bobot' => $bobot,

@@ -58,6 +58,8 @@ class PphScoreDetailController extends Controller
                 'food_group_order' => (int) $group->order,
                 'food_group_is_active' => (bool) $group->is_active,
                 'food_group_description' => $group->description,
+                'food_group_image' => $group->image,
+                'food_group_image_url' => $group->image_url,
                 'energi' => $detail ? (float) $detail->energi : 0,
                 'ake_percentage' => $detail ? (float) $detail->ake_percentage : 0,
                 'bobot' => $detail ? (float) $detail->bobot : (float) $group->bobot,
