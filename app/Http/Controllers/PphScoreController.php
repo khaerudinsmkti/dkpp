@@ -141,16 +141,19 @@ class PphScoreController extends Controller
      */
     public function publicIndex(Request $request): Response
     {
-        // 1. Available years
-        $yearsFromScores = PphScore::pluck('tahun');
-        $yearsFromDetails = PphScoreDetail::distinct()->pluck('tahun');
-        $availableYears = $yearsFromScores->concat($yearsFromDetails)->unique()->sortDesc()->values()->all();
+        // 1. Available years (ensure current year is always available and set as default)
+        $currentYear = (int) now()->year;
+        $yearsFromScores = PphScore::pluck('tahun')->map(fn ($y) => (int) $y);
+        $yearsFromDetails = PphScoreDetail::distinct()->pluck('tahun')->map(fn ($y) => (int) $y);
+        $availableYears = $yearsFromScores
+            ->concat($yearsFromDetails)
+            ->push($currentYear)
+            ->unique()
+            ->sortDesc()
+            ->values()
+            ->all();
 
-        if (empty($availableYears)) {
-            $availableYears = [now()->year];
-        }
-
-        $defaultYear = $availableYears[0];
+        $defaultYear = $currentYear;
         $selectedYear = (int) $request->query('year', $defaultYear);
 
         if (! in_array($selectedYear, $availableYears, true)) {
