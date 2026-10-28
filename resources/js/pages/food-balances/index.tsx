@@ -265,9 +265,11 @@ export default function FoodBalancesIndex({
     // 2. Bulk Input Modal State
     // ==========================================
     const [bulkModalOpen, setBulkModalOpen] = useState(false);
+    const [bulkSearch, setBulkSearch] = useState('');
     interface BulkRowState {
         commodity_id: number;
         commodity_name: string;
+        commodity_image_url?: string | null;
         unit: string;
         produksi: string;
         ketersediaan: string;
@@ -281,6 +283,7 @@ export default function FoodBalancesIndex({
         const rows: BulkRowState[] = allItems.map((item) => ({
             commodity_id: item.food_balance_commodity_id,
             commodity_name: item.commodity_name,
+            commodity_image_url: item.commodity_image_url,
             unit: item.unit,
             produksi: item.produksi !== null ? String(item.produksi) : '',
             ketersediaan: item.ketersediaan !== null ? String(item.ketersediaan) : '',
@@ -288,20 +291,44 @@ export default function FoodBalancesIndex({
             notes: item.notes || '',
         }));
         setBulkRows(rows);
+        setBulkSearch('');
         setBulkModalOpen(true);
     };
 
     const handleBulkFieldChange = (
-        index: number,
+        commodityId: number,
         field: 'produksi' | 'ketersediaan' | 'kebutuhan' | 'notes',
         value: string
     ) => {
-        setBulkRows((prev) => {
-            const next = [...prev];
-            next[index] = { ...next[index], [field]: value };
-            return next;
-        });
+        setBulkRows((prev) =>
+            prev.map((r) => (r.commodity_id === commodityId ? { ...r, [field]: value } : r))
+        );
     };
+
+    const filteredBulkRows = useMemo(() => {
+        if (!bulkSearch.trim()) return bulkRows;
+        const q = bulkSearch.toLowerCase();
+        return bulkRows.filter((r) => r.commodity_name.toLowerCase().includes(q));
+    }, [bulkRows, bulkSearch]);
+
+    const bulkStats = useMemo(() => {
+        let filledCount = 0;
+        let surplusCount = 0;
+        let defisitCount = 0;
+
+        bulkRows.forEach((r) => {
+            const hasData = r.produksi !== '' || r.ketersediaan !== '' || r.kebutuhan !== '';
+            if (hasData) filledCount++;
+            const ket = parseFloat(r.ketersediaan) || 0;
+            const keb = parseFloat(r.kebutuhan) || 0;
+            if (r.ketersediaan !== '' || r.kebutuhan !== '') {
+                if (ket - keb >= 0) surplusCount++;
+                else defisitCount++;
+            }
+        });
+
+        return { filledCount, surplusCount, defisitCount };
+    }, [bulkRows]);
 
     const handleBulkFillZero = () => {
         setBulkRows((prev) =>
@@ -1170,35 +1197,77 @@ export default function FoodBalancesIndex({
                 </Dialog>
 
                 {/* ======================================================== */}
-                {/* MODAL 2: Bulk Input Modal                                */}
+                {/* MODAL 2: Bulk Input Modal (LANDSCAPE LAYOUT)              */}
                 {/* ======================================================== */}
                 <Dialog open={bulkModalOpen} onOpenChange={setBulkModalOpen}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6">
-                        <DialogHeader>
-                            <div className="flex items-center justify-between">
+                    <DialogContent className="w-[96vw] max-w-[1440px] sm:max-w-[96vw] lg:max-w-7xl max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-3xl border border-emerald-200/80 dark:border-emerald-900/40 bg-white dark:bg-slate-950 shadow-2xl">
+                        {/* MODAL HEADER */}
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-8">
                                 <div>
-                                    <DialogTitle className="text-xl">
-                                        Bulk Input Neraca Pangan Bulanan
+                                    <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            <Layers className="h-4 w-4" />
+                                        </span>
+                                        <span>Bulk Input Neraca Pangan Bulanan</span>
                                     </DialogTitle>
-                                    <DialogDescription>
-                                        Input serentak produksi, ketersediaan, dan kebutuhan untuk semua komoditas periode {getMonthLabel(currentMonth)} {currentYear}.
+                                    <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                        Input serentak produksi, ketersediaan, dan kebutuhan untuk semua komoditas periode {getMonthLabel(currentMonth)} {currentYear} tanpa ada kolom yang terpotong.
                                     </DialogDescription>
                                 </div>
-                            </div>
-                        </DialogHeader>
 
-                        {/* Quick Helper Tools */}
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                            <div className="text-xs text-slate-500">
-                                Total <strong>{bulkRows.length} komoditas</strong> aktif dalam daftar
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-white/80 dark:bg-slate-800 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold">
+                                        <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                                        <span>Periode: {getMonthLabel(currentMonth)} {currentYear}</span>
+                                    </Badge>
+                                </div>
                             </div>
+                        </div>
+
+                        {/* Quick Helper Tools & Search Bar */}
+                        <div className="px-6 py-2.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="relative w-64">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Cari komoditas..."
+                                        value={bulkSearch}
+                                        onChange={(e) => setBulkSearch(e.target.value)}
+                                        className="h-8 pl-8 pr-7 text-xs rounded-xl border-slate-200 dark:border-slate-800"
+                                    />
+                                    {bulkSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setBulkSearch('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer font-bold"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <Badge variant="outline" className="text-[11px] bg-slate-50 dark:bg-slate-800/80 font-bold">
+                                        {bulkStats.filledCount} / {bulkRows.length} Terisi
+                                    </Badge>
+                                    <Badge className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border-emerald-200">
+                                        {bulkStats.surplusCount} Surplus
+                                    </Badge>
+                                    <Badge className="text-[10px] font-bold bg-rose-100 text-rose-800 border-rose-200">
+                                        {bulkStats.defisitCount} Defisit
+                                    </Badge>
+                                </div>
+                            </div>
+
                             <div className="flex items-center gap-2">
                                 <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
                                     onClick={handleBulkFillZero}
-                                    className="h-7 text-xs"
+                                    className="h-8 text-xs font-bold rounded-xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 cursor-pointer"
                                 >
                                     Isi 0 yang Kosong
                                 </Button>
@@ -1207,139 +1276,166 @@ export default function FoodBalancesIndex({
                                     variant="ghost"
                                     size="sm"
                                     onClick={handleBulkClearAll}
-                                    className="h-7 text-xs text-slate-500 hover:text-rose-600"
+                                    className="h-8 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl cursor-pointer"
                                 >
                                     Kosongkan Semua
                                 </Button>
                             </div>
                         </div>
 
-                        {/* Bulk Grid Table */}
-                        <div className="flex-1 overflow-y-auto max-h-[55vh] border rounded-lg border-slate-200 dark:border-slate-800">
-                            <table className="w-full text-left text-xs">
-                                <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-600 font-semibold dark:bg-slate-800 dark:border-slate-700 z-10">
-                                    <tr>
-                                        <th className="py-2.5 px-3 w-10 text-center">No</th>
-                                        <th className="py-2.5 px-3 w-48">Komoditas</th>
-                                        <th className="py-2.5 px-3 w-28 text-center">Produksi</th>
-                                        <th className="py-2.5 px-3 w-28 text-center">Ketersediaan</th>
-                                        <th className="py-2.5 px-3 w-28 text-center">Kebutuhan</th>
-                                        <th className="py-2.5 px-3 w-24 text-right">Selisih</th>
-                                        <th className="py-2.5 px-3 w-24 text-center">Status</th>
-                                        <th className="py-2.5 px-3">Catatan</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {bulkRows.map((r, idx) => {
-                                        const ketNum = parseFloat(r.ketersediaan) || 0;
-                                        const kebNum = parseFloat(r.kebutuhan) || 0;
-                                        const hasData = r.ketersediaan !== '' || r.kebutuhan !== '';
-                                        const diff = roundToTwo(ketNum - kebNum);
-                                        const isSurplus = diff >= 0;
+                        {/* Bulk Grid Table with Full Landscape Width */}
+                        <div className="flex-1 min-h-0 overflow-auto px-6 py-3">
+                            <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+                                <table className="w-full text-left text-xs whitespace-nowrap">
+                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-[10.5px] font-black uppercase text-slate-700 dark:text-slate-300 z-10 shadow-xs">
+                                        <tr>
+                                            <th className="py-2.5 px-3 w-12 text-center">No</th>
+                                            <th className="py-2.5 px-3 min-w-[220px]">Komoditas</th>
+                                            <th className="py-2.5 px-3 min-w-[130px] text-center">Produksi</th>
+                                            <th className="py-2.5 px-3 min-w-[130px] text-center">Ketersediaan</th>
+                                            <th className="py-2.5 px-3 min-w-[130px] text-center">Kebutuhan</th>
+                                            <th className="py-2.5 px-3 min-w-[120px] text-right">Selisih</th>
+                                            <th className="py-2.5 px-3 min-w-[100px] text-center">Status</th>
+                                            <th className="py-2.5 px-3 min-w-[220px]">Catatan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredBulkRows.map((r, idx) => {
+                                            const ketNum = parseFloat(r.ketersediaan) || 0;
+                                            const kebNum = parseFloat(r.kebutuhan) || 0;
+                                            const hasData = r.ketersediaan !== '' || r.kebutuhan !== '';
+                                            const diff = roundToTwo(ketNum - kebNum);
+                                            const isSurplus = diff >= 0;
 
-                                        return (
-                                            <tr key={r.commodity_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                                                <td className="py-2 px-3 text-center text-slate-400 font-mono">
-                                                    {idx + 1}
-                                                </td>
-                                                <td className="py-2 px-3 font-semibold text-slate-800 dark:text-slate-100">
-                                                    {r.commodity_name}
-                                                    <span className="ml-1 text-[11px] font-normal text-slate-400">
-                                                        ({r.unit})
-                                                    </span>
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <Input
-                                                        type="number"
-                                                        step="any"
-                                                        min="0"
-                                                        value={r.produksi}
-                                                        onChange={(e) => handleBulkFieldChange(idx, 'produksi', e.target.value)}
-                                                        className="h-8 text-right font-mono text-xs"
-                                                        placeholder="0"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <Input
-                                                        type="number"
-                                                        step="any"
-                                                        min="0"
-                                                        value={r.ketersediaan}
-                                                        onChange={(e) => handleBulkFieldChange(idx, 'ketersediaan', e.target.value)}
-                                                        className="h-8 text-right font-mono text-xs"
-                                                        placeholder="0"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <Input
-                                                        type="number"
-                                                        step="any"
-                                                        min="0"
-                                                        value={r.kebutuhan}
-                                                        onChange={(e) => handleBulkFieldChange(idx, 'kebutuhan', e.target.value)}
-                                                        className="h-8 text-right font-mono text-xs"
-                                                        placeholder="0"
-                                                    />
-                                                </td>
-                                                <td className="py-2 px-3 text-right font-mono font-semibold">
-                                                    {hasData ? (
-                                                        <span className={diff < 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                                                            {diff >= 0 ? '+' : ''}
-                                                            {formatNumber(diff)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-slate-300">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-2 px-3 text-center">
-                                                    {hasData ? (
-                                                        isSurplus ? (
-                                                            <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                                                Surplus
+                                            return (
+                                                <tr key={r.commodity_id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                    <td className="py-2 px-3 text-center text-slate-400 font-mono">
+                                                        {idx + 1}
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                        <div className="flex items-center gap-2.5">
+                                                            {r.commodity_image_url ? (
+                                                                <img
+                                                                    src={r.commodity_image_url}
+                                                                    alt={r.commodity_name}
+                                                                    className="h-7 w-7 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0"
+                                                                />
+                                                            ) : (
+                                                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+                                                                    <Wheat className="h-3.5 w-3.5" />
+                                                                </span>
+                                                            )}
+                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                <span className="font-extrabold text-slate-900 dark:text-white truncate">
+                                                                    {r.commodity_name}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-500 font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shrink-0">
+                                                                    ({r.unit})
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                        <Input
+                                                            type="number"
+                                                            step="any"
+                                                            min="0"
+                                                            value={r.produksi}
+                                                            onChange={(e) => handleBulkFieldChange(r.commodity_id, 'produksi', e.target.value)}
+                                                            className="h-8 text-right font-mono text-xs font-semibold rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                        <Input
+                                                            type="number"
+                                                            step="any"
+                                                            min="0"
+                                                            value={r.ketersediaan}
+                                                            onChange={(e) => handleBulkFieldChange(r.commodity_id, 'ketersediaan', e.target.value)}
+                                                            className="h-8 text-right font-mono text-xs font-semibold rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                        <Input
+                                                            type="number"
+                                                            step="any"
+                                                            min="0"
+                                                            value={r.kebutuhan}
+                                                            onChange={(e) => handleBulkFieldChange(r.commodity_id, 'kebutuhan', e.target.value)}
+                                                            className="h-8 text-right font-mono text-xs font-semibold rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td className="py-2 px-3 text-right font-mono font-bold">
+                                                        {hasData ? (
+                                                            <span className={diff < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                                                {diff >= 0 ? '+' : ''}
+                                                                {formatNumber(diff)}
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                                                                Defisit
-                                                            </span>
-                                                        )
-                                                    ) : (
-                                                        <span className="text-slate-300">-</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-2 px-3">
-                                                    <Input
-                                                        type="text"
-                                                        value={r.notes}
-                                                        onChange={(e) => handleBulkFieldChange(idx, 'notes', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                        placeholder="Catatan..."
-                                                    />
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                                            <span className="text-slate-300">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 px-3 text-center">
+                                                        {hasData ? (
+                                                            isSurplus ? (
+                                                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                                                    Surplus
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge className="bg-rose-100 text-rose-800 border-rose-200 text-[10px] font-bold">
+                                                                    Defisit
+                                                                </Badge>
+                                                            )
+                                                        ) : (
+                                                            <span className="text-slate-300">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 px-3">
+                                                        <Input
+                                                            type="text"
+                                                            value={r.notes}
+                                                            onChange={(e) => handleBulkFieldChange(r.commodity_id, 'notes', e.target.value)}
+                                                            className="h-8 text-xs rounded-lg"
+                                                            placeholder="Catatan..."
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
 
-                        <DialogFooter className="gap-2 sm:gap-0 pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setBulkModalOpen(false)}
-                                disabled={isSubmittingBulk}
-                            >
-                                Batal
-                            </Button>
+                        {/* MODAL FOOTER - PINNED AT BOTTOM */}
+                        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 shrink-0 flex flex-col sm:flex-row gap-3 sm:justify-between items-center">
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setBulkModalOpen(false)}
+                                    disabled={isSubmittingBulk}
+                                    className="w-full sm:w-auto rounded-xl"
+                                >
+                                    Batal
+                                </Button>
+                                <span className="text-xs text-slate-500 hidden md:inline">
+                                    Total <strong>{bulkRows.length} komoditas</strong> untuk periode <strong>{getMonthLabel(currentMonth)} {currentYear}</strong>
+                                </span>
+                            </div>
+
                             <Button
                                 type="button"
                                 onClick={handleSubmitBulk}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                 disabled={isSubmittingBulk}
+                                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 text-white font-bold text-xs hover:from-[#005252] hover:to-emerald-800 cursor-pointer disabled:opacity-50 shadow-sm"
                             >
-                                {isSubmittingBulk ? 'Menyimpan...' : 'Simpan Semua Data'}
+                                {isSubmittingBulk ? 'Menyimpan...' : `Simpan Semua Data (${bulkRows.length} Komoditas)`}
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </DialogContent>
                 </Dialog>
 

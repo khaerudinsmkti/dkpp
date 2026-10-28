@@ -43,22 +43,22 @@ const navGroups: NavGroup[] = [
         title: 'Pemantauan Pangan',
         items: [
             {
-                title: 'Indeks Ketahanan Pangan (IKP)',
+                title: 'IKP',
                 href: '/ikp-scores',
                 icon: ShieldCheck,
             },
             {
-                title: 'Kerawanan Pangan (SKPG)',
+                title: 'SKPG',
                 href: '/skpg-admin',
                 icon: MapPin,
             },
             {
-                title: 'FSVA (Ketahanan Desa)',
+                title: 'FSVA',
                 href: '/fsva-admin',
                 icon: Compass,
             },
             {
-                title: 'Cadangan Pangan (CPPD)',
+                title: 'CPPD',
                 href: cppdIndex(),
                 icon: Package,
             },
