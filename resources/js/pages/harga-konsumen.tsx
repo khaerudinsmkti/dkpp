@@ -904,11 +904,87 @@ export default function HargaKonsumen({
     const [historyError, setHistoryError] = useState<string | null>(null);
     const [historyStartDate, setHistoryStartDate] = useState<string>('');
     const [historyEndDate, setHistoryEndDate] = useState<string>('');
-    const [historyPreset, setHistoryPreset] = useState<'14' | '7' | '30' | 'custom'>('14');
+    const [historyPreset, setHistoryPreset] = useState<'14' | '7' | '30' | 'month' | 'custom'>('14');
     const [historyDateWarning, setHistoryDateWarning] = useState<string | null>(null);
     const [historyPrevMonthLabel, setHistoryPrevMonthLabel] = useState<string>('');
     const [historyPrevMonthAvgs, setHistoryPrevMonthAvgs] = useState<Record<number | string, number | null>>({});
     const [historyCommodityHets, setHistoryCommodityHets] = useState<Record<number | string, number | null>>({});
+
+    const [historySelectedMonth, setHistorySelectedMonth] = useState<number>(() => {
+        if (selectedDate) {
+            const m = parseInt(selectedDate.substring(5, 7), 10);
+            if (!isNaN(m)) return m;
+        }
+        return new Date().getMonth() + 1;
+    });
+
+    const [historySelectedYear, setHistorySelectedYear] = useState<number>(() => {
+        if (selectedDate) {
+            const yr = parseInt(selectedDate.substring(0, 4), 10);
+            if (!isNaN(yr)) return yr;
+        }
+        return new Date().getFullYear();
+    });
+
+    const [historyAvailableYears, setHistoryAvailableYears] = useState<number[]>([
+        new Date().getFullYear(),
+        new Date().getFullYear() - 1,
+    ]);
+
+    const MONTH_OPTIONS = [
+        { value: 1, label: 'Januari' },
+        { value: 2, label: 'Februari' },
+        { value: 3, label: 'Maret' },
+        { value: 4, label: 'April' },
+        { value: 5, label: 'Mei' },
+        { value: 6, label: 'Juni' },
+        { value: 7, label: 'Juli' },
+        { value: 8, label: 'Agustus' },
+        { value: 9, label: 'September' },
+        { value: 10, label: 'Oktober' },
+        { value: 11, label: 'November' },
+        { value: 12, label: 'Desember' },
+    ];
+
+    // ==============================================================
+    // FITUR TABEL HISTORIS PERKEMBANGAN MINGGUAN
+    // ==============================================================
+    interface WeekDefinition {
+        num: number;
+        label: string;
+        start_day: number;
+        end_day: number;
+        range_label: string;
+    }
+
+    interface WeeklyCommodityRow {
+        id: number;
+        name: string;
+        category: string;
+        unit: string;
+        het: number | null;
+        weeks: Record<number, {
+            average: number | null;
+            recorded_days: number;
+            status: 'normal' | 'warning' | 'danger';
+            diff_pct: number | null;
+        }>;
+        month_average: number | null;
+        month_status: 'normal' | 'warning' | 'danger';
+        month_diff_pct: number | null;
+    }
+
+    interface WeeklyDataPayload {
+        month: number;
+        year: number;
+        month_name: string;
+        weeks: WeekDefinition[];
+        has_week_5: boolean;
+        commodity_rows: WeeklyCommodityRow[];
+    }
+
+    const [historyViewMode, setHistoryViewMode] = useState<'daily' | 'weekly'>('daily');
+    const [weeklyData, setWeeklyData] = useState<WeeklyDataPayload | null>(null);
 
     // ==============================================================
     // TABULASI TABEL HISTORIS: 'daily' (Tab 1) | 'monthly' (Tab 2)
@@ -997,14 +1073,19 @@ export default function HargaKonsumen({
         );
     }, [monthlyCommodityRows, monthlySearchQuery]);
 
-    const fetchHistoryData = async (start?: string, end?: string) => {
+    const fetchHistoryData = async (start?: string, end?: string, month?: number, year?: number) => {
         setHistoryLoading(true);
         setHistoryError(null);
         try {
             const params = new URLSearchParams();
             params.append('market_id', String(currentMarketId));
-            if (start) params.append('start_date', start);
-            if (end) params.append('end_date', end);
+            if (month && year) {
+                params.append('month', String(month));
+                params.append('year', String(year));
+            } else {
+                if (start) params.append('start_date', start);
+                if (end) params.append('end_date', end);
+            }
 
             const res = await fetch(`/api/public-history-data?${params.toString()}`);
             if (!res.ok) throw new Error('Gagal mengambil data historis');
@@ -1014,9 +1095,15 @@ export default function HargaKonsumen({
             setHistoryCommodities(data.commodities || []);
             if (data.start_date) setHistoryStartDate(data.start_date);
             if (data.end_date) setHistoryEndDate(data.end_date);
+            if (data.selected_month) setHistorySelectedMonth(data.selected_month);
+            if (data.selected_year) setHistorySelectedYear(data.selected_year);
+            if (data.available_years && data.available_years.length > 0) {
+                setHistoryAvailableYears(data.available_years);
+            }
             if (data.prev_month_label) setHistoryPrevMonthLabel(data.prev_month_label);
             if (data.prev_month_averages) setHistoryPrevMonthAvgs(data.prev_month_averages);
             if (data.commodity_hets) setHistoryCommodityHets(data.commodity_hets);
+            if (data.weekly_data) setWeeklyData(data.weekly_data);
         } catch (err: any) {
             setHistoryError(err.message || 'Terjadi kesalahan saat memuat data historis');
         } finally {
@@ -1031,13 +1118,70 @@ export default function HargaKonsumen({
         }
     }, [currentMarketId, historyTab]);
 
-    const handleApplyHistoryPreset = (preset: '14' | '7' | '30') => {
-        setHistoryPreset(preset);
+    const handleApplyHistoryMonth = (month: number, year: number) => {
+        setHistoryPreset('month');
+        setHistorySelectedMonth(month);
+        setHistorySelectedYear(year);
         setHistoryDateWarning(null);
+
+        const lastDay = new Date(year, month, 0).getDate();
+        const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+        let endStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+        const todayStr = maxDate || new Date().toISOString().split('T')[0];
+        if (endStr > todayStr && startStr <= todayStr) {
+            endStr = todayStr;
+        }
+
+        setHistoryStartDate(startStr);
+        setHistoryEndDate(endStr);
+        fetchHistoryData(startStr, endStr, month, year);
+    };
+
+    const handleActivateWeeklyFilter = (month?: number, year?: number) => {
+        setHistoryViewMode('weekly');
+        const m = month ?? historySelectedMonth;
+        const y = year ?? historySelectedYear;
+        handleApplyHistoryMonth(m, y);
+    };
+
+    const handleApplyHistoryPreset = (preset: '14' | '7' | '30' | 'this_month' | 'prev_month' | 'weekly') => {
+        setHistoryDateWarning(null);
+        if (preset === 'weekly') {
+            handleActivateWeeklyFilter();
+            return;
+        }
+
+        setHistoryViewMode('daily');
+
         if (preset === '14') {
+            setHistoryPreset('14');
             fetchHistoryData();
             return;
         }
+
+        if (preset === 'this_month') {
+            const now = new Date();
+            const curMonth = selectedDate ? parseInt(selectedDate.substring(5, 7), 10) : now.getMonth() + 1;
+            const curYear = selectedDate ? parseInt(selectedDate.substring(0, 4), 10) : now.getFullYear();
+            handleApplyHistoryMonth(curMonth, curYear);
+            return;
+        }
+
+        if (preset === 'prev_month') {
+            const now = new Date();
+            let curMonth = selectedDate ? parseInt(selectedDate.substring(5, 7), 10) : now.getMonth() + 1;
+            let curYear = selectedDate ? parseInt(selectedDate.substring(0, 4), 10) : now.getFullYear();
+            curMonth -= 1;
+            if (curMonth < 1) {
+                curMonth = 12;
+                curYear -= 1;
+            }
+            handleApplyHistoryMonth(curMonth, curYear);
+            return;
+        }
+
+        setHistoryPreset(preset);
         const anchor = historyEndDate || currentDate || maxDate || new Date().toISOString().split('T')[0];
         const days = preset === '7' ? 7 : 30;
         const dEnd = new Date(anchor + 'T00:00:00');
@@ -1113,6 +1257,14 @@ export default function HargaKonsumen({
             start_date: historyStartDate,
             end_date: historyEndDate,
         });
+        if (historyViewMode === 'weekly') {
+            params.append('view_mode', 'weekly');
+            params.append('month', String(historySelectedMonth));
+            params.append('year', String(historySelectedYear));
+        } else if (historyPreset === 'month') {
+            params.append('month', String(historySelectedMonth));
+            params.append('year', String(historySelectedYear));
+        }
         window.location.href = `/api/public-history-excel?${params.toString()}`;
     };
 
@@ -1190,6 +1342,164 @@ export default function HargaKonsumen({
     const handleDownloadHistoryPdf = () => {
         const marketObj = markets.find((m) => m.id === currentMarketId);
         const marketTitle = marketObj?.name || selectedMarketName || 'Pasar Daerah Indramayu';
+        const monthLabel = MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label;
+
+        // Cetak format mingguan jika mode mingguan aktif
+        if (historyViewMode === 'weekly' && weeklyData) {
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+                return;
+            }
+
+            const weeks = weeklyData.weeks || [];
+            const rows = weeklyData.commodity_rows || [];
+
+            let tableHeaders = '<th>No</th><th style="text-align:left">Komoditas</th><th>Satuan</th><th>HET / HAP</th>';
+            weeks.forEach((w) => {
+                tableHeaders += `<th>${w.label}<br/><span style="font-weight:normal;font-size:6.5pt">(${w.range_label})</span></th>`;
+            });
+            tableHeaders += '<th>Rata-rata</th>';
+
+            let tableRowsHtml = '';
+            const weekSums: Record<number, number> = {};
+            const weekCounts: Record<number, number> = {};
+            const weekAboveCounts: Record<number, number> = {};
+            const allMonthAverages: number[] = [];
+
+            rows.forEach((r, idx) => {
+                let cells = `<td style="text-align:center;font-weight:bold">${idx + 1}</td>`;
+                cells += `<td style="text-align:left;font-weight:bold">${r.name}</td>`;
+                cells += `<td style="text-align:center">${r.unit}</td>`;
+                cells += `<td style="text-align:right">${r.het ? formatCurrency(r.het) : '-'}</td>`;
+
+                weeks.forEach((w) => {
+                    const wInfo = r.weeks[w.num];
+                    const avg = wInfo?.average;
+                    const status = wInfo?.status || 'normal';
+
+                    let style = 'text-align:right;font-family:monospace;';
+                    if (status === 'danger') {
+                        style += 'background-color:#fee2e2;color:#991b1b;font-weight:bold;';
+                        weekAboveCounts[w.num] = (weekAboveCounts[w.num] || 0) + 1;
+                    } else if (status === 'warning') {
+                        style += 'background-color:#fef08a;color:#854d0e;font-weight:bold;';
+                        weekAboveCounts[w.num] = (weekAboveCounts[w.num] || 0) + 1;
+                    }
+
+                    if (avg !== null && avg !== undefined && Number(avg) > 0) {
+                        const diffText = wInfo?.diff_pct ? `<br/><span style="font-size:6pt">(+${wInfo.diff_pct}%)</span>` : '';
+                        cells += `<td style="${style}">${formatCurrency(Number(avg))}${diffText}</td>`;
+                        weekSums[w.num] = (weekSums[w.num] || 0) + Number(avg);
+                        weekCounts[w.num] = (weekCounts[w.num] || 0) + 1;
+                    } else {
+                        cells += `<td style="text-align:center;color:#94a3b8">-</td>`;
+                    }
+                });
+
+                let mStyle = 'text-align:right;font-family:monospace;font-weight:bold;background-color:#f8fafc;';
+                if (r.month_status === 'danger') {
+                    mStyle = 'text-align:right;font-family:monospace;font-weight:bold;background-color:#fee2e2;color:#991b1b;';
+                } else if (r.month_status === 'warning') {
+                    mStyle = 'text-align:right;font-family:monospace;font-weight:bold;background-color:#fef08a;color:#854d0e;';
+                }
+
+                if (r.month_average !== null && r.month_average !== undefined && Number(r.month_average) > 0) {
+                    const diffText = r.month_diff_pct ? `<br/><span style="font-size:6pt">(+${r.month_diff_pct}%)</span>` : '';
+                    cells += `<td style="${mStyle}">${formatCurrency(Number(r.month_average))}${diffText}</td>`;
+                    allMonthAverages.push(Number(r.month_average));
+                } else {
+                    cells += `<td style="text-align:center;color:#94a3b8">-</td>`;
+                }
+
+                tableRowsHtml += `<tr>${cells}</tr>`;
+            });
+
+            let avgRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f1f5f9;">Rata-rata Keseluruhan</td>';
+            weeks.forEach((w) => {
+                const count = weekCounts[w.num] || 0;
+                const sum = weekSums[w.num] || 0;
+                const avg = count > 0 ? Math.round(sum / count) : null;
+                avgRowHtml += `<td style="text-align:right;font-weight:bold;font-family:monospace;background-color:#f8fafc;">${avg !== null ? formatCurrency(avg) : '-'}</td>`;
+            });
+            const ovrAvg = allMonthAverages.length > 0 ? Math.round(allMonthAverages.reduce((a, b) => a + b, 0) / allMonthAverages.length) : null;
+            avgRowHtml += `<td style="text-align:right;font-weight:bold;font-family:monospace;background-color:#f8fafc;">${ovrAvg !== null ? formatCurrency(ovrAvg) : '-'}</td>`;
+
+            let hetRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f8fafc;">Komoditas di Atas HET</td>';
+            weeks.forEach((w) => {
+                const cnt = weekAboveCounts[w.num] || 0;
+                const style = cnt > 0 ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : 'color:#64748b;';
+                hetRowHtml += `<td style="text-align:center;${style}">${cnt} Komoditas</td>`;
+            });
+            hetRowHtml += '<td style="text-align:center;color:#64748b">-</td>';
+
+            const html = `
+            <!DOCTYPE html>
+            <html lang="id">
+            <head>
+                <meta charset="UTF-8"/>
+                <title>Laporan Historis Harga Mingguan - ${marketTitle}</title>
+                <style>
+                    @page { size: landscape; margin: 10mm; }
+                    body { font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 8pt; color: #1e293b; margin: 0; padding: 12px; }
+                    .no-print { margin-bottom: 15px; display: flex; gap: 8px; align-items: center; }
+                    .btn { background: #006565; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; font-size: 8pt; cursor: pointer; }
+                    .btn-close { background: #64748b; }
+                    .header { text-align: center; border-bottom: 2px solid #006565; padding-bottom: 8px; margin-bottom: 12px; }
+                    .header h1 { margin: 0; font-size: 13pt; color: #006565; }
+                    .header h2 { margin: 2px 0 0 0; font-size: 10pt; color: #334155; }
+                    .header p { margin: 3px 0 0 0; font-size: 8pt; color: #475569; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { border: 1px solid #cbd5e1; padding: 4px 6px; font-size: 7.5pt; }
+                    th { background-color: #006565; color: white; font-weight: bold; text-align: center; vertical-align: middle; }
+                    tbody tr:nth-child(even) { background-color: #f8fafc; }
+                    .legend { margin-top: 10px; font-size: 7.5pt; display: flex; gap: 12px; align-items: center; color: #475569; }
+                    .legend-box { display: inline-block; width: 14px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+                    @media print { .no-print { display: none !important; } body { padding: 0; } }
+                </style>
+            </head>
+            <body>
+                <div class="no-print">
+                    <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                    <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                    <span style="font-size: 8pt; color: #475569">Tips: Pada menu print browser, pilih <strong>Save as PDF</strong> dan orientasi <strong>Landscape</strong>.</span>
+                </div>
+                <div class="header">
+                    <h1>Pemerintah Kabupaten Indramayu</h1>
+                    <h2>Dinas Ketahanan Pangan dan Pertanian</h2>
+                    <p><strong>Tabel Historis Perkembangan Harga Pangan Mingguan Tingkat Konsumen</strong> | Pasar: <strong>${marketTitle}</strong> | Periode: <strong>Bulan ${weeklyData.month_name} ${weeklyData.year}</strong></p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>${tableHeaders}</tr>
+                    </thead>
+                    <tbody>
+                        ${tableRowsHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr style="border-top: 2px solid #006565;">${avgRowHtml}</tr>
+                        <tr>${hetRowHtml}</tr>
+                    </tfoot>
+                </table>
+                <div class="legend">
+                    <strong>Keterangan:</strong>
+                    <span><span class="legend-box" style="background:#fef08a;border:1px solid #ca8a04;"></span>Kuning: Melebihi HET 1% - 10%</span>
+                    <span><span class="legend-box" style="background:#fee2e2;border:1px solid #dc2626;"></span>Merah: Melebihi HET &gt; 10%</span>
+                    <span><span class="legend-box" style="background:#ffffff;border:1px solid #cbd5e1;"></span>Putih: Normal / Sesuai HET</span>
+                </div>
+            </body>
+            </html>
+            `;
+            printWindow.document.open();
+            printWindow.document.write(html);
+            printWindow.document.close();
+            setTimeout(() => { printWindow.print(); }, 400);
+            return;
+        }
+
+        const periodText = historyPreset === 'month' && monthLabel
+            ? `Bulan ${monthLabel} ${historySelectedYear} (${historyStartDate} s/d ${historyEndDate})`
+            : `${historyStartDate} s/d ${historyEndDate}`;
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
@@ -1377,7 +1687,7 @@ export default function HargaKonsumen({
             <div class="header">
                 <h1>Pemerintah Kabupaten Indramayu</h1>
                 <h2>Dinas Ketahanan Pangan dan Pertanian</h2>
-                <p><strong>Tabel Historis Perkembangan Harga Pangan Tingkat Konsumen</strong> | Pasar: <strong>${marketTitle}</strong> | Periode: <strong>${historyStartDate} s/d ${historyEndDate}</strong></p>
+                <p><strong>Tabel Historis Perkembangan Harga Pangan Tingkat Konsumen</strong> | Pasar: <strong>${marketTitle}</strong> | Periode: <strong>${periodText}</strong></p>
             </div>
             <table>
                 <thead>
@@ -3545,19 +3855,44 @@ export default function HargaKonsumen({
                                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 pb-5">
                             <div>
                                 <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-[#006565]">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span>Data Historis 25 Komoditas</span>
+                                    {historyViewMode === 'weekly' ? (
+                                        <>
+                                            <BarChart3 className="h-3.5 w-3.5" />
+                                            <span>Rekapitulasi Mingguan 25 Komoditas</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Clock className="h-3.5 w-3.5" />
+                                            <span>Data Historis 25 Komoditas</span>
+                                        </>
+                                    )}
                                 </div>
                                 <h3 className="mt-2 text-lg sm:text-xl font-black text-slate-900 tracking-tight">
-                                    Tabel Historis Perkembangan Harga Pangan
+                                    {historyViewMode === 'weekly'
+                                        ? 'Tabel Rekapitulasi Mingguan Perkembangan Harga Pangan'
+                                        : 'Tabel Historis Perkembangan Harga Pangan'}
                                 </h3>
                                 <p className="mt-0.5 text-xs text-slate-500">
-                                    Pergerakan harga komoditas pangan harian di{' '}
+                                    {historyViewMode === 'weekly'
+                                        ? 'Perkembangan rata-rata mingguan komoditas pangan dan status ambang batas HET di '
+                                        : 'Pergerakan harga komoditas pangan harian di '}
                                     <strong className="text-slate-800">
                                         {markets.find((m) => m.id === currentMarketId)?.name || selectedMarketName || 'Pasar Daerah Indramayu'}
                                     </strong>
-                                    {historyStartDate && historyEndDate && (
-                                        <> ({historyStartDate} s/d {historyEndDate})</>
+                                    {historyViewMode === 'weekly' ? (
+                                        <>
+                                            {' '}&bull; Mode:{' '}
+                                            <span className="inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-extrabold text-amber-900 border border-amber-200">
+                                                Filter Mingguan (M1 - M{weeklyData?.has_week_5 ? '5' : '4'})
+                                            </span>
+                                            {' '}&bull; Periode: <strong className="text-[#006565] font-extrabold">{MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}</strong>
+                                        </>
+                                    ) : historyPreset === 'month' ? (
+                                        <> &bull; Periode: <strong className="text-[#006565] font-extrabold">{MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}</strong> ({historyStartDate} s/d {historyEndDate})</>
+                                    ) : (
+                                        historyStartDate && historyEndDate && (
+                                            <> ({historyStartDate} s/d {historyEndDate})</>
+                                        )
                                     )}
                                 </p>
                             </div>
@@ -3567,95 +3902,280 @@ export default function HargaKonsumen({
                                 <button
                                     type="button"
                                     onClick={handleDownloadHistoryExcel}
-                                    disabled={historyLoading || historyRows.length === 0}
+                                    disabled={historyLoading || (historyViewMode === 'weekly' ? (!weeklyData || weeklyData.commodity_rows.length === 0) : historyRows.length === 0)}
                                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                                    title="Download data tabel dalam format Excel (.xlsx)"
+                                    title={historyViewMode === 'weekly' ? "Download rekap mingguan format Excel (.xlsx)" : "Download data tabel dalam format Excel (.xlsx)"}
                                 >
                                     <FileSpreadsheet className="h-4 w-4" />
-                                    <span>Download Excel</span>
+                                    <span>Download Excel {historyViewMode === 'weekly' ? '(Mingguan)' : ''}</span>
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleDownloadHistoryPdf}
-                                    disabled={historyLoading || historyRows.length === 0}
+                                    disabled={historyLoading || (historyViewMode === 'weekly' ? (!weeklyData || weeklyData.commodity_rows.length === 0) : historyRows.length === 0)}
                                     className="inline-flex items-center gap-2 rounded-xl bg-rose-700 hover:bg-rose-800 active:scale-95 px-3.5 py-2.5 text-xs font-bold text-white shadow-xs transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                                     title="Cetak atau unduh dokumen PDF format Landscape"
                                 >
                                     <FileText className="h-4 w-4" />
-                                    <span>Download PDF</span>
+                                    <span>Download PDF {historyViewMode === 'weekly' ? '(Mingguan)' : ''}</span>
                                 </button>
                             </div>
                         </div>
 
-                        {/* Filter Bar: Presets & Date Range */}
-                        <div className="mt-5 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 p-3.5">
-                            {/* Preset Buttons */}
-                            <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-xs font-bold text-slate-500 mr-1">
-                                    Rentang Cepat:
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleApplyHistoryPreset('14')}
-                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
-                                        historyPreset === '14'
-                                            ? 'bg-[#006565] text-white shadow-xs'
-                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    14 Data Terbaru (Default)
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleApplyHistoryPreset('7')}
-                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
-                                        historyPreset === '7'
-                                            ? 'bg-[#006565] text-white shadow-xs'
-                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    7 Hari
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleApplyHistoryPreset('30')}
-                                    className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
-                                        historyPreset === '30'
-                                            ? 'bg-[#006565] text-white shadow-xs'
-                                            : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
-                                    }`}
-                                >
-                                    30 Hari
-                                </button>
+                        {/* Filter Bar: Mode Switcher, Filter Bulanan, Presets & Date Range */}
+                        <div className="mt-5 flex flex-col gap-3 rounded-2xl bg-slate-50/80 border border-slate-200/80 p-3.5 sm:p-4">
+                            {/* Baris 0: Mode Tampilan Switcher (Harian vs Mingguan) */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-extrabold text-slate-700">Pilihan Tampilan:</span>
+                                    <div className="inline-flex rounded-xl bg-slate-200/70 p-1 shadow-inner">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setHistoryViewMode('daily');
+                                            }}
+                                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                                historyViewMode === 'daily'
+                                                    ? 'bg-white text-[#006565] shadow-xs font-extrabold ring-1 ring-slate-200'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            <Clock className="h-3.5 w-3.5" />
+                                            <span>Tampilan Harian</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleActivateWeeklyFilter()}
+                                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                                historyViewMode === 'weekly'
+                                                    ? 'bg-[#006565] text-white shadow-xs font-extrabold'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            <BarChart3 className="h-3.5 w-3.5" />
+                                            <span>Filter Mingguan</span>
+                                            <span className={`rounded-full px-1.5 py-0.2 text-[9px] font-black uppercase ${
+                                                historyViewMode === 'weekly' ? 'bg-amber-400 text-slate-950' : 'bg-amber-100 text-amber-800'
+                                            }`}>
+                                                HET Alert
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {historyViewMode === 'weekly' ? (
+                                    <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200/80 px-3 py-1.5 text-xs font-bold text-amber-900">
+                                        <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                                        <span>Mode Mingguan Aktif: Warna Kuning (1-10% &gt; HET) &amp; Merah (&gt;10% &gt; HET)</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-[11px] text-slate-500 font-medium">
+                                        Menampilkan pergerakan harga per tanggal di pasar terpilih
+                                    </span>
+                                )}
                             </div>
 
-                            {/* Date Pickers */}
-                            <div className="flex flex-wrap items-center gap-2">
-                                <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
-                                    <span className="text-[11px] font-bold text-slate-400">Dari:</span>
-                                    <input
-                                        type="date"
-                                        value={historyStartDate}
-                                        max={historyEndDate || maxDate || undefined}
-                                        onChange={(e) => handleHistoryStartDateChange(e.target.value)}
-                                        className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
-                                    />
+                            {/* Baris 1: Filter Bulanan & Preset Cepat */}
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                                {/* Kontrol Filter Bulanan */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 mr-0.5">
+                                        <Calendar className="h-4 w-4 text-[#006565]" />
+                                        <span>Filter Bulan &amp; Tahun:</span>
+                                    </div>
+
+                                    {/* Select Bulan */}
+                                    <div className="relative inline-flex items-center">
+                                        <select
+                                            value={historySelectedMonth}
+                                            onChange={(e) => {
+                                                const m = Number(e.target.value);
+                                                if (historyViewMode === 'weekly') {
+                                                    handleActivateWeeklyFilter(m, historySelectedYear);
+                                                } else {
+                                                    handleApplyHistoryMonth(m, historySelectedYear);
+                                                }
+                                            }}
+                                            className={`h-8 rounded-xl border pl-3 pr-7 text-xs font-bold shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#006565] ${
+                                                historyPreset === 'month' || historyViewMode === 'weekly'
+                                                    ? 'border-[#006565] bg-emerald-50/60 text-[#006565] font-extrabold ring-1 ring-[#006565]/30'
+                                                    : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            {MONTH_OPTIONS.map((m) => (
+                                                <option key={m.value} value={m.value}>
+                                                    {m.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Select Tahun */}
+                                    <div className="relative inline-flex items-center">
+                                        <select
+                                            value={historySelectedYear}
+                                            onChange={(e) => {
+                                                const y = Number(e.target.value);
+                                                if (historyViewMode === 'weekly') {
+                                                    handleActivateWeeklyFilter(historySelectedMonth, y);
+                                                } else {
+                                                    handleApplyHistoryMonth(historySelectedMonth, y);
+                                                }
+                                            }}
+                                            className={`h-8 rounded-xl border pl-3 pr-7 text-xs font-bold shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#006565] ${
+                                                historyPreset === 'month' || historyViewMode === 'weekly'
+                                                    ? 'border-[#006565] bg-emerald-50/60 text-[#006565] font-extrabold ring-1 ring-[#006565]/30'
+                                                    : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            {Array.from(new Set([...historyAvailableYears, ...monthlyAvailableYears, new Date().getFullYear()])).sort((a, b) => b - a).map((yr) => (
+                                                <option key={yr} value={yr}>
+                                                    {yr}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (historyViewMode === 'weekly') {
+                                                handleActivateWeeklyFilter(historySelectedMonth, historySelectedYear);
+                                            } else {
+                                                handleApplyHistoryMonth(historySelectedMonth, historySelectedYear);
+                                            }
+                                        }}
+                                        className="rounded-xl bg-[#006565] hover:bg-[#005252] px-3 py-1.5 text-xs font-bold text-white shadow-xs transition-all cursor-pointer"
+                                    >
+                                        Terapkan
+                                    </button>
                                 </div>
-                                <span className="text-slate-400 font-bold text-xs">-</span>
-                                <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
-                                    <span className="text-[11px] font-bold text-slate-400">Sampai:</span>
-                                    <input
-                                        type="date"
-                                        value={historyEndDate}
-                                        max={maxDate || undefined}
-                                        onChange={(e) => handleHistoryEndDateChange(e.target.value)}
-                                        className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
-                                    />
+
+                                {/* Preset Cepat */}
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
+                                    <span className="text-[11px] font-bold text-slate-400 mr-1">
+                                        Preset Cepat:
+                                    </span>
+                                    {/* Tombol Filter Mingguan */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyHistoryPreset('weekly')}
+                                        className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                                            historyViewMode === 'weekly'
+                                                ? 'bg-[#006565] text-white shadow-xs font-black ring-1 ring-[#006565]/40'
+                                                : 'border border-amber-300 bg-amber-50/80 text-amber-900 hover:bg-amber-100 font-extrabold'
+                                        }`}
+                                        title="Aktifkan tampilan rekapitulasi mingguan (M1 s/d M4/M5)"
+                                    >
+                                        <BarChart3 className="h-3.5 w-3.5" />
+                                        <span>Filter Mingguan</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyHistoryPreset('this_month')}
+                                        className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                            historyViewMode === 'daily' && historyPreset === 'month' && historySelectedMonth === (selectedDate ? parseInt(selectedDate.substring(5, 7), 10) : new Date().getMonth() + 1) && historySelectedYear === (selectedDate ? parseInt(selectedDate.substring(0, 4), 10) : new Date().getFullYear())
+                                                ? 'bg-[#006565] text-white shadow-xs'
+                                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        Bulan Ini
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyHistoryPreset('prev_month')}
+                                        className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all cursor-pointer"
+                                    >
+                                        Bulan Lalu
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyHistoryPreset('14')}
+                                        className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                            historyViewMode === 'daily' && historyPreset === '14'
+                                                ? 'bg-[#006565] text-white shadow-xs'
+                                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        14 Hari
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleApplyHistoryPreset('30')}
+                                        className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                            historyViewMode === 'daily' && historyPreset === '30'
+                                                ? 'bg-[#006565] text-white shadow-xs'
+                                                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        30 Hari
+                                    </button>
                                 </div>
-                                <span className="rounded-lg bg-emerald-100/70 px-2 py-1 text-[10px] font-extrabold text-emerald-800">
-                                    Maks. 31 Hari
-                                </span>
                             </div>
+
+                            {/* Baris 2: Rentang Tanggal Manual (Harian) */}
+                            {historyViewMode === 'daily' ? (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-200/60">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-[11px] font-bold text-slate-500">
+                                            Atau Rentang Tanggal Manual:
+                                        </span>
+                                        <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                                            <span className="text-[11px] font-bold text-slate-400">Dari:</span>
+                                            <input
+                                                type="date"
+                                                value={historyStartDate}
+                                                max={historyEndDate || maxDate || undefined}
+                                                onChange={(e) => handleHistoryStartDateChange(e.target.value)}
+                                                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
+                                            />
+                                        </div>
+                                        <span className="text-slate-400 font-bold text-xs">-</span>
+                                        <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700">
+                                            <span className="text-[11px] font-bold text-slate-400">Sampai:</span>
+                                            <input
+                                                type="date"
+                                                value={historyEndDate}
+                                                max={maxDate || undefined}
+                                                onChange={(e) => handleHistoryEndDateChange(e.target.value)}
+                                                className="bg-transparent font-bold text-slate-800 text-xs focus:outline-none cursor-pointer py-0.5"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        {historyPreset === 'month' && (
+                                            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100/80 px-2 py-1 text-[10px] font-extrabold text-[#006565]">
+                                                <CheckCircle2 className="h-3 w-3" />
+                                                <span>Filter Aktif: {MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}</span>
+                                            </span>
+                                        )}
+                                        <span className="rounded-lg bg-slate-200/70 px-2 py-1 text-[10px] font-extrabold text-slate-600">
+                                            Maks. 31 Hari per Tampilan
+                                        </span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2.5 border-t border-slate-200/60">
+                                    <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+                                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-100/80 px-2 py-1 text-[10px] font-extrabold text-[#006565]">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            <span>Periode: {MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}</span>
+                                        </span>
+                                        <span className="text-slate-400">&bull;</span>
+                                        <span>
+                                            Tabel otomatis mengelompokkan data ke dalam Minggu 1 s/d Minggu {weeklyData?.has_week_5 ? '5' : '4'}
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setHistoryViewMode('daily')}
+                                        className="text-[11px] font-bold text-[#006565] hover:underline cursor-pointer"
+                                    >
+                                        &larr; Beralih ke Tampilan Harian
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Date Adjustment Notice */}
@@ -3688,11 +4208,265 @@ export default function HargaKonsumen({
                                         Muat Ulang
                                     </button>
                                 </div>
-                            ) : historyRows.length === 0 && !historyLoading ? (
+                            ) : (historyViewMode === 'weekly' ? (!weeklyData || weeklyData.commodity_rows.length === 0) : historyRows.length === 0) && !historyLoading ? (
                                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
-                                    Tidak ada data historis yang tersedia untuk rentang tanggal ini.
+                                    Tidak ada data historis yang tersedia untuk periode ini.
+                                </div>
+                            ) : historyViewMode === 'weekly' && weeklyData ? (
+                                /* ============================================================== */
+                                /* STRUKTUR TABEL MINGGUAN: KOMODITI x M1..M5 x RATA-RATA         */
+                                /* ============================================================== */
+                                <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[620px] overflow-y-auto">
+                                    <table className="w-full border-collapse text-left text-xs">
+                                        <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
+                                            <tr>
+                                                {/* Kolom 1: No (Sticky) */}
+                                                <th className="sticky left-0 z-40 bg-slate-100 px-3 py-3 text-center font-extrabold text-slate-700 min-w-[50px] border-r border-slate-200">
+                                                    No
+                                                </th>
+                                                {/* Kolom 2: Daftar Komoditi (Sticky) */}
+                                                <th className="sticky left-[50px] z-40 bg-slate-100 px-4 py-3 text-left font-extrabold text-slate-700 min-w-[210px] border-r-2 border-slate-300 shadow-xs">
+                                                    Daftar Komoditi
+                                                </th>
+                                                {/* Kolom 3: Satuan */}
+                                                <th className="px-3 py-3 text-center font-extrabold text-slate-700 min-w-[70px] border-r border-slate-200/60 whitespace-nowrap">
+                                                    Satuan
+                                                </th>
+                                                {/* Kolom 4: HET / HAP */}
+                                                <th className="px-3.5 py-3 text-right font-extrabold text-slate-700 min-w-[115px] border-r border-slate-200/60 whitespace-nowrap">
+                                                    HET / HAP
+                                                </th>
+                                                {/* Kolom Minggu 1 s/d Minggu 4 (dan Minggu 5 jika ada) */}
+                                                {weeklyData.weeks.map((w) => (
+                                                    <th
+                                                        key={w.num}
+                                                        className="px-3.5 py-3 text-right min-w-[130px] border-r border-slate-200/60 whitespace-nowrap"
+                                                    >
+                                                        <div className="font-extrabold text-slate-900">{w.label}</div>
+                                                        <div className="text-[10px] font-normal text-slate-500">
+                                                            {w.range_label}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                {/* Kolom Terakhir: Rata-rata Bulan */}
+                                                <th className="bg-emerald-50/90 px-4 py-3 text-right font-extrabold text-[#006565] min-w-[135px] border-l-2 border-emerald-300 whitespace-nowrap">
+                                                    <div>Rata-rata Bulan</div>
+                                                    <div className="text-[10px] font-normal text-emerald-800">
+                                                        {MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}
+                                                    </div>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 bg-white">
+                                            {weeklyData.commodity_rows.map((c, idx) => {
+                                                const het = c.het;
+                                                return (
+                                                    <tr
+                                                        key={c.id}
+                                                        className="group hover:bg-slate-50/70 transition-colors"
+                                                    >
+                                                        {/* No (Sticky) */}
+                                                        <td className="sticky left-0 z-20 bg-white group-hover:bg-slate-50/70 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            {idx + 1}
+                                                        </td>
+                                                        {/* Komoditi (Sticky) */}
+                                                        <td className="sticky left-[50px] z-20 bg-white group-hover:bg-slate-50/70 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap">
+                                                            <div className="font-extrabold text-slate-900">
+                                                                {c.name}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                                {c.category}
+                                                            </div>
+                                                        </td>
+                                                        {/* Satuan */}
+                                                        <td className="px-3 py-2.5 text-center text-slate-600 font-semibold border-r border-slate-100 whitespace-nowrap">
+                                                            {c.unit}
+                                                        </td>
+                                                        {/* HET / HAP */}
+                                                        <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-600 border-r border-slate-100 whitespace-nowrap">
+                                                            {het !== null && Number(het) > 0 ? formatCurrency(Number(het)) : '-'}
+                                                        </td>
+                                                        {/* Minggu 1 s/d Minggu 4/5 */}
+                                                        {weeklyData.weeks.map((w) => {
+                                                            const weekInfo = c.weeks[w.num];
+                                                            const avg = weekInfo?.average;
+                                                            const status = weekInfo?.status || 'normal';
+                                                            const diffPct = weekInfo?.diff_pct;
+
+                                                            let cellStyle = 'bg-white group-hover:bg-slate-50/70 text-slate-800 border-slate-100';
+                                                            if (status === 'warning') {
+                                                                cellStyle = 'bg-amber-100 text-amber-950 font-black border-amber-300 ring-1 ring-inset ring-amber-300/60';
+                                                            } else if (status === 'danger') {
+                                                                cellStyle = 'bg-rose-100 text-rose-950 font-black border-rose-300 ring-1 ring-inset ring-rose-300/60';
+                                                            }
+
+                                                            return (
+                                                                <td
+                                                                    key={w.num}
+                                                                    className={`px-3.5 py-2.5 text-right border-r whitespace-nowrap transition-colors ${cellStyle}`}
+                                                                >
+                                                                    {avg !== null && avg !== undefined && Number(avg) > 0 ? (
+                                                                        <div>
+                                                                            <div className="font-mono font-bold">
+                                                                                {formatCurrency(Number(avg))}
+                                                                            </div>
+                                                                            {status !== 'normal' && diffPct !== null && (
+                                                                                <div
+                                                                                    className={`text-[10px] font-extrabold mt-0.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 ${
+                                                                                        status === 'danger'
+                                                                                            ? 'bg-rose-200/90 text-rose-950'
+                                                                                            : 'bg-amber-200/90 text-amber-950'
+                                                                                    }`}
+                                                                                    title={`Harga rata-rata minggu ini melebihi HET sebesar ${diffPct > 0 ? '+' : ''}${diffPct.toFixed(1)}%`}
+                                                                                >
+                                                                                    <ArrowUp className="h-2.5 w-2.5 stroke-[2.5]" />
+                                                                                    <span>+{diffPct.toFixed(1)}%</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-slate-300 font-normal">-</span>
+                                                                    )}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        {/* Rata-rata Bulan */}
+                                                        <td
+                                                            className={`px-4 py-2.5 text-right border-l-2 whitespace-nowrap ${
+                                                                c.month_status === 'danger'
+                                                                    ? 'bg-rose-100 text-rose-950 font-black border-rose-300 ring-1 ring-inset ring-rose-300/60'
+                                                                    : c.month_status === 'warning'
+                                                                    ? 'bg-amber-100 text-amber-950 font-black border-amber-300 ring-1 ring-inset ring-amber-300/60'
+                                                                    : 'bg-emerald-50/50 text-slate-900 font-bold border-emerald-300'
+                                                            }`}
+                                                        >
+                                                            {c.month_average !== null && Number(c.month_average) > 0 ? (
+                                                                <div>
+                                                                    <div className="font-mono font-black">
+                                                                        {formatCurrency(Number(c.month_average))}
+                                                                    </div>
+                                                                    {c.month_status !== 'normal' && c.month_diff_pct !== null && (
+                                                                        <div
+                                                                            className={`text-[10px] font-extrabold mt-0.5 inline-flex items-center gap-0.5 rounded px-1.5 py-0.2 ${
+                                                                                c.month_status === 'danger'
+                                                                                    ? 'bg-rose-200/90 text-rose-950'
+                                                                                    : 'bg-amber-200/90 text-amber-950'
+                                                                            }`}
+                                                                            title={`Rata-rata bulan ini melebihi HET sebesar +${c.month_diff_pct.toFixed(1)}%`}
+                                                                        >
+                                                                            <ArrowUp className="h-2.5 w-2.5 stroke-[2.5]" />
+                                                                            <span>+{c.month_diff_pct.toFixed(1)}%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-slate-300 font-normal">-</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        {/* TFOOT Mingguan */}
+                                        <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
+                                            {/* Baris 1: Rata-rata Keseluruhan */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    Rata-rata Keseluruhan
+                                                </td>
+                                                <td className="px-3 py-2.5 text-center text-slate-400 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-400 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                {weeklyData.weeks.map((w) => {
+                                                    const vals = weeklyData.commodity_rows
+                                                        .map((c) => c.weeks[w.num]?.average)
+                                                        .filter((v): v is number => v !== null && v !== undefined && Number(v) > 0);
+                                                    const avgAll = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+                                                    return (
+                                                        <td
+                                                            key={w.num}
+                                                            className="px-3.5 py-2.5 text-right border-r border-slate-200 font-mono font-black whitespace-nowrap bg-slate-50 text-slate-900"
+                                                        >
+                                                            {avgAll !== null ? formatCurrency(avgAll) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-4 py-2.5 text-right border-l-2 border-emerald-300 font-mono font-black whitespace-nowrap bg-emerald-50/80 text-[#006565]">
+                                                    {(() => {
+                                                        const monthVals = weeklyData.commodity_rows
+                                                            .map((c) => c.month_average)
+                                                            .filter((v): v is number => v !== null && v !== undefined && Number(v) > 0);
+                                                        const avgMonthAll = monthVals.length > 0 ? Math.round(monthVals.reduce((a, b) => a + b, 0) / monthVals.length) : null;
+                                                        return avgMonthAll !== null ? formatCurrency(avgMonthAll) : '-';
+                                                    })()}
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 2: Jumlah Komoditas di Atas HET */}
+                                            <tr>
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2.5 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2.5 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-rose-800">
+                                                    Komoditas di Atas HET
+                                                </td>
+                                                <td className="px-3 py-2.5 text-center text-slate-400 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="px-3.5 py-2.5 text-right font-mono font-bold text-slate-400 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                {weeklyData.weeks.map((w) => {
+                                                    const countWarning = weeklyData.commodity_rows.filter(
+                                                        (c) => c.weeks[w.num]?.status === 'warning'
+                                                    ).length;
+                                                    const countDanger = weeklyData.commodity_rows.filter(
+                                                        (c) => c.weeks[w.num]?.status === 'danger'
+                                                    ).length;
+                                                    const totalAbove = countWarning + countDanger;
+                                                    return (
+                                                        <td
+                                                            key={w.num}
+                                                            className={`px-3.5 py-2.5 text-right border-r border-slate-200 font-mono font-black whitespace-nowrap ${
+                                                                totalAbove > 0 ? 'bg-rose-50 text-rose-900' : 'bg-slate-50 text-emerald-700'
+                                                            }`}
+                                                        >
+                                                            {totalAbove > 0 ? (
+                                                                <span title={`${countWarning} komoditas naik 1-10% (Kuning), ${countDanger} komoditas naik >10% (Merah)`}>
+                                                                    {totalAbove} Komoditas
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-emerald-700 font-bold">0 (Aman)</span>
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-4 py-2.5 text-right border-l-2 border-emerald-300 font-mono font-black whitespace-nowrap bg-rose-50 text-rose-900">
+                                                    {(() => {
+                                                        const totalAboveMonth = weeklyData.commodity_rows.filter(
+                                                            (c) => c.month_status === 'warning' || c.month_status === 'danger'
+                                                        ).length;
+                                                        return totalAboveMonth > 0 ? (
+                                                            `${totalAboveMonth} Komoditas`
+                                                        ) : (
+                                                            <span className="text-emerald-700 font-bold">0 (Aman)</span>
+                                                        );
+                                                    })()}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
                                 </div>
                             ) : (
+                                /* ============================================================== */
+                                /* STRUKTUR TABEL HARIAN DEFAULT                                 */
+                                /* ============================================================== */
                                 <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-inner max-h-[580px] overflow-y-auto">
                                     <table className="w-full border-collapse text-left text-xs">
                                         <thead className="sticky top-0 z-30 bg-slate-100 text-slate-700 shadow-xs">
@@ -3940,42 +4714,65 @@ export default function HargaKonsumen({
                             )}
 
                             {/* Legend & Scroll Hint */}
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 border-t border-slate-200/60 pt-3 px-1">
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <span className="font-bold text-slate-700">Keterangan:</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="inline-block h-3.5 w-6 rounded bg-rose-100 border border-rose-300" />
-                                        <span className="text-slate-700 font-medium">Merah: Di atas HET</span>
+                            {historyViewMode === 'weekly' ? (
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 border-t border-slate-200/60 pt-3 px-1">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="font-bold text-slate-700">Keterangan Ambang Batas HET:</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded bg-amber-100 border border-amber-300" />
+                                            <span className="text-slate-800 font-bold">Kuning: Melebihi HET 1% - 10%</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded bg-rose-100 border border-rose-300" />
+                                            <span className="text-slate-800 font-bold">Merah: Melebihi HET &gt; 10%</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded bg-white border border-slate-300" />
+                                            <span className="text-slate-600 font-medium">Putih: Normal (&le; HET)</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600" />
-                                        <span className="text-slate-700 font-medium">Panah Merah: Naik vs Kemarin</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <ArrowDown className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600" />
-                                        <span className="text-slate-700 font-medium">Panah Hijau: Turun vs Kemarin</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="inline-block h-3.5 w-3.5 rounded bg-emerald-100 border border-emerald-300" />
-                                        <span className="text-slate-700 font-medium">Hijau: Penurunan</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="inline-block h-3.5 w-3.5 rounded bg-amber-100 border border-amber-300" />
-                                        <span className="text-slate-700 font-medium">Kuning: Naik 1-10%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="inline-block h-3.5 w-3.5 rounded bg-rose-100 border border-rose-300" />
-                                        <span className="text-slate-700 font-medium">Merah: Naik &gt;10%</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <WhatsAppIcon className="h-3.5 w-3.5 text-emerald-600 fill-current" />
-                                        <span className="text-slate-700 font-medium">Kirim: Bagikan Laporan ke WA</span>
+                                    <div className="text-slate-500 font-medium">
+                                        💡 Pembagian: M1 (Tgl 1-7), M2 (Tgl 8-14), M3 (Tgl 15-21), M4 (Tgl 22-28){weeklyData?.has_week_5 ? ', M5 (Tgl 29-Akhir)' : ''}.
                                     </div>
                                 </div>
-                                <div className="text-slate-400">
-                                    👉 Geser tabel ke samping untuk melihat seluruh 25 komoditas.
+                            ) : (
+                                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 border-t border-slate-200/60 pt-3 px-1">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <span className="font-bold text-slate-700">Keterangan:</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-6 rounded bg-rose-100 border border-rose-300" />
+                                            <span className="text-slate-700 font-medium">Merah: Di atas HET</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <ArrowUp className="h-3.5 w-3.5 stroke-[2.5] text-rose-600" />
+                                            <span className="text-slate-700 font-medium">Panah Merah: Naik vs Kemarin</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <ArrowDown className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600" />
+                                            <span className="text-slate-700 font-medium">Panah Hijau: Turun vs Kemarin</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-3.5 rounded bg-emerald-100 border border-emerald-300" />
+                                            <span className="text-slate-700 font-medium">Hijau: Penurunan</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-3.5 rounded bg-amber-100 border border-amber-300" />
+                                            <span className="text-slate-700 font-medium">Kuning: Naik 1-10%</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="inline-block h-3.5 w-3.5 rounded bg-rose-100 border border-rose-300" />
+                                            <span className="text-slate-700 font-medium">Merah: Naik &gt;10%</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <WhatsAppIcon className="h-3.5 w-3.5 text-emerald-600 fill-current" />
+                                            <span className="text-slate-700 font-medium">Kirim: Bagikan Laporan ke WA</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-slate-400">
+                                        👉 Geser tabel ke samping untuk melihat seluruh 25 komoditas.
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 )}
