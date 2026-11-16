@@ -303,7 +303,7 @@ export default function SkpgAdminIndex({
             href: '#',
         },
         {
-            title: 'Kerawanan Pangan (SKPG)',
+            title: 'SKPG',
             href: '/skpg-admin',
         },
     ];
@@ -1914,315 +1914,432 @@ export default function SkpgAdminIndex({
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL: INPUT COPY-PASTE DARI EXCEL */}
+            {/* MODAL: INPUT COPY-PASTE DARI EXCEL (LANDSCAPE LAYOUT) */}
             <Dialog open={isPasteModalOpen} onOpenChange={setIsPasteModalOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
-                                <ClipboardPaste className="h-4 w-4" />
-                            </span>
-                            <span>Input SKPG via Copy-Paste dari Excel / Spreadsheet</span>
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-                            Salin (Copy) tabel atau blok data dari Excel/Google Sheets, lalu tempel (Paste) di kotak berikut.
-                            Sistem secara otomatis mendeteksi nama kecamatan, kode, dan nilai indikator status.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4">
-                        {/* Guidance & Examples Box */}
-                        <div className="rounded-2xl border border-purple-200/80 bg-purple-50/50 p-4 dark:border-purple-900/50 dark:bg-purple-950/20">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-purple-200/60 dark:border-purple-900/40">
-                                <div>
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                                        <Info className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-                                        <span>Petunjuk &amp; Format Isian Copy-Paste</span>
-                                    </h4>
-                                    <p className="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-0.5">
-                                        Pilih format yang sesuai dengan data di spreadsheet Anda:
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <div className="inline-flex rounded-xl bg-white/80 p-0.5 dark:bg-slate-800 border border-purple-200 dark:border-purple-800">
-                                        <button
-                                            type="button"
-                                            onClick={() => setPasteSampleTab('full')}
-                                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
-                                                pasteSampleTab === 'full'
-                                                    ? 'bg-purple-600 text-white shadow-xs'
-                                                    : 'text-purple-800 hover:text-purple-950 dark:text-purple-300'
-                                            }`}
-                                        >
-                                            Format Lengkap (11 Kolom)
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setPasteSampleTab('statusOnly')}
-                                            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
-                                                pasteSampleTab === 'statusOnly'
-                                                    ? 'bg-purple-600 text-white shadow-xs'
-                                                    : 'text-purple-800 hover:text-purple-950 dark:text-purple-300'
-                                            }`}
-                                        >
-                                            Format Cepat (7 Status)
-                                        </button>
-                                    </div>
-
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleCopySampleToClipboard(pasteSampleTab)}
-                                        className="h-7 gap-1 rounded-xl text-[11px] font-bold border-purple-300 text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:text-purple-300 cursor-pointer"
-                                        title="Salin contoh format ini ke clipboard Anda"
-                                    >
-                                        <Copy className="h-3 w-3 text-purple-600" />
-                                        <span>Salin Contoh Format</span>
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {/* Format Preview Table */}
-                            <div className="mt-3 overflow-x-auto rounded-xl border border-purple-200/70 bg-white/90 dark:border-purple-900/50 dark:bg-slate-900/90">
-                                {pasteSampleTab === 'full' ? (
-                                    <table className="w-full text-left text-[11px]">
-                                        <thead className="bg-purple-100/60 dark:bg-purple-950/40 text-[10px] font-black uppercase text-purple-900 dark:text-purple-200">
-                                            <tr>
-                                                <th className="px-2.5 py-1.5 text-center">No</th>
-                                                <th className="px-2.5 py-1.5">Kecamatan</th>
-                                                <th className="px-2.5 py-1.5">Kode BPS</th>
-                                                <th className="px-2 py-1.5 text-center">IK</th>
-                                                <th className="px-2 py-1.5 text-center">IA</th>
-                                                <th className="px-2 py-1.5 text-center">IP</th>
-                                                <th className="px-2 py-1.5 text-center">IKB</th>
-                                                <th className="px-2 py-1.5 text-center">Kering</th>
-                                                <th className="px-2 py-1.5 text-center">Basah</th>
-                                                <th className="px-2 py-1.5 text-center">Iklim</th>
-                                                <th className="px-2.5 py-1.5">Keterangan</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-purple-100 dark:divide-slate-800 font-mono text-[10.5px]">
-                                            <tr>
-                                                <td className="px-2.5 py-1 text-center text-slate-400">1</td>
-                                                <td className="px-2.5 py-1 font-bold text-slate-800 dark:text-slate-200">HAURGEULIS</td>
-                                                <td className="px-2.5 py-1 text-slate-400">3212010</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2.5 py-1 text-slate-500 font-sans">Kondisi stabil</td>
-                                            </tr>
-                                            <tr className="bg-purple-50/30 dark:bg-purple-950/10">
-                                                <td className="px-2.5 py-1 text-center text-slate-400">2</td>
-                                                <td className="px-2.5 py-1 font-bold text-slate-800 dark:text-slate-200">KROYA</td>
-                                                <td className="px-2.5 py-1 text-slate-400">3212020</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-orange-600">SIAGA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                                <td className="px-2.5 py-1 text-slate-500 font-sans">Waspada air irigasi</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                ) : (
-                                    <table className="w-full text-left text-[11px]">
-                                        <thead className="bg-purple-100/60 dark:bg-purple-950/40 text-[10px] font-black uppercase text-purple-900 dark:text-purple-200">
-                                            <tr>
-                                                <th className="px-2.5 py-1.5 text-center">Urutan Baris</th>
-                                                <th className="px-2 py-1.5 text-center">IK (Ketersediaan)</th>
-                                                <th className="px-2 py-1.5 text-center">IA (Akses)</th>
-                                                <th className="px-2 py-1.5 text-center">IP (Pemanfaatan)</th>
-                                                <th className="px-2 py-1.5 text-center">IKB (Komposit)</th>
-                                                <th className="px-2 py-1.5 text-center">Potensi Kering</th>
-                                                <th className="px-2 py-1.5 text-center">Potensi Basah</th>
-                                                <th className="px-2 py-1.5 text-center">Kondisi Iklim</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-purple-100 dark:divide-slate-800 font-mono text-[10.5px]">
-                                            <tr>
-                                                <td className="px-2.5 py-1 text-center font-sans font-bold text-slate-500">Baris 1 (Haurgeulis)</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            </tr>
-                                            <tr className="bg-purple-50/30 dark:bg-purple-950/10">
-                                                <td className="px-2.5 py-1 text-center font-sans font-bold text-slate-500">Baris 2 (Kroya)</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-orange-600">SIAGA</td>
-                                                <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                                <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-
-                            {/* Status Legend Notes */}
-                            <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">Ketahanan Pangan:</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">RENTAN</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">Iklim &amp; Bencana:</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">SIAGA</span>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">AWAS</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Paste Textarea */}
-                        <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="skpg-paste-area" className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    Kotak Penempelan (Paste Area)
-                                </Label>
-                                {pasteRawText && (
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPasteRawText('');
-                                            setParsedPasteRows([]);
-                                        }}
-                                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer"
-                                    >
-                                        Hapus / Reset
-                                    </button>
-                                )}
-                            </div>
-                            <textarea
-                                id="skpg-paste-area"
-                                rows={6}
-                                value={pasteRawText}
-                                onChange={(e) => handlePasteRawChange(e.target.value)}
-                                placeholder="Klik di sini, lalu tekan Ctrl+V untuk menempelkan data tabel yang telah disalin dari Excel..."
-                                className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-3 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#006565] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#006565]/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
-                            />
-                        </div>
-
-                        {/* Live Parsing Preview */}
-                        {parsedPasteRows.length > 0 && (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-black text-slate-900 dark:text-white">
-                                            Pratinjau Hasil Parsing
-                                        </span>
-                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">
-                                            {parsedPasteRows.length} Kecamatan Terdeteksi
-                                        </Badge>
-                                    </div>
-                                    <span className="text-[11px] text-slate-500">
-                                        Target Periode: <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong>
+                <DialogContent className="w-[96vw] max-w-[1440px] sm:max-w-[96vw] lg:max-w-7xl max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-3xl border border-purple-200/80 dark:border-purple-900/40 bg-white dark:bg-slate-950 shadow-2xl">
+                    {/* MODAL HEADER */}
+                    <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 shrink-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-8">
+                            <div>
+                                <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                                        <ClipboardPaste className="h-4 w-4" />
                                     </span>
-                                </div>
-
-                                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200/90 dark:border-slate-800">
-                                    <table className="w-full text-left text-xs">
-                                        <thead className="sticky top-0 bg-slate-100 text-[10px] font-black uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                            <tr>
-                                                <th className="px-3 py-2 w-10 text-center">No</th>
-                                                <th className="px-3 py-2">Kecamatan</th>
-                                                <th className="px-2 py-2 text-center">IK</th>
-                                                <th className="px-2 py-2 text-center">IA</th>
-                                                <th className="px-2 py-2 text-center">IP</th>
-                                                <th className="px-2 py-2 text-center">IKB</th>
-                                                <th className="px-2 py-2 text-center">Kering</th>
-                                                <th className="px-2 py-2 text-center">Basah</th>
-                                                <th className="px-2 py-2 text-center">Iklim</th>
-                                                <th className="px-3 py-2">Catatan</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 text-[11px] dark:divide-slate-800">
-                                            {parsedPasteRows.map((row, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                                    <td className="px-3 py-1.5 text-center font-bold text-slate-400">
-                                                        {idx + 1}
-                                                    </td>
-                                                    <td className="px-3 py-1.5 font-extrabold text-slate-900 dark:text-white">
-                                                        {row.kecamatan}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ik).badgeClass}`}>
-                                                            {row.ik}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ia).badgeClass}`}>
-                                                            {row.ia}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ip).badgeClass}`}>
-                                                            {row.ip}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ikb).badgeClass}`}>
-                                                            {row.ikb}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.potensi_kering).badgeClass}`}>
-                                                            {row.potensi_kering}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.potensi_basah).badgeClass}`}>
-                                                            {row.potensi_basah}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.kondisi_iklim).badgeClass}`}>
-                                                            {row.kondisi_iklim}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-3 py-1.5 text-slate-500 text-[10px] truncate max-w-[150px]">
-                                                        {row.keterangan || '-'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                    <span>Input SKPG via Copy-Paste dari Excel / Spreadsheet</span>
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    Salin tabel dari Excel/Google Sheets lalu tempel di kotak input. Sistem secara otomatis mendeteksi nama kecamatan, kode BPS, dan 7 indikator SKPG tanpa ada bagian form yang terpotong.
+                                </DialogDescription>
                             </div>
-                        )}
+
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-white/80 dark:bg-slate-800 border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-200 text-xs font-bold">
+                                    <Calendar className="h-3.5 w-3.5 text-purple-600" />
+                                    <span>Periode: {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
+                                </Badge>
+                            </div>
+                        </div>
                     </div>
 
-                    <DialogFooter className="pt-3 flex flex-col sm:flex-row gap-2 sm:justify-between items-center">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setIsPasteModalOpen(false)}
-                            className="w-full sm:w-auto rounded-xl"
-                        >
-                            Batal
-                        </Button>
+                    {/* MODAL BODY (LANDSCAPE 2-COLUMN GRID) */}
+                    <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+                        {/* LEFT COLUMN: Input Paste Area & Format Options */}
+                        <div className="lg:col-span-5 flex flex-col gap-4 min-h-0 lg:overflow-y-auto pr-1">
+                            {/* Card 1: Textarea Kotak Penempelan */}
+                            <div className="rounded-2xl border border-purple-200/80 bg-purple-50/30 dark:border-purple-900/50 dark:bg-purple-950/20 p-4 flex flex-col gap-2.5 shadow-xs">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="skpg-paste-area" className="text-xs font-bold text-slate-900 dark:text-white">
+                                            Kotak Penempelan Data
+                                        </Label>
+                                        {pasteRawText && (
+                                            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
+                                                {pasteRawText.split(/\r?\n/).filter((l) => l.trim().length > 0).length} Baris
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={async () => {
+                                                try {
+                                                    if (navigator.clipboard && navigator.clipboard.readText) {
+                                                        const text = await navigator.clipboard.readText();
+                                                        if (text && text.trim()) {
+                                                            handlePasteRawChange(text);
+                                                            toast.success('Data dari clipboard berhasil ditempelkan!');
+                                                            return;
+                                                        }
+                                                    }
+                                                    toast.info('Gunakan Ctrl+V pada kotak teks untuk menempel data.');
+                                                } catch {
+                                                    toast.info('Gunakan Ctrl+V pada kotak teks untuk menempel data.');
+                                                }
+                                            }}
+                                            className="h-7 px-2 text-[11px] font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-lg cursor-pointer"
+                                            title="Tempel teks langsung dari clipboard"
+                                        >
+                                            <ClipboardPaste className="h-3 w-3 mr-1" />
+                                            <span>Tempel Clipboard</span>
+                                        </Button>
+
+                                        {pasteRawText && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setPasteRawText('');
+                                                    setParsedPasteRows([]);
+                                                }}
+                                                className="h-7 px-2 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg cursor-pointer"
+                                            >
+                                                <RotateCcw className="h-3 w-3 mr-1" />
+                                                <span>Reset</span>
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <textarea
+                                    id="skpg-paste-area"
+                                    rows={7}
+                                    value={pasteRawText}
+                                    onChange={(e) => handlePasteRawChange(e.target.value)}
+                                    placeholder="Klik di sini, lalu tekan Ctrl+V untuk menempelkan data tabel yang disalin dari Excel/Spreadsheet..."
+                                    className="w-full min-h-[140px] rounded-xl border border-purple-200 bg-white p-3 font-mono text-xs text-slate-900 placeholder:text-slate-400 focus:border-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-600/20 dark:border-purple-900/60 dark:bg-slate-900 dark:text-white"
+                                />
+
+                                <div className="text-[11px] text-purple-800/80 dark:text-purple-300/80 flex items-center justify-between">
+                                    <span>Pemisah kolom otomatis terdeteksi (Tab / Titik-Koma / Koma)</span>
+                                    {parsedPasteRows.length > 0 && (
+                                        <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
+                                            ✓ {parsedPasteRows.length} kecamatan cocok
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Card 2: Petunjuk Format & Contoh */}
+                            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-4 space-y-3 shadow-xs">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2.5 border-b border-slate-200/80 dark:border-slate-800">
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                                            <Info className="h-3.5 w-3.5 text-purple-600" />
+                                            <span>Pilihan Format Excel</span>
+                                        </h4>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        <div className="inline-flex rounded-xl bg-white p-0.5 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                            <button
+                                                type="button"
+                                                onClick={() => setPasteSampleTab('full')}
+                                                className={`rounded-lg px-2 py-1 text-[11px] font-bold transition-all ${
+                                                    pasteSampleTab === 'full'
+                                                        ? 'bg-purple-600 text-white shadow-xs'
+                                                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                Lengkap (11 Kolom)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setPasteSampleTab('statusOnly')}
+                                                className={`rounded-lg px-2 py-1 text-[11px] font-bold transition-all ${
+                                                    pasteSampleTab === 'statusOnly'
+                                                        ? 'bg-purple-600 text-white shadow-xs'
+                                                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                Cepat (7 Status)
+                                            </button>
+                                        </div>
+
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleCopySampleToClipboard(pasteSampleTab)}
+                                            className="h-7 gap-1 rounded-xl text-[11px] font-bold border-purple-300 text-purple-800 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300 cursor-pointer"
+                                            title="Salin data contoh format ini ke clipboard Anda"
+                                        >
+                                            <Copy className="h-3 w-3 text-purple-600" />
+                                            <span>Salin Contoh</span>
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Status Legend Notes */}
+                                <div className="space-y-1.5 text-[11px]">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 min-w-[110px]">Ketahanan:</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">RENTAN</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 min-w-[110px]">Iklim &amp; Bencana:</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">SIAGA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">AWAS</span>
+                                    </div>
+                                </div>
+
+                                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 bg-purple-50/60 dark:bg-purple-950/20 p-2 rounded-xl border border-purple-100 dark:border-purple-900/40">
+                                    💡 <strong>Tips:</strong> Header tabel tidak perlu dihapus, sistem otomatis mengabaikan baris judul dan mencocokkan nama kecamatan 31 wilayah Kab. Indramayu secara cerdas.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: Live Parsing Preview OR Sample Format Guide */}
+                        <div className="lg:col-span-7 flex flex-col min-h-0 h-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 overflow-hidden shadow-xs">
+                            {parsedPasteRows.length > 0 ? (
+                                <div className="flex flex-col h-full min-h-0 space-y-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-900 dark:text-white">
+                                                Pratinjau Hasil Parsing Data
+                                            </span>
+                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                                {parsedPasteRows.length} Kecamatan Terdeteksi
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                                            <span>Periode: <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong></span>
+                                        </div>
+                                    </div>
+
+                                    {/* Table container with full landscape breadth */}
+                                    <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
+                                        <table className="w-full text-left text-xs whitespace-nowrap">
+                                            <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 z-10 shadow-xs">
+                                                <tr>
+                                                    <th className="px-3 py-2 w-10 text-center">No</th>
+                                                    <th className="px-3 py-2 min-w-[130px]">Kecamatan</th>
+                                                    <th className="px-2 py-2 text-center min-w-[70px]">IK</th>
+                                                    <th className="px-2 py-2 text-center min-w-[70px]">IA</th>
+                                                    <th className="px-2 py-2 text-center min-w-[70px]">IP</th>
+                                                    <th className="px-2 py-2 text-center min-w-[70px]">IKB</th>
+                                                    <th className="px-2 py-2 text-center min-w-[80px]">Pot. Kering</th>
+                                                    <th className="px-2 py-2 text-center min-w-[80px]">Pot. Basah</th>
+                                                    <th className="px-2 py-2 text-center min-w-[80px]">Kondisi Iklim</th>
+                                                    <th className="px-3 py-2 min-w-[140px]">Catatan / Keterangan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 text-[11px] dark:divide-slate-800">
+                                                {parsedPasteRows.map((row, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                                        <td className="px-3 py-1.5 text-center font-bold text-slate-400">
+                                                            {idx + 1}
+                                                        </td>
+                                                        <td className="px-3 py-1.5 font-extrabold text-slate-900 dark:text-white">
+                                                            {row.kecamatan}
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ik).badgeClass}`}>
+                                                                {row.ik}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ia).badgeClass}`}>
+                                                                {row.ia}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ip).badgeClass}`}>
+                                                                {row.ip}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.ikb).badgeClass}`}>
+                                                                {row.ikb}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.potensi_kering).badgeClass}`}>
+                                                                {row.potensi_kering}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.potensi_basah).badgeClass}`}>
+                                                                {row.potensi_basah}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${getStatusBadge(row.kondisi_iklim).badgeClass}`}>
+                                                                {row.kondisi_iklim}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-1.5 text-slate-500 text-[10.5px]">
+                                                            {row.keterangan || '-'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col h-full min-h-0 space-y-3">
+                                    <div className="flex items-center justify-between shrink-0 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-slate-900 dark:text-white">
+                                                Contoh Susunan Kolom Excel ({pasteSampleTab === 'full' ? 'Format Lengkap 11 Kolom' : 'Format Cepat 7 Status'})
+                                            </span>
+                                        </div>
+                                        <span className="text-[11px] text-slate-400">
+                                            Belum ada data yang ditempelkan
+                                        </span>
+                                    </div>
+
+                                    {/* Format Preview Table */}
+                                    <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-purple-200/70 bg-slate-50/50 dark:border-purple-900/50 dark:bg-slate-900/90">
+                                        {pasteSampleTab === 'full' ? (
+                                            <table className="w-full text-left text-[11px] whitespace-nowrap">
+                                                <thead className="sticky top-0 bg-purple-100/80 dark:bg-purple-950/60 text-[10px] font-black uppercase text-purple-900 dark:text-purple-200 z-10 shadow-xs">
+                                                    <tr>
+                                                        <th className="px-2.5 py-2 text-center">No</th>
+                                                        <th className="px-3 py-2 min-w-[120px]">Kecamatan</th>
+                                                        <th className="px-2.5 py-2">Kode BPS</th>
+                                                        <th className="px-2 py-2 text-center min-w-[65px]">IK</th>
+                                                        <th className="px-2 py-2 text-center min-w-[65px]">IA</th>
+                                                        <th className="px-2 py-2 text-center min-w-[65px]">IP</th>
+                                                        <th className="px-2 py-2 text-center min-w-[65px]">IKB</th>
+                                                        <th className="px-2 py-2 text-center min-w-[75px]">Kering</th>
+                                                        <th className="px-2 py-2 text-center min-w-[75px]">Basah</th>
+                                                        <th className="px-2 py-2 text-center min-w-[75px]">Iklim</th>
+                                                        <th className="px-3 py-2 min-w-[130px]">Keterangan</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-purple-100 dark:divide-slate-800 font-mono text-[10.5px]">
+                                                    <tr>
+                                                        <td className="px-2.5 py-1.5 text-center text-slate-400">1</td>
+                                                        <td className="px-3 py-1.5 font-bold text-slate-800 dark:text-slate-200">HAURGEULIS</td>
+                                                        <td className="px-2.5 py-1.5 text-slate-400">3212010</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-3 py-1.5 text-slate-500 font-sans">Kondisi stabil</td>
+                                                    </tr>
+                                                    <tr className="bg-purple-50/40 dark:bg-purple-950/20">
+                                                        <td className="px-2.5 py-1.5 text-center text-slate-400">2</td>
+                                                        <td className="px-3 py-1.5 font-bold text-slate-800 dark:text-slate-200">KROYA</td>
+                                                        <td className="px-2.5 py-1.5 text-slate-400">3212020</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-orange-600">SIAGA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                        <td className="px-3 py-1.5 text-slate-500 font-sans">Waspada air irigasi</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="px-2.5 py-1.5 text-center text-slate-400">3</td>
+                                                        <td className="px-3 py-1.5 font-bold text-slate-800 dark:text-slate-200">GABUSWETAN</td>
+                                                        <td className="px-2.5 py-1.5 text-slate-400">3212030</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-3 py-1.5 text-slate-500 font-sans">Kondisi stabil</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <table className="w-full text-left text-[11px] whitespace-nowrap">
+                                                <thead className="sticky top-0 bg-purple-100/80 dark:bg-purple-950/60 text-[10px] font-black uppercase text-purple-900 dark:text-purple-200 z-10 shadow-xs">
+                                                    <tr>
+                                                        <th className="px-3 py-2 text-center min-w-[140px]">Urutan Baris</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">IK (Ketersediaan)</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">IA (Akses)</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">IP (Pemanfaatan)</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">IKB (Komposit)</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">Potensi Kering</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">Potensi Basah</th>
+                                                        <th className="px-2 py-2 text-center min-w-[85px]">Kondisi Iklim</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-purple-100 dark:divide-slate-800 font-mono text-[10.5px]">
+                                                    <tr>
+                                                        <td className="px-3 py-1.5 text-center font-sans font-bold text-slate-700 dark:text-slate-300">Baris 1 (Haurgeulis)</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                    </tr>
+                                                    <tr className="bg-purple-50/40 dark:bg-purple-950/20">
+                                                        <td className="px-3 py-1.5 text-center font-sans font-bold text-slate-700 dark:text-slate-300">Baris 2 (Kroya)</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-orange-600">SIAGA</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                        <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        )}
+                                    </div>
+
+                                    {/* Workflow hint */}
+                                    <div className="rounded-xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/40 p-3 text-[11px] text-purple-900 dark:text-purple-200 space-y-1 shrink-0">
+                                        <div className="font-extrabold flex items-center gap-1.5">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-purple-600" />
+                                            <span>Cara Cepat Menggunakan:</span>
+                                        </div>
+                                        <ol className="list-decimal list-inside space-y-0.5 text-[10.5px] text-purple-800/90 dark:text-purple-300/90 pl-1">
+                                            <li>Buka berkas Excel / Spreadsheet Anda dan pilih blok baris data kecamatan.</li>
+                                            <li>Tekan <strong>Ctrl+C</strong> untuk menyalin data dari Excel.</li>
+                                            <li>Klik pada <strong>Kotak Penempelan</strong> di sebelah kiri dan tekan <strong>Ctrl+V</strong> (atau klik &ldquo;Tempel Clipboard&rdquo;).</li>
+                                            <li>Tabel hasil parsing akan otomatis tampil di sini secara rapi tanpa terpotong.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* MODAL FOOTER - PINNED AT BOTTOM */}
+                    <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 shrink-0 flex flex-col sm:flex-row gap-3 sm:justify-between items-center">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsPasteModalOpen(false)}
+                                className="w-full sm:w-auto rounded-xl"
+                            >
+                                Batal
+                            </Button>
+                            {parsedPasteRows.length > 0 && (
+                                <span className="text-xs text-slate-500 hidden md:inline">
+                                    <strong>{parsedPasteRows.length}</strong> kecamatan terdeteksi untuk periode <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong>
+                                </span>
+                            )}
+                        </div>
+
                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                             <Button
                                 type="button"
                                 variant="outline"
                                 onClick={handleApplyPasteToBulk}
                                 disabled={parsedPasteRows.length === 0 || isSubmittingPaste}
-                                className="w-full sm:w-auto rounded-xl border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300 font-bold text-xs"
+                                className="w-full sm:w-auto rounded-xl border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300 font-bold text-xs cursor-pointer disabled:opacity-50"
                             >
                                 Terapkan ke Form Input Cepat ({parsedPasteRows.length})
                             </Button>
@@ -2230,186 +2347,288 @@ export default function SkpgAdminIndex({
                                 type="button"
                                 onClick={handleSavePasteDirectly}
                                 disabled={parsedPasteRows.length === 0 || isSubmittingPaste}
-                                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-bold text-xs hover:from-purple-800 hover:to-indigo-800 cursor-pointer"
+                                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-purple-700 to-indigo-700 text-white font-bold text-xs hover:from-purple-800 hover:to-indigo-800 cursor-pointer disabled:opacity-50 shadow-sm"
                             >
                                 {isSubmittingPaste ? 'Menyimpan...' : `Simpan Langsung ke Database (${parsedPasteRows.length})`}
                             </Button>
                         </div>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL: IMPORT EXCEL */}
+            {/* MODAL: IMPORT EXCEL (LANDSCAPE LAYOUT) */}
             <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                                <FileSpreadsheet className="h-4 w-4" />
-                            </span>
-                            <span>Import Data SKPG dari File Excel</span>
-                        </DialogTitle>
-                        <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-                            Unggah berkas spreadsheet (.xlsx, .csv, .tsv) untuk mengisi atau memperbarui data indikator 31 kecamatan Kabupaten Indramayu periode{' '}
-                            <strong>{MONTH_NAMES[selectedMonth - 1]} {selectedYear}</strong>.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <form onSubmit={handleSubmitImport} className="space-y-4">
-                        {/* Download Template Banner */}
-                        <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <DialogContent className="w-[96vw] max-w-[1400px] sm:max-w-[96vw] lg:max-w-7xl max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-3xl border border-emerald-200/80 dark:border-emerald-900/40 bg-white dark:bg-slate-950 shadow-2xl">
+                    <form onSubmit={handleSubmitImport} className="flex flex-col h-full min-h-0">
+                        {/* MODAL HEADER */}
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-8">
                                 <div>
-                                    <h4 className="text-xs font-black text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                                        <Download className="h-3.5 w-3.5 text-emerald-600" />
-                                        <span>Unduh Format Template Resmi DKPP</span>
-                                    </h4>
-                                    <p className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
-                                        Template sudah memuat daftar 31 kecamatan &amp; kode BPS, tinggal diisi status indikatornya.
-                                    </p>
+                                    <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            <FileSpreadsheet className="h-4 w-4" />
+                                        </span>
+                                        <span>Import Data SKPG dari File Excel</span>
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                        Unggah berkas spreadsheet (.xlsx, .csv, .tsv) untuk memperbarui data 31 kecamatan Kabupaten Indramayu tanpa ada bagian form yang terpotong.
+                                    </DialogDescription>
                                 </div>
+
                                 <div className="flex items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleDownloadTemplate('xlsx')}
-                                        className="h-8 rounded-xl text-xs font-bold text-emerald-800 border-emerald-300 bg-white hover:bg-emerald-100 dark:bg-slate-800 dark:border-emerald-700 cursor-pointer"
-                                    >
-                                        <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-                                        <span>Template XLSX</span>
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleDownloadTemplate('csv')}
-                                        className="h-8 rounded-xl text-xs font-bold text-emerald-800 border-emerald-300 bg-white hover:bg-emerald-100 dark:bg-slate-800 dark:border-emerald-700 cursor-pointer"
-                                    >
-                                        <FileText className="h-3.5 w-3.5 text-emerald-600" />
-                                        <span>Template CSV</span>
-                                    </Button>
+                                    <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-white/80 dark:bg-slate-800 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold">
+                                        <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                                        <span>Periode: {MONTH_NAMES[selectedMonth - 1]} {selectedYear}</span>
+                                    </Badge>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Visual Column Format Guide */}
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/70 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    Contoh Format Kolom Berkas Excel
-                                </Label>
-                                <span className="text-[10px] text-slate-400 font-semibold">
-                                    Header baris pertama wajib ada
-                                </span>
+                        {/* MODAL BODY (LANDSCAPE 2-COLUMN GRID) */}
+                        <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-5">
+                            {/* LEFT COLUMN: Upload File & Template Actions */}
+                            <div className="lg:col-span-5 flex flex-col gap-4 min-h-0 lg:overflow-y-auto pr-1">
+                                {/* Card 1: File Upload Box */}
+                                <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/30 dark:border-emerald-900/50 dark:bg-emerald-950/20 p-4 space-y-3 shadow-xs">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="skpg-import-file" className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                            <Upload className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span>Pilih Berkas Spreadsheet *</span>
+                                        </Label>
+                                        {importFile && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setImportFile(null)}
+                                                className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 underline cursor-pointer"
+                                            >
+                                                Hapus Berkas
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="relative rounded-2xl border-2 border-dashed border-emerald-300 dark:border-emerald-800 bg-white/80 dark:bg-slate-900/80 p-5 text-center transition-all hover:bg-emerald-50/50 dark:hover:bg-slate-800/80">
+                                        <input
+                                            id="skpg-import-file"
+                                            type="file"
+                                            accept=".xlsx,.xls,.csv,.tsv,.txt"
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    setImportFile(e.target.files[0]);
+                                                }
+                                            }}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                        />
+                                        <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                                <FileSpreadsheet className="h-6 w-6" />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <p className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                                                    {importFile ? importFile.name : 'Klik untuk memilih berkas atau seret ke sini'}
+                                                </p>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    Format yang didukung: <strong>.xlsx, .xls, .csv, .tsv</strong>
+                                                </p>
+                                            </div>
+                                            {importFile && (
+                                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                                    Ukuran: {(importFile.size / 1024).toFixed(1)} KB — Siap Diimpor
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Card 2: Unduh Format Template Resmi DKPP */}
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 p-4 space-y-3 shadow-xs">
+                                    <div className="flex flex-col gap-1">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                                            <Download className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span>Unduh Template Resmi</span>
+                                        </h4>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            Gunakan template resmi DKPP yang sudah siap pakai dengan daftar 31 kecamatan dan kode BPS Kabupaten Indramayu.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleDownloadTemplate('xlsx')}
+                                            className="flex-1 h-8 rounded-xl text-xs font-bold text-emerald-800 border-emerald-300 bg-white hover:bg-emerald-50 dark:bg-slate-800 dark:border-emerald-700 dark:text-emerald-300 cursor-pointer"
+                                        >
+                                            <FileSpreadsheet className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                                            <span>Format XLSX</span>
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleDownloadTemplate('csv')}
+                                            className="flex-1 h-8 rounded-xl text-xs font-bold text-emerald-800 border-emerald-300 bg-white hover:bg-emerald-50 dark:bg-slate-800 dark:border-emerald-700 dark:text-emerald-300 cursor-pointer"
+                                        >
+                                            <FileText className="h-3.5 w-3.5 mr-1 text-emerald-600" />
+                                            <span>Format CSV</span>
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                {/* Card 3: Ketentuan & Catatan */}
+                                <div className="rounded-2xl border border-emerald-100 dark:border-emerald-950/60 bg-emerald-50/50 dark:bg-emerald-950/20 p-3.5 text-[11px] text-emerald-900 dark:text-emerald-200 space-y-1.5 shadow-xs">
+                                    <div className="font-extrabold flex items-center gap-1.5">
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                        <span>Ketentuan Pengisian Berkas:</span>
+                                    </div>
+                                    <ul className="list-disc list-inside space-y-0.5 text-[10.5px] text-emerald-800/90 dark:text-emerald-300/90 pl-1">
+                                        <li>Baris pertama <strong>wajib berupa judul header kolom</strong> (A sampai K).</li>
+                                        <li>Status indikator dapat ditulis huruf besar maupun kecil (contoh: <em>AMAN</em>, <em>WASPADA</em>, <em>RENTAN</em>, <em>SIAGA</em>, <em>AWAS</em>).</li>
+                                        <li>Kolom kode BPS opsional, sistem otomatis mencocokkan nama kecamatan.</li>
+                                    </ul>
+                                </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
-                                <table className="w-full text-left text-[11px]">
-                                    <thead className="bg-slate-100 text-[10px] font-black uppercase text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                        <tr>
-                                            <th className="px-2 py-1.5 text-center">A</th>
-                                            <th className="px-2.5 py-1.5">B</th>
-                                            <th className="px-2 py-1.5">C</th>
-                                            <th className="px-2 py-1.5 text-center">D</th>
-                                            <th className="px-2 py-1.5 text-center">E</th>
-                                            <th className="px-2 py-1.5 text-center">F</th>
-                                            <th className="px-2 py-1.5 text-center">G</th>
-                                            <th className="px-2 py-1.5 text-center">H</th>
-                                            <th className="px-2 py-1.5 text-center">I</th>
-                                            <th className="px-2 py-1.5 text-center">J</th>
-                                            <th className="px-2 py-1.5">K</th>
-                                        </tr>
-                                        <tr className="bg-emerald-50/70 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 text-[10px]">
-                                            <th className="px-2 py-1 text-center">No</th>
-                                            <th className="px-2.5 py-1">Kecamatan</th>
-                                            <th className="px-2 py-1">Kode BPS</th>
-                                            <th className="px-2 py-1 text-center">IK</th>
-                                            <th className="px-2 py-1 text-center">IA</th>
-                                            <th className="px-2 py-1 text-center">IP</th>
-                                            <th className="px-2 py-1 text-center">IKB</th>
-                                            <th className="px-2 py-1 text-center">Kering</th>
-                                            <th className="px-2 py-1 text-center">Basah</th>
-                                            <th className="px-2 py-1 text-center">Iklim</th>
-                                            <th className="px-2 py-1">Keterangan</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 text-[10.5px] font-mono dark:divide-slate-800">
-                                        <tr>
-                                            <td className="px-2 py-1 text-center text-slate-400">1</td>
-                                            <td className="px-2.5 py-1 font-bold text-slate-900 dark:text-white">HAURGEULIS</td>
-                                            <td className="px-2 py-1 text-slate-400">3212010</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-slate-500 font-sans">Panen lancar</td>
-                                        </tr>
-                                        <tr className="bg-slate-50/60 dark:bg-slate-800/40">
-                                            <td className="px-2 py-1 text-center text-slate-400">2</td>
-                                            <td className="px-2.5 py-1 font-bold text-slate-900 dark:text-white">KROYA</td>
-                                            <td className="px-2 py-1 text-slate-400">3212020</td>
-                                            <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                            <td className="px-2 py-1 text-center font-bold text-orange-600">SIAGA</td>
-                                            <td className="px-2 py-1 text-center font-bold text-emerald-600">AMAN</td>
-                                            <td className="px-2 py-1 text-center font-bold text-amber-600">WASPADA</td>
-                                            <td className="px-2 py-1 text-slate-500 font-sans">Debit air menurun</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            {/* RIGHT COLUMN: Full Landscape Column Structure Guide */}
+                            <div className="lg:col-span-7 flex flex-col min-h-0 h-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 overflow-hidden shadow-xs space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shrink-0 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-black text-slate-900 dark:text-white">
+                                            Panduan Susunan 11 Kolom Berkas Spreadsheet
+                                        </span>
+                                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                            Kolom A — K
+                                        </Badge>
+                                    </div>
+                                    <span className="text-[11px] text-slate-400">
+                                        Header baris pertama wajib ada
+                                    </span>
+                                </div>
+
+                                {/* Spacious Landscape Table Guide */}
+                                <div className="flex-1 min-h-0 overflow-auto rounded-xl border border-slate-200/80 dark:border-slate-800">
+                                    <table className="w-full text-left text-xs whitespace-nowrap">
+                                        <thead className="sticky top-0 z-10 shadow-xs">
+                                            <tr className="bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase text-slate-600 dark:text-slate-400">
+                                                <th className="px-2.5 py-1.5 text-center">A</th>
+                                                <th className="px-3 py-1.5 min-w-[120px]">B</th>
+                                                <th className="px-2.5 py-1.5">C</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[65px]">D</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[65px]">E</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[65px]">F</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[65px]">G</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[75px]">H</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[75px]">I</th>
+                                                <th className="px-2 py-1.5 text-center min-w-[75px]">J</th>
+                                                <th className="px-3 py-1.5 min-w-[140px]">K</th>
+                                            </tr>
+                                            <tr className="bg-emerald-100/80 text-emerald-950 dark:bg-emerald-950/60 dark:text-emerald-200 text-[10.5px] font-extrabold">
+                                                <th className="px-2.5 py-2 text-center">No</th>
+                                                <th className="px-3 py-2">Kecamatan</th>
+                                                <th className="px-2.5 py-2">Kode BPS</th>
+                                                <th className="px-2 py-2 text-center">IK</th>
+                                                <th className="px-2 py-2 text-center">IA</th>
+                                                <th className="px-2 py-2 text-center">IP</th>
+                                                <th className="px-2 py-2 text-center">IKB</th>
+                                                <th className="px-2 py-2 text-center">Kering</th>
+                                                <th className="px-2 py-2 text-center">Basah</th>
+                                                <th className="px-2 py-2 text-center">Iklim</th>
+                                                <th className="px-3 py-2">Keterangan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-[11px] font-mono dark:divide-slate-800">
+                                            <tr>
+                                                <td className="px-2.5 py-1.5 text-center text-slate-400">1</td>
+                                                <td className="px-3 py-1.5 font-bold text-slate-900 dark:text-white">HAURGEULIS</td>
+                                                <td className="px-2.5 py-1.5 text-slate-400">3212010</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-3 py-1.5 text-slate-500 font-sans">Panen lancar</td>
+                                            </tr>
+                                            <tr className="bg-slate-50/60 dark:bg-slate-800/40">
+                                                <td className="px-2.5 py-1.5 text-center text-slate-400">2</td>
+                                                <td className="px-3 py-1.5 font-bold text-slate-900 dark:text-white">KROYA</td>
+                                                <td className="px-2.5 py-1.5 text-slate-400">3212020</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-orange-600">SIAGA</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-amber-600">WASPADA</td>
+                                                <td className="px-3 py-1.5 text-slate-500 font-sans">Debit air menurun</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="px-2.5 py-1.5 text-center text-slate-400">3</td>
+                                                <td className="px-3 py-1.5 font-bold text-slate-900 dark:text-white">GABUSWETAN</td>
+                                                <td className="px-2.5 py-1.5 text-slate-400">3212030</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-2 py-1.5 text-center font-bold text-emerald-600">AMAN</td>
+                                                <td className="px-3 py-1.5 text-slate-500 font-sans">Kondisi stabil</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Status Legend Notes */}
+                                <div className="space-y-1.5 text-[11px] pt-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 min-w-[110px]">Ketahanan:</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">RENTAN</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 min-w-[110px]">Iklim &amp; Bencana:</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">AMAN</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">WASPADA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800">SIAGA</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">AWAS</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* File Upload Input */}
-                        <div className="space-y-2">
-                            <Label htmlFor="skpg-import-file" className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                Pilih Berkas Excel (.xlsx, .csv, .tsv) *
-                            </Label>
-                            <input
-                                id="skpg-import-file"
-                                type="file"
-                                accept=".xlsx,.xls,.csv,.tsv,.txt"
-                                onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                        setImportFile(e.target.files[0]);
-                                    }
-                                }}
-                                className="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#006565] file:text-white hover:file:bg-[#004e4e] file:cursor-pointer border border-slate-200 rounded-2xl p-2 bg-white dark:border-slate-800 dark:bg-slate-900"
-                            />
-                            {importFile && (
-                                <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                    Berkas siap diimpor: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)
-                                </p>
-                            )}
-                        </div>
+                        {/* MODAL FOOTER - PINNED AT BOTTOM */}
+                        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 shrink-0 flex flex-col sm:flex-row gap-3 sm:justify-between items-center">
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsImportModalOpen(false);
+                                        setImportFile(null);
+                                    }}
+                                    disabled={isSubmittingImport}
+                                    className="w-full sm:w-auto rounded-xl"
+                                >
+                                    Batal
+                                </Button>
+                                {importFile && (
+                                    <span className="text-xs text-slate-500 hidden md:inline">
+                                        Berkas terpilih: <strong>{importFile.name}</strong> ({(importFile.size / 1024).toFixed(1)} KB)
+                                    </span>
+                                )}
+                            </div>
 
-                        <DialogFooter className="pt-3">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsImportModalOpen(false);
-                                    setImportFile(null);
-                                }}
-                                disabled={isSubmittingImport}
-                                className="rounded-xl cursor-pointer"
-                            >
-                                Batal
-                            </Button>
                             <Button
                                 type="submit"
                                 disabled={!importFile || isSubmittingImport}
-                                className="rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 text-white font-bold cursor-pointer"
+                                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 text-white font-bold text-xs hover:from-[#005252] hover:to-emerald-800 cursor-pointer disabled:opacity-50 shadow-sm"
                             >
                                 {isSubmittingImport ? 'Mengimpor Data...' : 'Mulai Impor Data'}
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </form>
                 </DialogContent>
             </Dialog>

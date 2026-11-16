@@ -3,6 +3,7 @@ import {
     AlertCircle,
     Apple,
     ArrowLeft,
+    Calendar,
     CheckCircle2,
     Edit3,
     FileSpreadsheet,
@@ -57,6 +58,8 @@ export interface DetailItemRow {
     food_group_order: number;
     food_group_is_active: boolean;
     food_group_description: string | null;
+    food_group_image?: string | null;
+    food_group_image_url?: string | null;
     energi: number;
     ake_percentage: number;
     bobot: number;
@@ -76,6 +79,7 @@ export interface FoodGroupOption {
     bobot: number;
     skor_maksimal: number;
     is_active: boolean;
+    image_url?: string | null;
 }
 
 interface PageProps {
@@ -160,6 +164,7 @@ export default function PphScoreDetailsIndex({
     interface BulkRowState {
         pph_food_group_id: number;
         name: string;
+        image_url?: string | null;
         energi: string;
         ake_percentage: string;
         bobot: number;
@@ -306,10 +311,12 @@ export default function PphScoreDetailsIndex({
             const skorMaksimal = existing ? existing.skor_maksimal : g.skor_maksimal;
             const skorRiil = existing ? existing.skor_riil : Math.round((parseFloat(ake) || 0) * bobot * 100) / 100;
             const skorPph = existing ? existing.skor_pph : Math.min(skorRiil, skorMaksimal);
+            const imgUrl = existing?.food_group_image_url || g.image_url;
 
             return {
                 pph_food_group_id: g.id,
                 name: g.name,
+                image_url: imgUrl,
                 energi,
                 ake_percentage: ake,
                 bobot,
@@ -343,10 +350,67 @@ export default function PphScoreDetailsIndex({
         });
     };
 
-    // Calculate total skor PPH live in bulk modal
-    const bulkTotalScore = useMemo(() => {
-        return Math.round(bulkRows.reduce((acc, r) => acc + (r.skor_pph || 0), 0) * 100) / 100;
+    // Quick bulk helpers
+    const handleBulkFillZero = () => {
+        setBulkRows((prev) =>
+            prev.map((r) => {
+                const energi = r.energi === '' ? '0' : r.energi;
+                const ake = r.ake_percentage === '' ? '0' : r.ake_percentage;
+                const calcRiil = Math.round((parseFloat(ake) || 0) * r.bobot * 100) / 100;
+                const calcPph = Math.min(calcRiil, r.skor_maksimal);
+                return {
+                    ...r,
+                    energi,
+                    ake_percentage: ake,
+                    skor_riil: calcRiil,
+                    skor_pph: calcPph,
+                };
+            })
+        );
+        toast.info('Nilai kosong telah diisi dengan angka 0.');
+    };
+
+    const handleBulkClearAll = () => {
+        setBulkRows((prev) =>
+            prev.map((r) => ({
+                ...r,
+                energi: '',
+                ake_percentage: '',
+                skor_riil: 0,
+                skor_pph: 0,
+                keterangan: '',
+            }))
+        );
+    };
+
+    // Calculate total skor PPH and other sums live in bulk modal
+    const bulkTotals = useMemo(() => {
+        let totalEnergi = 0;
+        let totalAke = 0;
+        let totalBobot = 0;
+        let totalSkorRiil = 0;
+        let totalSkorPph = 0;
+
+        bulkRows.forEach((r) => {
+            totalEnergi += parseFloat(r.energi) || 0;
+            totalAke += parseFloat(r.ake_percentage) || 0;
+            totalBobot += r.bobot;
+            totalSkorRiil += r.skor_riil;
+            totalSkorPph += r.skor_pph;
+        });
+
+        return {
+            totalEnergi: Math.round(totalEnergi * 100) / 100,
+            totalAke: Math.round(totalAke * 100) / 100,
+            totalBobot: Math.round(totalBobot * 100) / 100,
+            totalSkorRiil: Math.round(totalSkorRiil * 100) / 100,
+            totalSkorPph: Math.round(totalSkorPph * 100) / 100,
+        };
     }, [bulkRows]);
+
+    const bulkTotalScore = useMemo(() => {
+        return bulkTotals.totalSkorPph;
+    }, [bulkTotals]);
 
     // Submit Bulk Form
     const handleSubmitBulk = () => {
@@ -969,115 +1033,237 @@ export default function PphScoreDetailsIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* Bulk Entry Modal */}
+                {/* Bulk Entry Modal (LANDSCAPE LAYOUT) */}
                 <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
-                    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <div className="flex items-center justify-between">
+                    <DialogContent className="w-[96vw] max-w-[1440px] sm:max-w-[96vw] lg:max-w-7xl max-h-[92vh] h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-3xl border border-emerald-200/80 dark:border-emerald-900/40 bg-white dark:bg-slate-950 shadow-2xl">
+                        {/* MODAL HEADER */}
+                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-8">
                                 <div>
-                                    <DialogTitle>Input Cepat Semua Kelompok PPH ({currentYear})</DialogTitle>
-                                    <DialogDescription>
-                                        Isi nilai Energi dan % AKE untuk semua kelompok. Skor Riil dan Skor PPH akan otomatis dihitung.
+                                    <DialogTitle className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            <Sparkles className="h-4 w-4" />
+                                        </span>
+                                        <span>Input Cepat Semua Kelompok PPH ({currentYear})</span>
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                        Isi nilai Energi dan % AKE untuk semua kelompok bahan pangan. Nilai Skor Riil dan Skor PPH dihitung otomatis tanpa ada kolom yang terpotong.
                                     </DialogDescription>
                                 </div>
-                                <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-right dark:border-emerald-800 dark:bg-emerald-950/60">
-                                    <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400">
-                                        Total Skor PPH
-                                    </div>
-                                    <div className="text-xl font-extrabold text-emerald-800 dark:text-emerald-300">
-                                        {bulkTotalScore.toFixed(2)}
+
+                                <div className="flex items-center gap-3">
+                                    <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-white/80 dark:bg-slate-800 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs font-bold">
+                                        <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                                        <span>Tahun: {currentYear}</span>
+                                    </Badge>
+
+                                    <div className="flex items-center gap-2 rounded-2xl border border-emerald-300 bg-white/90 px-3.5 py-1.5 text-right shadow-xs dark:border-emerald-800 dark:bg-slate-900">
+                                        <div>
+                                            <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                                                Total Skor PPH
+                                            </div>
+                                            <div className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 leading-none">
+                                                {bulkTotalScore.toFixed(2)}
+                                                <span className="text-xs font-semibold text-slate-400 ml-1">/ 100</span>
+                                            </div>
+                                        </div>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${getScoreCategory(bulkTotalScore).badgeClass}`}>
+                                            {getScoreCategory(bulkTotalScore).label}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
-                        </DialogHeader>
+                        </div>
 
-                        <div className="mt-2 space-y-4">
-                            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
-                                <table className="w-full text-left text-xs">
-                                    <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-800">
+                        {/* Quick Helper Tools & KPI Summary Bar */}
+                        <div className="px-6 py-2.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant="outline" className="text-xs font-bold bg-slate-50 dark:bg-slate-800">
+                                    9 Kelompok Bahan Pangan PPH
+                                </Badge>
+                                <span className="text-xs text-slate-400">|</span>
+                                <span className="text-xs text-slate-600 dark:text-slate-300">
+                                    Total Energi: <strong>{bulkTotals.totalEnergi.toLocaleString('id-ID')}</strong> kkal
+                                </span>
+                                <span className="text-xs text-slate-400">|</span>
+                                <span className="text-xs text-slate-600 dark:text-slate-300">
+                                    Total % AKE: <strong>{bulkTotals.totalAke.toFixed(2)}%</strong>
+                                </span>
+                                <span className="text-xs text-slate-400">|</span>
+                                <span className="text-xs text-slate-600 dark:text-slate-300">
+                                    Total Skor Riil: <strong>{bulkTotals.totalSkorRiil.toFixed(2)}</strong>
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleBulkFillZero}
+                                    className="h-8 text-xs font-bold rounded-xl border-emerald-200 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 cursor-pointer"
+                                >
+                                    Isi 0 yang Kosong
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleBulkClearAll}
+                                    className="h-8 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl cursor-pointer"
+                                >
+                                    Kosongkan Nilai
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Bulk Grid Table Container with Full Landscape Width */}
+                        <div className="flex-1 min-h-0 overflow-auto px-6 py-3">
+                            <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+                                <table className="w-full text-left text-xs whitespace-nowrap">
+                                    <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-[10.5px] font-black uppercase text-slate-700 dark:text-slate-300 z-10 shadow-xs">
                                         <tr>
-                                            <th className="p-2.5">Kelompok Pangan</th>
-                                            <th className="p-2.5 w-28">Energi (kkal)</th>
-                                            <th className="p-2.5 w-24">% AKE</th>
-                                            <th className="p-2.5 text-right w-16">Bobot</th>
-                                            <th className="p-2.5 text-right w-20">Skor Riil</th>
-                                            <th className="p-2.5 text-right w-20 text-emerald-700">Skor PPH</th>
-                                            <th className="p-2.5 text-right w-16">Maks</th>
-                                            <th className="p-2.5">Keterangan</th>
+                                            <th className="py-2.5 px-3 w-10 text-center">No</th>
+                                            <th className="py-2.5 px-3 min-w-[240px]">Kelompok Bahan Pangan</th>
+                                            <th className="py-2.5 px-3 min-w-[130px] text-center">Energi (kkal)</th>
+                                            <th className="py-2.5 px-3 min-w-[120px] text-center">% AKE</th>
+                                            <th className="py-2.5 px-3 min-w-[80px] text-right">Bobot</th>
+                                            <th className="py-2.5 px-3 min-w-[100px] text-right">Skor Riil</th>
+                                            <th className="py-2.5 px-3 min-w-[110px] text-right text-emerald-700 dark:text-emerald-400">Skor PPH</th>
+                                            <th className="py-2.5 px-3 min-w-[80px] text-right">Skor Maks</th>
+                                            <th className="py-2.5 px-3 min-w-[240px]">Keterangan</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {bulkRows.map((row, idx) => (
-                                            <tr key={row.pph_food_group_id} className="hover:bg-slate-50/50">
-                                                <td className="p-2.5 font-medium text-slate-900 dark:text-slate-100">
-                                                    {row.name}
+                                            <tr key={row.pph_food_group_id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                                                <td className="py-2.5 px-3 text-center text-slate-400 font-mono">
+                                                    {idx + 1}
                                                 </td>
-                                                <td className="p-2">
+                                                <td className="py-2.5 px-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        {row.image_url ? (
+                                                            <img
+                                                                src={row.image_url}
+                                                                alt={row.name}
+                                                                className="h-8 w-8 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0"
+                                                            />
+                                                        ) : (
+                                                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900/50 shrink-0">
+                                                                <Apple className="h-4 w-4" />
+                                                            </span>
+                                                        )}
+                                                        <span className="font-extrabold text-slate-900 dark:text-white">
+                                                            {row.name}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="py-2.5 px-3">
                                                     <Input
                                                         type="number"
                                                         step="0.01"
                                                         min={0}
                                                         value={row.energi}
                                                         onChange={(e) => handleBulkCellChange(idx, 'energi', e.target.value)}
-                                                        className="h-8 text-xs text-right"
+                                                        className="h-8 text-right font-mono text-xs font-semibold rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                                                        placeholder="0"
                                                     />
                                                 </td>
-                                                <td className="p-2">
+                                                <td className="py-2.5 px-3">
                                                     <Input
                                                         type="number"
                                                         step="0.01"
                                                         min={0}
                                                         value={row.ake_percentage}
                                                         onChange={(e) => handleBulkCellChange(idx, 'ake_percentage', e.target.value)}
-                                                        className="h-8 text-xs text-right font-medium"
+                                                        className="h-8 text-right font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 rounded-lg focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                                                        placeholder="0.00"
                                                     />
                                                 </td>
-                                                <td className="p-2.5 text-right text-slate-500">
+                                                <td className="py-2.5 px-3 text-right text-slate-500 font-mono font-semibold">
                                                     {row.bobot.toFixed(2)}
                                                 </td>
-                                                <td className="p-2.5 text-right font-medium text-slate-700 dark:text-slate-300">
+                                                <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800 dark:text-slate-200">
                                                     {row.skor_riil.toFixed(2)}
                                                 </td>
-                                                <td className="p-2.5 text-right font-bold text-emerald-700 dark:text-emerald-400">
-                                                    {row.skor_pph.toFixed(2)}
+                                                <td className="py-2.5 px-3 text-right">
+                                                    <span className="inline-block px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-mono font-black text-xs">
+                                                        {row.skor_pph.toFixed(2)}
+                                                    </span>
                                                 </td>
-                                                <td className="p-2.5 text-right text-slate-400">
+                                                <td className="py-2.5 px-3 text-right text-slate-400 font-mono">
                                                     {row.skor_maksimal.toFixed(2)}
                                                 </td>
-                                                <td className="p-2">
+                                                <td className="py-2.5 px-3">
                                                     <Input
                                                         type="text"
                                                         value={row.keterangan}
                                                         onChange={(e) => handleBulkCellChange(idx, 'keterangan', e.target.value)}
-                                                        placeholder="Catatan..."
-                                                        className="h-8 text-xs"
+                                                        placeholder="Catatan kelompok ini..."
+                                                        className="h-8 text-xs rounded-lg"
                                                     />
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
+                                    <tfoot className="border-t-2 border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/50 font-black text-xs text-slate-900 dark:text-white">
+                                        <tr>
+                                            <td colSpan={2} className="py-2.5 px-3 text-right uppercase tracking-wider text-emerald-950 dark:text-emerald-200">
+                                                Total Keseluruhan
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-emerald-900 dark:text-emerald-200">
+                                                {bulkTotals.totalEnergi.toLocaleString('id-ID')}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-emerald-900 dark:text-emerald-200">
+                                                {bulkTotals.totalAke.toFixed(2)}%
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-emerald-900 dark:text-emerald-200">
+                                                {bulkTotals.totalBobot.toFixed(2)}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-emerald-900 dark:text-emerald-200">
+                                                {bulkTotals.totalSkorRiil.toFixed(2)}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-emerald-800 dark:text-emerald-300 font-black text-sm">
+                                                {bulkTotals.totalSkorPph.toFixed(2)}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                                                100.00
+                                            </td>
+                                            <td className="py-2.5 px-3 text-slate-500 font-normal">
+                                                Kategori: <strong>{getScoreCategory(bulkTotalScore).label}</strong>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         </div>
 
-                        <DialogFooter className="pt-3">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsBulkModalOpen(false)}
-                                disabled={isSubmitting}
-                            >
-                                Batal
-                            </Button>
+                        {/* MODAL FOOTER - PINNED AT BOTTOM */}
+                        <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 shrink-0 flex flex-col sm:flex-row gap-3 sm:justify-between items-center">
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsBulkModalOpen(false)}
+                                    disabled={isSubmitting}
+                                    className="w-full sm:w-auto rounded-xl"
+                                >
+                                    Batal
+                                </Button>
+                                <span className="text-xs text-slate-500 hidden md:inline">
+                                    Total <strong>{bulkRows.length} kelompok pangan</strong> periode tahun <strong>{currentYear}</strong>
+                                </span>
+                            </div>
+
                             <Button
                                 type="button"
                                 onClick={handleSubmitBulk}
-                                className="bg-emerald-600 text-white hover:bg-emerald-700 gap-2"
+                                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-[#006565] to-emerald-700 text-white font-bold text-xs hover:from-[#005252] hover:to-emerald-800 cursor-pointer disabled:opacity-50 shadow-sm gap-2"
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? 'Menyimpan Semua...' : `Simpan Semua (Skor Total: ${bulkTotalScore.toFixed(2)})`}
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </DialogContent>
                 </Dialog>
 

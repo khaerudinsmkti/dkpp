@@ -575,11 +575,53 @@ class ConsumerPriceController extends Controller
         $market = Market::find($marketId);
         $commodities = Commodity::with(['hets'])->where('is_active', true)->orderBy('order')->get();
 
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $yearSql = $isSqlite ? "strftime('%Y', recorded_date)" : 'YEAR(recorded_date)';
+
+        $availableYears = ConsumerPrice::where('market_id', $marketId)
+            ->selectRaw("DISTINCT {$yearSql} as yr")
+            ->orderByDesc('yr')
+            ->pluck('yr')
+            ->map(fn ($y) => (int) $y)
+            ->values()
+            ->all();
+
+        if (empty($availableYears)) {
+            $availableYears = [(int) now()->year];
+        }
+
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
+        $month = (int) $request->query('month', 0);
+        $year = (int) $request->query('year', 0);
 
-        // If date range is not specified or invalid, default to 14 latest distinct dates in this market
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
+        // 1. If explicit month and year are requested (Monthly Filter)
+        if ($month >= 1 && $month <= 12 && $year >= 2000 && $year <= 2100) {
+            $startCarbon = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+            $endCarbon = $startCarbon->copy()->endOfMonth();
+
+            $maxRecordedDate = ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
+                ?? ConsumerPrice::max('recorded_date')
+                ?? now()->format('Y-m-d');
+            $maxCarbon = Carbon::parse($maxRecordedDate);
+
+            // If selected month is current/future and max recorded date falls within this month, cap to maxRecordedDate
+            if ($endCarbon->gt($maxCarbon) && $startCarbon->lte($maxCarbon)) {
+                $endCarbon = $maxCarbon->copy();
+            }
+
+            $startDate = $startCarbon->format('Y-m-d');
+            $endDate = $endCarbon->format('Y-m-d');
+
+            $dates = [];
+            $cur = $endCarbon->copy();
+            while ($cur->gte($startCarbon)) {
+                $dates[] = $cur->format('Y-m-d');
+                $cur->subDay();
+            }
+        }
+        // 2. If date range is not specified or invalid, default to 14 latest distinct dates in this market
+        elseif (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
             $latestDates = ConsumerPrice::where('market_id', $marketId)
                 ->distinct('recorded_date')
                 ->orderBy('recorded_date', 'desc')
@@ -606,11 +648,19 @@ class ConsumerPriceController extends Controller
             $maxRecordedDate = ConsumerPrice::where('market_id', $marketId)->max('recorded_date')
                 ?? ConsumerPrice::max('recorded_date')
                 ?? now()->format('Y-m-d');
+            $maxCarbon = Carbon::parse($maxRecordedDate);
 
-            if ($endCarbon->gt(Carbon::parse($maxRecordedDate)) && ! ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $endCarbon->format('Y-m-d'))->exists()) {
-                $diffDays = $startCarbon->diffInDays($endCarbon);
-                $endCarbon = Carbon::parse($maxRecordedDate);
-                $startCarbon = $endCarbon->copy()->subDays(min(30, max(6, $diffDays)));
+            if ($endCarbon->gt($maxCarbon) && ! ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $endCarbon->format('Y-m-d'))->exists()) {
+                if ($startCarbon->isSameMonth($endCarbon)) {
+                    $endCarbon = $maxCarbon->copy();
+                    if ($startCarbon->gt($endCarbon)) {
+                        $startCarbon = $endCarbon->copy()->startOfMonth();
+                    }
+                } else {
+                    $diffDays = $startCarbon->diffInDays($endCarbon);
+                    $endCarbon = $maxCarbon->copy();
+                    $startCarbon = $endCarbon->copy()->subDays(min(30, max(6, $diffDays)));
+                }
             }
 
             if ($startCarbon->gt($endCarbon)) {
@@ -720,7 +770,7 @@ class ConsumerPriceController extends Controller
 
         // Calculate previous month's date bounds & averages
         $endCarbon = Carbon::parse($endDate);
-        $prevMonthCarbon = $endCarbon->copy()->subMonth();
+        $prevMonthCarbon = $endCarbon->copy()->startOfMonth()->subMonth();
         $prevMonthStart = $prevMonthCarbon->copy()->startOfMonth()->format('Y-m-d');
         $prevMonthEnd = $prevMonthCarbon->copy()->endOfMonth()->format('Y-m-d');
         $prevMonthLabel = $prevMonthCarbon->translatedFormat('F Y');
@@ -743,15 +793,131 @@ class ConsumerPriceController extends Controller
             $commodityHets[$c->id] = $applicableHet ? (float) $applicableHet->price : null;
         }
 
+        $resolvedMonth = ($month >= 1 && $month <= 12) ? $month : (int) Carbon::parse($startDate)->format('n');
+        $resolvedYear = ($year >= 2000) ? $year : (int) Carbon::parse($startDate)->format('Y');
+
+        // Build Weekly Data for the resolved month
+        $daysInMonth = Carbon::createFromDate($resolvedYear, $resolvedMonth, 1)->daysInMonth;
+        $monthName = Carbon::createFromDate($resolvedYear, $resolvedMonth, 1)->translatedFormat('F');
+
+        $weekDefinitions = [
+            1 => ['num' => 1, 'label' => 'Minggu 1', 'start_day' => 1, 'end_day' => 7, 'range_label' => "1 - 7 {$monthName}"],
+            2 => ['num' => 2, 'label' => 'Minggu 2', 'start_day' => 8, 'end_day' => 14, 'range_label' => "8 - 14 {$monthName}"],
+            3 => ['num' => 3, 'label' => 'Minggu 3', 'start_day' => 15, 'end_day' => 21, 'range_label' => "15 - 21 {$monthName}"],
+            4 => ['num' => 4, 'label' => 'Minggu 4', 'start_day' => 22, 'end_day' => 28, 'range_label' => "22 - 28 {$monthName}"],
+        ];
+
+        if ($daysInMonth > 28) {
+            $weekDefinitions[5] = [
+                'num' => 5,
+                'label' => 'Minggu 5',
+                'start_day' => 29,
+                'end_day' => $daysInMonth,
+                'range_label' => "29 - {$daysInMonth} {$monthName}",
+            ];
+        }
+
+        // Query all prices for this entire resolved month to build complete weekly stats
+        $monthStartStr = sprintf('%04d-%02d-01', $resolvedYear, $resolvedMonth);
+        $monthEndStr = sprintf('%04d-%02d-%02d', $resolvedYear, $resolvedMonth, $daysInMonth);
+
+        $monthPrices = ConsumerPrice::where('market_id', $marketId)
+            ->where('recorded_date', '>=', $monthStartStr)
+            ->where('recorded_date', '<=', $monthEndStr)
+            ->get();
+
+        $pricesByCommodityAndDay = [];
+        foreach ($monthPrices as $mp) {
+            $dayNum = (int) Carbon::parse($mp->recorded_date)->format('j');
+            $pricesByCommodityAndDay[$mp->commodity_id][$dayNum] = (float) $mp->price;
+        }
+
+        $weeklyCommodityRows = [];
+        foreach ($commodities as $c) {
+            $cHet = $commodityHets[$c->id] ?? null;
+            $commDayPrices = $pricesByCommodityAndDay[$c->id] ?? [];
+
+            $weeksData = [];
+            $allRecordedPrices = [];
+
+            foreach ($weekDefinitions as $wNum => $wDef) {
+                $wPrices = [];
+                for ($d = $wDef['start_day']; $d <= $wDef['end_day']; $d++) {
+                    if (isset($commDayPrices[$d]) && $commDayPrices[$d] > 0) {
+                        $wPrices[] = $commDayPrices[$d];
+                        $allRecordedPrices[] = $commDayPrices[$d];
+                    }
+                }
+
+                $wAvg = !empty($wPrices) ? round(array_sum($wPrices) / count($wPrices), 0) : null;
+                $status = 'normal';
+                $diffPct = null;
+
+                if ($wAvg !== null && $cHet !== null && $cHet > 0 && $wAvg > $cHet) {
+                    $diffPct = round((($wAvg - $cHet) / $cHet) * 100, 1);
+                    if ($diffPct > 10) {
+                        $status = 'danger'; // merah (> 10%)
+                    } elseif ($diffPct > 0) {
+                        $status = 'warning'; // kuning (1-10%)
+                    }
+                }
+
+                $weeksData[$wNum] = [
+                    'average' => $wAvg,
+                    'recorded_days' => count($wPrices),
+                    'status' => $status,
+                    'diff_pct' => $diffPct,
+                ];
+            }
+
+            $monthAvg = !empty($allRecordedPrices) ? round(array_sum($allRecordedPrices) / count($allRecordedPrices), 0) : null;
+            $monthStatus = 'normal';
+            $monthDiffPct = null;
+
+            if ($monthAvg !== null && $cHet !== null && $cHet > 0 && $monthAvg > $cHet) {
+                $monthDiffPct = round((($monthAvg - $cHet) / $cHet) * 100, 1);
+                if ($monthDiffPct > 10) {
+                    $monthStatus = 'danger';
+                } elseif ($monthDiffPct > 0) {
+                    $monthStatus = 'warning';
+                }
+            }
+
+            $weeklyCommodityRows[] = [
+                'id' => $c->id,
+                'name' => $c->name,
+                'category' => $c->category,
+                'unit' => $c->unit,
+                'het' => $cHet,
+                'weeks' => $weeksData,
+                'month_average' => $monthAvg,
+                'month_status' => $monthStatus,
+                'month_diff_pct' => $monthDiffPct,
+            ];
+        }
+
+        $weeklyPayload = [
+            'month' => $resolvedMonth,
+            'year' => $resolvedYear,
+            'month_name' => $monthName,
+            'weeks' => array_values($weekDefinitions),
+            'has_week_5' => isset($weekDefinitions[5]),
+            'commodity_rows' => $weeklyCommodityRows,
+        ];
+
         return [
             'market' => $market,
             'start_date' => $startDate,
             'end_date' => $endDate,
+            'selected_month' => $resolvedMonth,
+            'selected_year' => $resolvedYear,
+            'available_years' => $availableYears,
             'prev_month_label' => $prevMonthLabel,
             'prev_month_averages' => $prevMonthAverages,
             'commodity_hets' => $commodityHets,
             'commodities' => $commodities,
             'rows' => $rows,
+            'weekly_data' => $weeklyPayload,
         ];
     }
 
@@ -769,6 +935,9 @@ class ConsumerPriceController extends Controller
             ] : null,
             'start_date' => $payload['start_date'],
             'end_date' => $payload['end_date'],
+            'selected_month' => $payload['selected_month'],
+            'selected_year' => $payload['selected_year'],
+            'available_years' => $payload['available_years'],
             'prev_month_label' => $payload['prev_month_label'],
             'prev_month_averages' => $payload['prev_month_averages'],
             'commodity_hets' => $payload['commodity_hets'],
@@ -779,6 +948,7 @@ class ConsumerPriceController extends Controller
                 'unit' => $c->unit,
             ]),
             'rows' => $payload['rows'],
+            'weekly_data' => $payload['weekly_data'],
         ]);
     }
 
@@ -789,17 +959,26 @@ class ConsumerPriceController extends Controller
     {
         $payload = $this->getHistoryPricePayload($request);
         $marketName = $payload['market']?->name ?? 'Pasar Indramayu';
-
-        $xlsxContent = $excelService->generateHistoricalXlsx(
-            marketName: $marketName,
-            startDate: $payload['start_date'],
-            endDate: $payload['end_date'],
-            commodities: $payload['commodities'],
-            rows: $payload['rows']
-        );
-
         $safeMarketName = preg_replace('/[^A-Za-z0-9_-]/', '_', $marketName);
-        $filename = 'Historis_Harga_'.$safeMarketName.'_'.$payload['start_date'].'_sd_'.$payload['end_date'].'.xlsx';
+
+        if ($request->query('view_mode') === 'weekly') {
+            $xlsxContent = $excelService->generateWeeklyHistoricalXlsx(
+                marketName: $marketName,
+                year: $payload['selected_year'],
+                month: $payload['selected_month'],
+                weeklyData: $payload['weekly_data']
+            );
+            $filename = 'Historis_Mingguan_'.$safeMarketName.'_'.$payload['selected_year'].'_Bln_'.$payload['selected_month'].'.xlsx';
+        } else {
+            $xlsxContent = $excelService->generateHistoricalXlsx(
+                marketName: $marketName,
+                startDate: $payload['start_date'],
+                endDate: $payload['end_date'],
+                commodities: $payload['commodities'],
+                rows: $payload['rows']
+            );
+            $filename = 'Historis_Harga_'.$safeMarketName.'_'.$payload['start_date'].'_sd_'.$payload['end_date'].'.xlsx';
+        }
 
         return response($xlsxContent, 200, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

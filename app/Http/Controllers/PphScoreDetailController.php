@@ -94,6 +94,7 @@ class PphScoreDetailController extends Controller
                 'bobot' => (float) $g->bobot,
                 'skor_maksimal' => (float) $g->skor_maksimal,
                 'is_active' => (bool) $g->is_active,
+                'image_url' => $g->image_url,
             ]),
             'selectedYear' => $selectedYear,
             'availableYears' => $availableYears,

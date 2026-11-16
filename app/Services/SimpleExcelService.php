@@ -1253,6 +1253,269 @@ class SimpleExcelService
     }
 
     /**
+     * Generate an Excel .xlsx binary string for weekly historical price data of a month.
+     * Columns: No, Komoditas, Satuan, HET/HAP, Minggu 1, Minggu 2, Minggu 3, Minggu 4, Minggu 5 (kalau ada), Rata-rata
+     */
+    public function generateWeeklyHistoricalXlsx(string $marketName, int $year, int $month, array $weeklyData): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_whist_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file untuk Excel historis mingguan.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        // 1. [Content_Types].xml
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        // 2. _rels/.rels
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        // 3. xl/_rels/workbook.xml.rels
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        // 4. xl/workbook.xml
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Historis Mingguan" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        // 5. xl/styles.xml
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="6">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF854D0E"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF991B1B"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF1F2937"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="6">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEF08A"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFFEE2E2"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFD1D5DB"/></left>'
+            .'<right style="thin"><color rgb="FFD1D5DB"/></right>'
+            .'<top style="thin"><color rgb="FFD1D5DB"/></top>'
+            .'<bottom style="thin"><color rgb="FFD1D5DB"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            .'<cellXfs count="7">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+            .'<xf numFmtId="3" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="3" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'
+            .'<xf numFmtId="3" fontId="4" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'
+            .'<xf numFmtId="3" fontId="5" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        // 6. xl/worksheets/sheet1.xml
+        $weeks = $weeklyData['weeks'] ?? [];
+        $commodityRows = $weeklyData['commodity_rows'] ?? [];
+        $monthName = $weeklyData['month_name'] ?? ('Bulan '.$month);
+
+        $totalCols = 4 + count($weeks) + 1;
+        $lastColLetter = $this->getColumnLetter($totalCols);
+
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="6" customWidth="1"/>'
+            .'<col min="2" max="2" width="28" customWidth="1"/>'
+            .'<col min="3" max="3" width="10" customWidth="1"/>'
+            .'<col min="4" max="4" width="14" customWidth="1"/>';
+
+        for ($c = 5; $c <= $totalCols; $c++) {
+            $sheetXml .= '<col min="'.$c.'" max="'.$c.'" width="16" customWidth="1"/>';
+        }
+        $sheetXml .= '</cols><sheetData>';
+
+        // Row 1: Title
+        $sheetXml .= '<row r="1" ht="24" customHeight="1">'
+            .'<c r="A1" s="3" t="inlineStr"><is><t>TABEL HISTORIS HARGA PANGAN MINGGUAN TINGKAT KONSUMEN - '.htmlspecialchars($marketName, ENT_XML1).'</t></is></c>'
+            .'</row>';
+
+        // Row 2: Subtitle
+        $periodLabel = 'Periode: '.$monthName.' '.$year.' | Keterangan: Kuning = Melebihi HET 1-10%, Merah = Melebihi HET >10%';
+        $sheetXml .= '<row r="2" ht="18" customHeight="1">'
+            .'<c r="A2" s="0" t="inlineStr"><is><t>'.htmlspecialchars($periodLabel, ENT_XML1).'</t></is></c>'
+            .'</row>';
+
+        // Row 3: Spacer
+        $sheetXml .= '<row r="3" ht="10" customHeight="1"/>';
+
+        // Row 4: Header
+        $sheetXml .= '<row r="4" ht="28" customHeight="1">'
+            .'<c r="A4" s="1" t="inlineStr"><is><t>No</t></is></c>'
+            .'<c r="B4" s="1" t="inlineStr"><is><t>Komoditas</t></is></c>'
+            .'<c r="C4" s="1" t="inlineStr"><is><t>Satuan</t></is></c>'
+            .'<c r="D4" s="1" t="inlineStr"><is><t>HET / HAP</t></is></c>';
+
+        foreach ($weeks as $idx => $wDef) {
+            $colLetter = $this->getColumnLetter(5 + $idx);
+            $sheetXml .= '<c r="'.$colLetter.'4" s="1" t="inlineStr"><is><t>'.htmlspecialchars($wDef['label'].' ('.$wDef['range_label'].')', ENT_XML1).'</t></is></c>';
+        }
+        $sheetXml .= '<c r="'.$lastColLetter.'4" s="1" t="inlineStr"><is><t>Rata-rata</t></is></c>';
+        $sheetXml .= '</row>';
+
+        // Data Rows
+        $rowNum = 5;
+        $weekSums = [];
+        $weekCounts = [];
+        $weekAboveCounts = [];
+        $allMonthPrices = [];
+
+        foreach ($commodityRows as $rIdx => $cRow) {
+            $sheetXml .= '<row r="'.$rowNum.'" ht="20" customHeight="1">'
+                .'<c r="A'.$rowNum.'" s="2"><v>'.($rIdx + 1).'</v></c>'
+                .'<c r="B'.$rowNum.'" s="2" t="inlineStr"><is><t>'.htmlspecialchars($cRow['name'], ENT_XML1).'</t></is></c>'
+                .'<c r="C'.$rowNum.'" s="2" t="inlineStr"><is><t>'.htmlspecialchars($cRow['unit'], ENT_XML1).'</t></is></c>';
+
+            $het = $cRow['het'] ?? null;
+            if ($het !== null && is_numeric($het) && $het > 0) {
+                $sheetXml .= '<c r="D'.$rowNum.'" s="2"><v>'.$het.'</v></c>';
+            } else {
+                $sheetXml .= '<c r="D'.$rowNum.'" s="2" t="inlineStr"><is><t>-</t></is></c>';
+            }
+
+            foreach ($weeks as $wIdx => $wDef) {
+                $wNum = $wDef['num'];
+                $colLetter = $this->getColumnLetter(5 + $wIdx);
+                $wInfo = $cRow['weeks'][$wNum] ?? null;
+                $avg = $wInfo['average'] ?? null;
+                $status = $wInfo['status'] ?? 'normal';
+
+                $cellStyle = 2;
+                if ($status === 'danger') {
+                    $cellStyle = 5;
+                    $weekAboveCounts[$wNum] = ($weekAboveCounts[$wNum] ?? 0) + 1;
+                } elseif ($status === 'warning') {
+                    $cellStyle = 4;
+                    $weekAboveCounts[$wNum] = ($weekAboveCounts[$wNum] ?? 0) + 1;
+                }
+
+                if ($avg !== null && is_numeric($avg) && $avg > 0) {
+                    $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="'.$cellStyle.'"><v>'.$avg.'</v></c>';
+                    $weekSums[$wNum] = ($weekSums[$wNum] ?? 0) + $avg;
+                    $weekCounts[$wNum] = ($weekCounts[$wNum] ?? 0) + 1;
+                } else {
+                    $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="2" t="inlineStr"><is><t>-</t></is></c>';
+                }
+            }
+
+            // Month average
+            $mAvg = $cRow['month_average'] ?? null;
+            $mStatus = $cRow['month_status'] ?? 'normal';
+            $mStyle = 6;
+            if ($mStatus === 'danger') {
+                $mStyle = 5;
+            } elseif ($mStatus === 'warning') {
+                $mStyle = 4;
+            }
+
+            if ($mAvg !== null && is_numeric($mAvg) && $mAvg > 0) {
+                $sheetXml .= '<c r="'.$lastColLetter.$rowNum.'" s="'.$mStyle.'"><v>'.$mAvg.'</v></c>';
+                $allMonthPrices[] = $mAvg;
+            } else {
+                $sheetXml .= '<c r="'.$lastColLetter.$rowNum.'" s="2" t="inlineStr"><is><t>-</t></is></c>';
+            }
+
+            $sheetXml .= '</row>';
+            $rowNum++;
+        }
+
+        // Summary Row 1: Rata-rata Keseluruhan
+        $sheetXml .= '<row r="'.$rowNum.'" ht="22" customHeight="1">'
+            .'<c r="A'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>'
+            .'<c r="B'.$rowNum.'" s="6" t="inlineStr"><is><t>Rata-rata Keseluruhan</t></is></c>'
+            .'<c r="C'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>'
+            .'<c r="D'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>';
+
+        foreach ($weeks as $wIdx => $wDef) {
+            $wNum = $wDef['num'];
+            $colLetter = $this->getColumnLetter(5 + $wIdx);
+            $wAvg = (!empty($weekCounts[$wNum])) ? round($weekSums[$wNum] / $weekCounts[$wNum], 0) : null;
+            if ($wAvg !== null) {
+                $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="6"><v>'.$wAvg.'</v></c>';
+            } else {
+                $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>';
+            }
+        }
+
+        $overallMonthAvg = !empty($allMonthPrices) ? round(array_sum($allMonthPrices) / count($allMonthPrices), 0) : null;
+        if ($overallMonthAvg !== null) {
+            $sheetXml .= '<c r="'.$lastColLetter.$rowNum.'" s="6"><v>'.$overallMonthAvg.'</v></c>';
+        } else {
+            $sheetXml .= '<c r="'.$lastColLetter.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>';
+        }
+        $sheetXml .= '</row>';
+        $rowNum++;
+
+        // Summary Row 2: Jumlah Komoditas di Atas HET
+        $sheetXml .= '<row r="'.$rowNum.'" ht="22" customHeight="1">'
+            .'<c r="A'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>'
+            .'<c r="B'.$rowNum.'" s="6" t="inlineStr"><is><t>Komoditas di Atas HET</t></is></c>'
+            .'<c r="C'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>'
+            .'<c r="D'.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>';
+
+        foreach ($weeks as $wIdx => $wDef) {
+            $wNum = $wDef['num'];
+            $colLetter = $this->getColumnLetter(5 + $wIdx);
+            $aboveCnt = $weekAboveCounts[$wNum] ?? 0;
+            $cellStyle = $aboveCnt > 0 ? 5 : 6;
+            $sheetXml .= '<c r="'.$colLetter.$rowNum.'" s="'.$cellStyle.'" t="inlineStr"><is><t>'.$aboveCnt.' Komoditas</t></is></c>';
+        }
+
+        $sheetXml .= '<c r="'.$lastColLetter.$rowNum.'" s="6" t="inlineStr"><is><t>-</t></is></c>';
+        $sheetXml .= '</row>';
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = (string) file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        return $content;
+    }
+
+    /**
      * Generate an Excel .xlsx binary string for historical monthly average producer commodity prices table (Jan - Dec).
      * Columns: No, Komoditas, Satuan, HAP Acuan, Jan, Feb, Mar, Apr, Mei, Jun, Jul, Agu, Sep, Okt, Nov, Des, Rata-rata
      * Rows: Producer Commodities

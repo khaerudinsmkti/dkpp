@@ -302,8 +302,16 @@ class FsvaController extends Controller
             $query->where('komposit', (int) $filterKomposit);
         }
 
-        // Paginate records for admin table
-        $records = $query->orderBy('kecamatan')->orderBy('desa')->get();
+        $perPage = (int) $request->query('per_page', 15);
+        if ($perPage <= 0) {
+            $perPage = 15;
+        }
+
+        // Paginate records for admin table (default 15)
+        $records = $query->orderBy('kecamatan')
+            ->orderBy('desa')
+            ->paginate($perPage)
+            ->withQueryString();
 
         // Overview statistics
         $allCurrentYear = Fsva::where('tahun', $selectedYear)->get();
@@ -349,6 +357,7 @@ class FsvaController extends Controller
                 'search' => $search,
                 'kecamatan' => $filterKecamatan,
                 'komposit' => $filterKomposit !== null && $filterKomposit !== '' ? (int) $filterKomposit : null,
+                'per_page' => $perPage,
             ],
         ]);
     }

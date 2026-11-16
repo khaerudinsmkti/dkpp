@@ -77,8 +77,25 @@ export interface FsvaAdminRecord {
     updated_at?: string;
 }
 
+export interface PaginationLink {
+    url: string | null;
+    label: string;
+    active: boolean;
+}
+
+export interface PaginatedFsvaRecords {
+    data: FsvaAdminRecord[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+    links: PaginationLink[];
+}
+
 interface PageProps {
-    records: FsvaAdminRecord[];
+    records: PaginatedFsvaRecords;
     statistics: {
         total_desa: number;
         target_total: number;
@@ -100,6 +117,7 @@ interface PageProps {
         search: string;
         kecamatan: string;
         komposit: number | null;
+        per_page?: number;
     };
 }
 
@@ -119,6 +137,7 @@ export default function FsvaAdminIndex({
         filters.komposit ? String(filters.komposit) : 'ALL'
     );
     const [selectedYear, setSelectedYear] = useState<number>(filters.year);
+    const [perPage, setPerPage] = useState<number>(filters.per_page || 15);
 
     // Modal States
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -177,6 +196,7 @@ export default function FsvaAdminIndex({
             search: searchTerm,
             kecamatan: selectedKecFilter === 'ALL' ? '' : selectedKecFilter,
             komposit: selectedKompositFilter === 'ALL' ? '' : selectedKompositFilter,
+            per_page: perPage,
             [key]: value === 'ALL' ? '' : value,
         };
 
@@ -804,7 +824,7 @@ export default function FsvaAdminIndex({
                 <CardHeader className="py-3 px-4 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                            Data FSVA ({records.length} Desa Ditemukan)
+                            Data FSVA ({records.total} Desa Ditemukan)
                         </CardTitle>
                         <Badge variant="outline" className="text-[10px]">
                             Tahun {selectedYear}
@@ -832,14 +852,14 @@ export default function FsvaAdminIndex({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                                {records.length === 0 ? (
+                                {records.data.length === 0 ? (
                                     <tr>
                                         <td colSpan={13} className="px-4 py-8 text-center text-slate-500">
                                             Tidak ada data FSVA yang sesuai. Klik "+ Tambah Data FSVA" atau "Import Excel".
                                         </td>
                                     </tr>
                                 ) : (
-                                    records.map((r, idx) => {
+                                    records.data.map((r, idx) => {
                                         const pInfo = priorities[r.komposit] || priorities[1];
                                         return (
                                             <tr
@@ -847,7 +867,7 @@ export default function FsvaAdminIndex({
                                                 className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
                                             >
                                                 <td className="px-3 py-2 text-center font-bold text-slate-400">
-                                                    #{r.rank ?? idx + 1}
+                                                    #{r.rank ?? (records.current_page - 1) * records.per_page + idx + 1}
                                                 </td>
                                                 <td className="px-3 py-2 font-black text-slate-900 dark:text-white">
                                                     {r.desa}
@@ -859,9 +879,9 @@ export default function FsvaAdminIndex({
                                                     <span
                                                         className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-black"
                                                         style={{
-                                                            backgroundColor: `${pInfo.color}15`,
-                                                            color: pInfo.color,
-                                                            border: `1px solid ${pInfo.color}40`,
+                                                             backgroundColor: `${pInfo.color}15`,
+                                                             color: pInfo.color,
+                                                             border: `1px solid ${pInfo.color}40`,
                                                         }}
                                                     >
                                                         <span
@@ -925,6 +945,66 @@ export default function FsvaAdminIndex({
                                 )}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    <div className="p-3.5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                        <div className="flex items-center gap-3">
+                            <span>
+                                Menampilkan <span className="font-bold text-slate-800 dark:text-slate-200">{records.from ?? 0}</span> - <span className="font-bold text-slate-800 dark:text-slate-200">{records.to ?? 0}</span> dari <span className="font-bold text-slate-800 dark:text-slate-200">{records.total}</span> data desa
+                            </span>
+                            <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3">
+                                <span className="text-[11px] text-slate-400">Baris:</span>
+                                <Select
+                                    value={String(perPage)}
+                                    onValueChange={(val) => {
+                                        const newLimit = Number(val);
+                                        setPerPage(newLimit);
+                                        applyFilter('per_page', newLimit);
+                                    }}
+                                >
+                                    <SelectTrigger className="h-7 w-20 text-xs font-semibold rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                                        <SelectValue placeholder="15" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="15" className="text-xs">15</SelectItem>
+                                        <SelectItem value="25" className="text-xs">25</SelectItem>
+                                        <SelectItem value="50" className="text-xs">50</SelectItem>
+                                        <SelectItem value="100" className="text-xs">100</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {records.links && records.links.length > 3 && (
+                            <div className="flex items-center gap-1 flex-wrap justify-center">
+                                {records.links.map((link, i) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={i}
+                                                className="px-2.5 py-1 text-slate-300 dark:text-slate-600 rounded-lg text-xs"
+                                                dangerouslySetInnerHTML={{ __html: link.label }}
+                                            />
+                                        );
+                                    }
+                                    return (
+                                        <Link
+                                            key={i}
+                                            href={link.url}
+                                            preserveScroll
+                                            preserveState
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                                link.active
+                                                    ? 'bg-[#006565] text-white shadow-xs'
+                                                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}
+                                            dangerouslySetInnerHTML={{ __html: link.label }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
