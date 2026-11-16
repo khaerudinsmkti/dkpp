@@ -301,6 +301,19 @@ export default function NeracaPanganPublic({
     const [selectedTrendCommodity, setSelectedTrendCommodity] = useState<string>('all');
     const [trendScaleMode, setTrendScaleMode] = useState<'dual' | 'single'>('dual');
     const [activeTableTab, setActiveTableTab] = useState<'neraca' | 'ketersediaan' | 'kebutuhan' | 'produksi'>('neraca');
+    const [neracaCompareBasis, setNeracaCompareBasis] = useState<'ketersediaan' | 'produksi'>('ketersediaan');
+
+    const getItemCompareSelisih = (item: NeracaItem, basis: 'ketersediaan' | 'produksi' = neracaCompareBasis): number | null => {
+        if (!item.is_recorded || item.kebutuhan === null) return null;
+        const supplyVal = basis === 'produksi' ? (item.produksi ?? 0) : (item.ketersediaan ?? 0);
+        return Number((supplyVal - item.kebutuhan).toFixed(2));
+    };
+
+    const getItemCompareStatus = (item: NeracaItem, basis: 'ketersediaan' | 'produksi' = neracaCompareBasis): 'Surplus' | 'Defisit' | 'Belum Ada Data' => {
+        const diff = getItemCompareSelisih(item, basis);
+        if (!item.is_recorded || diff === null) return 'Belum Ada Data';
+        return diff < 0 ? 'Defisit' : 'Surplus';
+    };
 
     const handlePeriodChange = (yr: number, mo: number) => {
         router.get(
@@ -635,25 +648,42 @@ export default function NeracaPanganPublic({
         }
 
         const monthLabel = getMonthLabel(selectedMonth);
-        const currentDateFormatted = new Date().toLocaleDateString('id-ID', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-        });
+        const compareLabel =
+            neracaCompareBasis === 'produksi'
+                ? 'Produksi vs Kebutuhan'
+                : 'Ketersediaan vs Kebutuhan';
+        const compareShortLabel =
+            neracaCompareBasis === 'produksi' ? 'Prod. - Keb.' : 'Ket. - Keb.';
 
         const itemsToPrint = filteredItems.length > 0 ? filteredItems : items;
 
+        const printSurplusCount = itemsToPrint.filter(
+            (item) => getItemCompareStatus(item, neracaCompareBasis) === 'Surplus'
+        ).length;
+        const printDefisitCount = itemsToPrint.filter(
+            (item) => getItemCompareStatus(item, neracaCompareBasis) === 'Defisit'
+        ).length;
+        const printTotalSelisih = Number(
+            (
+                (neracaCompareBasis === 'produksi'
+                    ? statistics.total_produksi
+                    : statistics.total_ketersediaan) - statistics.total_kebutuhan
+            ).toFixed(2)
+        );
+
         let tableRowsHtml = '';
         itemsToPrint.forEach((item, idx) => {
-            const isSurplus = item.selisih !== null && item.selisih >= 0;
+            const rowSelisih = getItemCompareSelisih(item, neracaCompareBasis);
+            const rowStatus = getItemCompareStatus(item, neracaCompareBasis);
+            const isSurplus = rowSelisih !== null && rowSelisih >= 0;
             const statusBadge = !item.is_recorded
                 ? '<span style="color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:99px;font-size:7pt;">Belum Ada Data</span>'
-                : item.keterangan === 'Surplus'
+                : rowStatus === 'Surplus'
                 ? '<span style="color:#065f46;background:#d1fae5;padding:2px 8px;border-radius:99px;font-weight:bold;font-size:7pt;">Surplus</span>'
                 : '<span style="color:#991b1b;background:#fee2e2;padding:2px 8px;border-radius:99px;font-weight:bold;font-size:7pt;">Defisit</span>';
 
-            const selisihText = item.is_recorded && item.selisih !== null
-                ? `<span style="font-weight:bold;color:${isSurplus ? '#059669' : '#dc2626'}">${item.selisih >= 0 ? '+' : ''}${formatNumber(item.selisih)}</span>`
+            const selisihText = item.is_recorded && rowSelisih !== null
+                ? `<span style="font-weight:bold;color:${isSurplus ? '#059669' : '#dc2626'}">${rowSelisih >= 0 ? '+' : ''}${formatNumber(rowSelisih)}</span>`
                 : '-';
 
             tableRowsHtml += `
@@ -661,8 +691,8 @@ export default function NeracaPanganPublic({
                     <td style="text-align:center;color:#64748b;">${idx + 1}</td>
                     <td style="font-weight:bold;color:#0f172a;">${item.name}</td>
                     <td style="text-align:center;color:#475569;">${item.unit}</td>
-                    <td style="text-align:right;">${item.is_recorded ? formatNumber(item.produksi) : '-'}</td>
-                    <td style="text-align:right;font-weight:600;">${item.is_recorded ? formatNumber(item.ketersediaan) : '-'}</td>
+                    <td style="text-align:right;${neracaCompareBasis === 'produksi' ? 'font-weight:700;background:#ecfdf5;' : ''}">${item.is_recorded ? formatNumber(item.produksi) : '-'}</td>
+                    <td style="text-align:right;${neracaCompareBasis === 'ketersediaan' ? 'font-weight:700;background:#ecfdf5;' : 'font-weight:600;'}">${item.is_recorded ? formatNumber(item.ketersediaan) : '-'}</td>
                     <td style="text-align:right;font-weight:600;">${item.is_recorded ? formatNumber(item.kebutuhan) : '-'}</td>
                     <td style="text-align:right;">${selisihText}</td>
                     <td style="text-align:center;">${statusBadge}</td>
@@ -858,7 +888,7 @@ export default function NeracaPanganPublic({
 
             <div class="title-section">
                 <h1>Laporan Neraca Pangan Bulanan</h1>
-                <p>Periode: Bulan ${monthLabel} ${selectedYear}</p>
+                <p>Periode: Bulan ${monthLabel} ${selectedYear} | Dasar Status Neraca: ${compareLabel}</p>
             </div>
 
             <div class="summary-cards">
@@ -867,17 +897,17 @@ export default function NeracaPanganPublic({
                     <div class="card-value" style="color:#0f172a;">${statistics.total_commodities} Komoditas</div>
                 </div>
                 <div class="card" style="background:#ecfdf5;border-color:#a7f3d0;">
-                    <div class="card-title" style="color:#065f46;">Komoditas Surplus</div>
-                    <div class="card-value" style="color:#059669;">${statistics.surplus_count} Komoditas</div>
+                    <div class="card-title" style="color:#065f46;">Komoditas Surplus (${compareLabel})</div>
+                    <div class="card-value" style="color:#059669;">${printSurplusCount} Komoditas</div>
                 </div>
                 <div class="card" style="background:#fff1f2;border-color:#fecdd3;">
-                    <div class="card-title" style="color:#9f1239;">Komoditas Defisit</div>
-                    <div class="card-value" style="color:#e11d48;">${statistics.defisit_count} Komoditas</div>
+                    <div class="card-title" style="color:#9f1239;">Komoditas Defisit (${compareLabel})</div>
+                    <div class="card-value" style="color:#e11d48;">${printDefisitCount} Komoditas</div>
                 </div>
                 <div class="card">
-                    <div class="card-title">Total Neraca Pangan</div>
-                    <div class="card-value" style="color:${statistics.total_selisih >= 0 ? '#059669' : '#dc2626'};">
-                        ${statistics.total_selisih >= 0 ? '+' : ''}${formatNumber(statistics.total_selisih)} Ton
+                    <div class="card-title">Total Selisih (${compareShortLabel})</div>
+                    <div class="card-value" style="color:${printTotalSelisih >= 0 ? '#059669' : '#dc2626'};">
+                        ${printTotalSelisih >= 0 ? '+' : ''}${formatNumber(printTotalSelisih)} Ton
                     </div>
                 </div>
             </div>
@@ -891,8 +921,8 @@ export default function NeracaPanganPublic({
                         <th style="width: 90px; text-align: right;">Produksi</th>
                         <th style="width: 100px; text-align: right;">Ketersediaan</th>
                         <th style="width: 100px; text-align: right;">Kebutuhan</th>
-                        <th style="width: 100px; text-align: right;">Selisih</th>
-                        <th style="width: 85px; text-align: center;">Status</th>
+                        <th style="width: 105px; text-align: right;">Selisih (${compareShortLabel})</th>
+                        <th style="width: 95px; text-align: center;">Status (${compareLabel})</th>
                         <th>Catatan</th>
                     </tr>
                 </thead>
@@ -905,11 +935,11 @@ export default function NeracaPanganPublic({
                         <td style="text-align: right;">${formatNumber(statistics.total_produksi)}</td>
                         <td style="text-align: right;">${formatNumber(statistics.total_ketersediaan)}</td>
                         <td style="text-align: right;">${formatNumber(statistics.total_kebutuhan)}</td>
-                        <td style="text-align: right; color: ${statistics.total_selisih >= 0 ? '#059669' : '#dc2626'};">
-                            ${statistics.total_selisih >= 0 ? '+' : ''}${formatNumber(statistics.total_selisih)}
+                        <td style="text-align: right; color: ${printTotalSelisih >= 0 ? '#059669' : '#dc2626'};">
+                            ${printTotalSelisih >= 0 ? '+' : ''}${formatNumber(printTotalSelisih)}
                         </td>
                         <td style="text-align: center;">
-                            ${statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
+                            ${printTotalSelisih >= 0 ? 'Surplus' : 'Defisit'}
                         </td>
                         <td>-</td>
                     </tr>
@@ -952,14 +982,15 @@ export default function NeracaPanganPublic({
             const matchesSearch =
                 searchTerm === '' ||
                 item.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const itemStatus = getItemCompareStatus(item, neracaCompareBasis);
             const matchesStatus =
                 statusFilter === 'all' ||
-                (statusFilter === 'surplus' && item.keterangan === 'Surplus') ||
-                (statusFilter === 'defisit' && item.keterangan === 'Defisit');
+                (statusFilter === 'surplus' && itemStatus === 'Surplus') ||
+                (statusFilter === 'defisit' && itemStatus === 'Defisit');
 
             return matchesSearch && matchesStatus;
         });
-    }, [items, searchTerm, statusFilter]);
+    }, [items, searchTerm, statusFilter, neracaCompareBasis]);
 
     // Trend commodity metadata
     const activeTrendCommodity = useMemo(() => {
@@ -1696,129 +1727,262 @@ export default function NeracaPanganPublic({
                     </CardHeader>
 
                     {activeTableTab === 'neraca' ? (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
-                                <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
-                                    <tr>
-                                        <th className="py-3.5 px-4 w-12 text-center">No</th>
-                                        <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
-                                        <th className="py-3.5 px-4">Nama Komoditas</th>
-                                        <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
-                                        <th className="py-3.5 px-4 text-right">Produksi</th>
-                                        <th className="py-3.5 px-4 text-right">Ketersediaan</th>
-                                        <th className="py-3.5 px-4 text-right">Kebutuhan</th>
-                                        <th className="py-3.5 px-4 text-right">Selisih</th>
-                                        <th className="py-3.5 px-4 w-32 text-center">Status Neraca</th>
-                                        <th className="py-3.5 px-4">Catatan</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {filteredItems.length === 0 ? (
+                        <div>
+                            {/* Sub-toolbar: Fitur Perbandingan Dasar Status Neraca (Ketersediaan vs Kebutuhan / Produksi vs Kebutuhan) */}
+                            {(() => {
+                                const activeSurplusCount = items.filter(
+                                    (item) => getItemCompareStatus(item, neracaCompareBasis) === 'Surplus'
+                                ).length;
+                                const activeDefisitCount = items.filter(
+                                    (item) => getItemCompareStatus(item, neracaCompareBasis) === 'Defisit'
+                                ).length;
+                                const activeTotalSelisih = Number(
+                                    (
+                                        (neracaCompareBasis === 'produksi'
+                                            ? statistics.total_produksi
+                                            : statistics.total_ketersediaan) - statistics.total_kebutuhan
+                                    ).toFixed(2)
+                                );
+
+                                return (
+                                    <div className="flex flex-col gap-3 border-b border-slate-200/80 bg-emerald-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-emerald-950/15">
+                                        <div className="flex flex-wrap items-center gap-2.5">
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                                Dasar Perbandingan Status Neraca:
+                                            </span>
+                                            <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/90 bg-white p-1 shadow-2xs dark:border-slate-700 dark:bg-slate-900">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNeracaCompareBasis('ketersediaan')}
+                                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                                        neracaCompareBasis === 'ketersediaan'
+                                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    Ketersediaan vs Kebutuhan
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNeracaCompareBasis('produksi')}
+                                                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                                        neracaCompareBasis === 'produksi'
+                                                            ? 'bg-emerald-600 text-white shadow-2xs'
+                                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    Produksi vs Kebutuhan
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100/90 px-2.5 py-1 font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                <CheckCircle2 className="size-3.5" />
+                                                <span>Surplus: {activeSurplusCount}</span>
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100/90 px-2.5 py-1 font-bold text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                                <AlertCircle className="size-3.5" />
+                                                <span>Defisit: {activeDefisitCount}</span>
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                                <span>Total Selisih:</span>
+                                                <span
+                                                    className={
+                                                        activeTotalSelisih < 0
+                                                            ? 'text-rose-600 dark:text-rose-400'
+                                                            : 'text-emerald-600 dark:text-emerald-400'
+                                                    }
+                                                >
+                                                    {activeTotalSelisih >= 0 ? '+' : ''}
+                                                    {formatNumber(activeTotalSelisih)} Ton
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
+                                    <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
                                         <tr>
-                                            <td colSpan={10} className="py-8 text-center text-slate-400">
-                                                Tidak ada data komoditas ditemukan.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredItems.map((item, idx) => (
-                                            <tr
-                                                key={item.id}
-                                                className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                            <th className="py-3.5 px-4 w-12 text-center">No</th>
+                                            <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
+                                            <th className="py-3.5 px-4">Nama Komoditas</th>
+                                            <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
+                                            <th
+                                                className={`py-3.5 px-4 text-right transition-colors ${
+                                                    neracaCompareBasis === 'produksi'
+                                                        ? 'bg-emerald-50/80 text-[#006565] font-bold dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                        : ''
+                                                }`}
                                             >
-                                                <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
-                                                    {idx + 1}
-                                                </td>
-                                                <td className="py-2.5 px-3 text-center">
-                                                    <CommodityThumbnail item={item} />
-                                                </td>
-                                                <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
-                                                    {item.name}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-center">
-                                                    <Badge
-                                                        variant="secondary"
-                                                        className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                                    >
-                                                        {item.unit}
-                                                    </Badge>
-                                                </td>
-                                                <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
-                                                    {item.is_recorded ? formatNumber(item.produksi) : '-'}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                    {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                    {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
-                                                    {item.is_recorded ? (
-                                                        <span
-                                                            className={
-                                                                item.selisih !== null && item.selisih < 0
-                                                                    ? 'text-rose-600 dark:text-rose-400'
-                                                                    : 'text-emerald-600 dark:text-emerald-400'
-                                                            }
-                                                        >
-                                                            {item.selisih !== null && item.selisih >= 0 ? '+' : ''}
-                                                            {formatNumber(item.selisih)}
-                                                        </span>
-                                                    ) : (
-                                                        '-'
-                                                    )}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-center">
-                                                    {!item.is_recorded ? (
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                                            Belum Ada Data
-                                                        </span>
-                                                    ) : item.keterangan === 'Surplus' ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                                            <CheckCircle2 className="size-3" />
-                                                            Surplus
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                                                            <AlertCircle className="size-3" />
-                                                            Defisit
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
-                                                    {item.notes || '-'}
+                                                Produksi
+                                            </th>
+                                            <th
+                                                className={`py-3.5 px-4 text-right transition-colors ${
+                                                    neracaCompareBasis === 'ketersediaan'
+                                                        ? 'bg-emerald-50/80 text-[#006565] font-bold dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                        : ''
+                                                }`}
+                                            >
+                                                Ketersediaan
+                                            </th>
+                                            <th className="py-3.5 px-4 text-right bg-blue-50/50 text-blue-800 font-bold dark:bg-blue-950/30 dark:text-blue-300">
+                                                Kebutuhan
+                                            </th>
+                                            <th className="py-3.5 px-4 text-right">
+                                                <div>Selisih</div>
+                                                <div className="text-[10px] font-normal normal-case text-slate-400">
+                                                    ({neracaCompareBasis === 'produksi' ? 'Produksi - Kebutuhan' : 'Ketersediaan - Kebutuhan'})
+                                                </div>
+                                            </th>
+                                            <th className="py-3.5 px-4 w-40 text-center">
+                                                <div>Status Neraca</div>
+                                                <div className="text-[10px] font-normal normal-case text-emerald-600 dark:text-emerald-400">
+                                                    ({neracaCompareBasis === 'produksi' ? 'Produksi vs Kebutuhan' : 'Ketersediaan vs Kebutuhan'})
+                                                </div>
+                                            </th>
+                                            <th className="py-3.5 px-4">Catatan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {filteredItems.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={10} className="py-8 text-center text-slate-400">
+                                                    Tidak ada data komoditas ditemukan.
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                                <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
-                                    <tr>
-                                        <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                            Total Kumulatif
-                                        </td>
-                                        <td className="py-3 px-4 text-right font-mono">
-                                            {formatNumber(statistics.total_produksi)}
-                                        </td>
-                                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                            {formatNumber(statistics.total_ketersediaan)}
-                                        </td>
-                                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                            {formatNumber(statistics.total_kebutuhan)}
-                                        </td>
-                                        <td className="py-3 px-4 text-right font-mono font-bold">
-                                            <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                                {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
-                                                {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-xs text-slate-400">-</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                                        ) : (
+                                            filteredItems.map((item, idx) => {
+                                                const activeSelisih = getItemCompareSelisih(item, neracaCompareBasis);
+                                                const activeStatus = getItemCompareStatus(item, neracaCompareBasis);
+
+                                                return (
+                                                    <tr
+                                                        key={item.id}
+                                                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                                    >
+                                                        <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
+                                                            {idx + 1}
+                                                        </td>
+                                                        <td className="py-2.5 px-3 text-center">
+                                                            <CommodityThumbnail item={item} />
+                                                        </td>
+                                                        <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
+                                                            {item.name}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center">
+                                                            <Badge
+                                                                variant="secondary"
+                                                                className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                                            >
+                                                                {item.unit}
+                                                            </Badge>
+                                                        </td>
+                                                        <td
+                                                            className={`py-3.5 px-4 text-right font-mono text-xs ${
+                                                                neracaCompareBasis === 'produksi'
+                                                                    ? 'bg-emerald-50/30 font-bold text-[#006565] dark:bg-emerald-950/20 dark:text-emerald-300'
+                                                                    : 'text-slate-700 dark:text-slate-300'
+                                                            }`}
+                                                        >
+                                                            {item.is_recorded ? formatNumber(item.produksi) : '-'}
+                                                        </td>
+                                                        <td
+                                                            className={`py-3.5 px-4 text-right font-mono text-xs ${
+                                                                neracaCompareBasis === 'ketersediaan'
+                                                                    ? 'bg-emerald-50/30 font-bold text-[#006565] dark:bg-emerald-950/20 dark:text-emerald-300'
+                                                                    : 'font-medium text-slate-800 dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-right font-mono text-xs font-medium bg-blue-50/20 text-slate-800 dark:bg-blue-950/10 dark:text-slate-200">
+                                                            {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
+                                                            {item.is_recorded && activeSelisih !== null ? (
+                                                                <span
+                                                                    className={
+                                                                        activeSelisih < 0
+                                                                            ? 'text-rose-600 dark:text-rose-400'
+                                                                            : 'text-emerald-600 dark:text-emerald-400'
+                                                                    }
+                                                                >
+                                                                    {activeSelisih >= 0 ? '+' : ''}
+                                                                    {formatNumber(activeSelisih)}
+                                                                </span>
+                                                            ) : (
+                                                                '-'
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center">
+                                                            {!item.is_recorded ? (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                                                    Belum Ada Data
+                                                                </span>
+                                                            ) : activeStatus === 'Surplus' ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                                    <CheckCircle2 className="size-3" />
+                                                                    Surplus
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                                                    <AlertCircle className="size-3" />
+                                                                    Defisit
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
+                                                            {item.notes || '-'}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                    {(() => {
+                                        const footerTotalSelisih = Number(
+                                            (
+                                                (neracaCompareBasis === 'produksi'
+                                                    ? statistics.total_produksi
+                                                    : statistics.total_ketersediaan) - statistics.total_kebutuhan
+                                            ).toFixed(2)
+                                        );
+                                        return (
+                                            <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
+                                                <tr>
+                                                    <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                                        Total Kumulatif
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-mono">
+                                                        {formatNumber(statistics.total_produksi)}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                                        {formatNumber(statistics.total_ketersediaan)}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                                        {formatNumber(statistics.total_kebutuhan)}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right font-mono font-bold">
+                                                        <span className={footerTotalSelisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                                            {footerTotalSelisih >= 0 ? '+' : ''}{formatNumber(footerTotalSelisih)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-center">
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${footerTotalSelisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                                                            {footerTotalSelisih >= 0 ? 'Surplus' : 'Defisit'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-xs text-slate-400">-</td>
+                                                </tr>
+                                            </tfoot>
+                                        );
+                                    })()}
+                                </table>
+                            </div>
                         </div>
                     ) : (
                         /* Matrix Table for Ketersediaan, Kebutuhan, or Produksi (Januari s.d. Desember + Total) */
