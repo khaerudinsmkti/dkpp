@@ -300,6 +300,7 @@ export default function NeracaPanganPublic({
     const [statusFilter, setStatusFilter] = useState('all');
     const [selectedTrendCommodity, setSelectedTrendCommodity] = useState<string>('all');
     const [trendScaleMode, setTrendScaleMode] = useState<'dual' | 'single'>('dual');
+    const [activeTableTab, setActiveTableTab] = useState<'neraca' | 'ketersediaan' | 'kebutuhan' | 'produksi'>('neraca');
 
     const handlePeriodChange = (yr: number, mo: number) => {
         router.get(
@@ -309,10 +310,327 @@ export default function NeracaPanganPublic({
         );
     };
 
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = (tabOverride?: 'neraca' | 'ketersediaan' | 'kebutuhan' | 'produksi') => {
+        const targetTab = tabOverride ?? activeTableTab;
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
             alert('Mohon izinkan pop-up browser untuk mencetak / mendownload PDF.');
+            return;
+        }
+
+        if (targetTab !== 'neraca') {
+            const metricKey = targetTab;
+            const metricTitleMap: Record<'ketersediaan' | 'kebutuhan' | 'produksi', string> = {
+                ketersediaan: 'Ketersediaan Pangan',
+                kebutuhan: 'Kebutuhan Pangan',
+                produksi: 'Produksi Pangan',
+            };
+            const metricLabel = metricTitleMap[metricKey];
+
+            const matrixCommodities = items.filter(
+                (item) => searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            const listToPrint = matrixCommodities.length > 0 ? matrixCommodities : items;
+
+            const monthlySums = MONTH_NAMES.map((m) => {
+                let sum = 0;
+                let anyRecorded = false;
+                listToPrint.forEach((comm) => {
+                    const mList = monthlyTrends?.by_commodity?.[comm.id] ?? [];
+                    const entry = mList.find((x) => x.month === m.value);
+                    if (entry && entry.has_data) {
+                        sum += entry[metricKey] ?? 0;
+                        anyRecorded = true;
+                    }
+                });
+                return {
+                    month: m.value,
+                    label: m.label,
+                    sum: Number(sum.toFixed(2)),
+                    anyRecorded,
+                };
+            });
+
+            const grandTotal = Number(
+                monthlySums.reduce((acc, cur) => acc + cur.sum, 0).toFixed(2)
+            );
+            const recordedMonthsCount = monthlySums.filter((m) => m.anyRecorded).length;
+
+            let matrixRowsHtml = '';
+            listToPrint.forEach((item, idx) => {
+                const mList = monthlyTrends?.by_commodity?.[item.id] ?? [];
+                let rowTotal = 0;
+                let rowHasAnyData = false;
+
+                let monthCellsHtml = '';
+                MONTH_NAMES.forEach((m) => {
+                    const entry = mList.find((x) => x.month === m.value);
+                    const val = entry && entry.has_data ? entry[metricKey] : null;
+                    if (val !== null) {
+                        rowTotal += val;
+                        rowHasAnyData = true;
+                    }
+                    monthCellsHtml += `<td style="text-align:right;font-family:monospace;">${val !== null ? formatNumber(val) : '-'}</td>`;
+                });
+
+                matrixRowsHtml += `
+                    <tr>
+                        <td style="text-align:center;color:#64748b;">${idx + 1}</td>
+                        <td style="font-weight:bold;color:#0f172a;">
+                            ${item.name}
+                            <span style="font-weight:normal;color:#64748b;font-size:6.5pt;">(${item.unit})</span>
+                        </td>
+                        ${monthCellsHtml}
+                        <td style="text-align:right;font-weight:bold;color:#047857;background:#ecfdf5;font-family:monospace;">
+                            ${rowHasAnyData ? formatNumber(Number(rowTotal.toFixed(2))) : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const monthHeadersHtml = MONTH_NAMES.map(
+                (m) => `<th style="text-align:right;">${m.label}</th>`
+            ).join('');
+
+            const monthFooterCellsHtml = monthlySums
+                .map(
+                    (ms) =>
+                        `<td style="text-align:right;font-family:monospace;">${ms.anyRecorded ? formatNumber(ms.sum) : '-'}</td>`
+                )
+                .join('');
+
+            const matrixHtml = `
+            <!DOCTYPE html>
+            <html lang="id">
+            <head>
+                <meta charset="UTF-8"/>
+                <title>${metricLabel.replace(/\s+/g, '_')}_Bulanan_Indramayu_${selectedYear}</title>
+                <style>
+                    @page {
+                        size: A4 landscape;
+                        margin: 10mm 10mm;
+                    }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        margin: 0;
+                        padding: 15px;
+                        color: #0f172a;
+                        font-size: 7.5pt;
+                        background-color: #fff;
+                    }
+                    .no-print {
+                        margin-bottom: 16px;
+                        display: flex;
+                        gap: 12px;
+                        align-items: center;
+                        background: #f8fafc;
+                        padding: 10px 16px;
+                        border-radius: 8px;
+                        border: 1px solid #cbd5e1;
+                    }
+                    .btn {
+                        background: #047857;
+                        color: white;
+                        border: none;
+                        padding: 7px 16px;
+                        border-radius: 6px;
+                        font-weight: bold;
+                        font-size: 9pt;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                    }
+                    .btn-close {
+                        background: #64748b;
+                    }
+                    .kop-container {
+                        text-align: center;
+                        margin-bottom: 12px;
+                        border-bottom: 3px double #047857;
+                        padding-bottom: 8px;
+                    }
+                    .kop-sub {
+                        font-size: 9pt;
+                        font-weight: 600;
+                        letter-spacing: 1px;
+                        text-transform: uppercase;
+                        color: #334155;
+                        margin: 0;
+                    }
+                    .kop-main {
+                        font-size: 14pt;
+                        font-weight: 800;
+                        letter-spacing: 0.5px;
+                        text-transform: uppercase;
+                        color: #047857;
+                        margin: 2px 0;
+                    }
+                    .kop-address {
+                        font-size: 7.5pt;
+                        color: #64748b;
+                        margin: 0;
+                    }
+                    .title-section {
+                        text-align: center;
+                        margin: 10px 0 14px 0;
+                    }
+                    .title-section h1 {
+                        margin: 0;
+                        font-size: 11.5pt;
+                        font-weight: 800;
+                        color: #0f172a;
+                        text-transform: uppercase;
+                    }
+                    .title-section p {
+                        margin: 3px 0 0 0;
+                        font-size: 8.5pt;
+                        font-weight: 600;
+                        color: #047857;
+                    }
+                    .summary-cards {
+                        display: flex;
+                        gap: 12px;
+                        margin-bottom: 12px;
+                    }
+                    .card {
+                        flex: 1;
+                        border: 1px solid #e2e8f0;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        background: #f8fafc;
+                    }
+                    .card-title {
+                        font-size: 6.5pt;
+                        text-transform: uppercase;
+                        font-weight: 700;
+                        color: #64748b;
+                    }
+                    .card-value {
+                        font-size: 10.5pt;
+                        font-weight: 800;
+                        margin-top: 2px;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-bottom: 14px;
+                    }
+                    th, td {
+                        border: 1px solid #cbd5e1;
+                        padding: 4px 4.5px;
+                        font-size: 7pt;
+                    }
+                    th {
+                        background-color: #047857;
+                        color: white;
+                        font-weight: 700;
+                        text-align: center;
+                        vertical-align: middle;
+                    }
+                    tbody tr:nth-child(even) {
+                        background-color: #f8fafc;
+                    }
+                    tfoot tr td {
+                        font-weight: bold;
+                        background-color: #f1f5f9;
+                        padding: 5px 4.5px;
+                    }
+                    .footer-info {
+                        margin-top: 14px;
+                        border-top: 1px solid #e2e8f0;
+                        padding-top: 6px;
+                        display: flex;
+                        justify-content: space-between;
+                        font-size: 7pt;
+                        color: #94a3b8;
+                    }
+                    @media print {
+                        .no-print {
+                            display: none !important;
+                        }
+                        body {
+                            padding: 0;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="no-print">
+                    <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                    <button class="btn btn-close" onclick="window.close()">Tutup</button>
+                    <span style="font-size: 8pt; color: #475569;">
+                        Tips: Pada dialog print browser, pilih printer <strong>Save as PDF (Simpan sebagai PDF)</strong> dan orientasi <strong>Landscape</strong>.
+                    </span>
+                </div>
+
+                <div class="kop-container">
+                    <p class="kop-sub">Pemerintah Kabupaten Indramayu</p>
+                    <h2 class="kop-main">Dinas Ketahanan Pangan dan Pertanian</h2>
+                    <p class="kop-address">Jl. Pasar Baru No.445, Kel. Karangmalang, Kec. Indramayu, Kabupaten Indramayu, Jawa Barat 45213 | Laman: dkpp.indramayukab.go.id</p>
+                </div>
+
+                <div class="title-section">
+                    <h1>Laporan ${metricLabel} Bulanan</h1>
+                    <p>Periode: Januari s.d. Desember Tahun ${selectedYear}</p>
+                </div>
+
+                <div class="summary-cards">
+                    <div class="card">
+                        <div class="card-title">Komoditas Dipantau</div>
+                        <div class="card-value" style="color:#0f172a;">${listToPrint.length} Komoditas</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Periode Tahunan</div>
+                        <div class="card-value" style="color:#0f172a;">Januari - Desember ${selectedYear}</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">Bulan Tercatat</div>
+                        <div class="card-value" style="color:#047857;">${recordedMonthsCount} / 12 Bulan</div>
+                    </div>
+                    <div class="card" style="background:#ecfdf5;border-color:#a7f3d0;">
+                        <div class="card-title" style="color:#065f46;">Total ${metricLabel} (${selectedYear})</div>
+                        <div class="card-value" style="color:#059669;">${formatNumber(grandTotal)} Ton</div>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 24px;">No</th>
+                            <th style="text-align: left; min-width: 120px;">Nama Komoditas</th>
+                            ${monthHeadersHtml}
+                            <th style="text-align: right; background-color: #065f46;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${matrixRowsHtml}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="2" style="text-align: center;">TOTAL</td>
+                            ${monthFooterCellsHtml}
+                            <td style="text-align: right; color: #047857; background: #d1fae5; font-family: monospace;">
+                                ${formatNumber(grandTotal)}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="footer-info">
+                    <span>Dinas Ketahanan Pangan dan Pertanian Kabupaten Indramayu &copy; ${new Date().getFullYear()}</span>
+                    <span>Dicetak dari Sistem Informasi DKPP pada: ${new Date().toLocaleString('id-ID')}</span>
+                </div>
+            </body>
+            </html>
+            `;
+
+            printWindow.document.open();
+            printWindow.document.write(matrixHtml);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.print();
+            }, 400);
             return;
         }
 
@@ -1300,157 +1618,339 @@ export default function NeracaPanganPublic({
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleDownloadPdf}
-                            className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm"
-                            title="Download atau cetak dokumen laporan neraca pangan resmi sebagai PDF"
+                            onClick={() => handleDownloadPdf()}
+                            className="h-9 gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:text-rose-400 dark:hover:bg-rose-950/80 font-medium text-xs shadow-sm cursor-pointer"
+                            title="Download atau cetak tabel yang sedang aktif sebagai PDF"
                         >
                             <Printer className="size-4 text-rose-600 dark:text-rose-400" />
-                            <span>Download PDF</span>
+                            <span>
+                                {activeTableTab === 'neraca' && 'Download PDF (Neraca)'}
+                                {activeTableTab === 'ketersediaan' && 'Export PDF (Ketersediaan)'}
+                                {activeTableTab === 'kebutuhan' && 'Export PDF (Kebutuhan)'}
+                                {activeTableTab === 'produksi' && 'Export PDF (Produksi)'}
+                            </span>
                         </Button>
                     </div>
                 </div>
 
-                {/* Food Balance Public Table */}
+                {/* Food Balance Public Table with 4 Tabs */}
                 <Card id="tabel-neraca" className="border-slate-200/80 shadow-sm overflow-hidden dark:border-slate-800 scroll-mt-20">
                     <CardHeader className="border-b border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/60">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                                     <Layers className="size-4 text-emerald-600" />
-                                    Tabel Neraca Pangan Bulanan ({getMonthLabel(selectedMonth)} {selectedYear})
+                                    {activeTableTab === 'neraca' && `Tabel Neraca Pangan Bulanan (${getMonthLabel(selectedMonth)} ${selectedYear})`}
+                                    {activeTableTab === 'ketersediaan' && `Tabel Ketersediaan Pangan Bulanan (Januari - Desember ${selectedYear})`}
+                                    {activeTableTab === 'kebutuhan' && `Tabel Kebutuhan Pangan Bulanan (Januari - Desember ${selectedYear})`}
+                                    {activeTableTab === 'produksi' && `Tabel Produksi Pangan Bulanan (Januari - Desember ${selectedYear})`}
                                 </CardTitle>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    Informasi produksi, ketersediaan, kebutuhan, dan posisi neraca pangan komoditas strategis
+                                    {activeTableTab === 'neraca' && 'Informasi produksi, ketersediaan, kebutuhan, dan posisi neraca pangan komoditas strategis'}
+                                    {activeTableTab === 'ketersediaan' && `Rincian ketersediaan pangan per komoditas setiap bulan dari Januari s.d. Desember ${selectedYear}`}
+                                    {activeTableTab === 'kebutuhan' && `Rincian kebutuhan pangan per komoditas setiap bulan dari Januari s.d. Desember ${selectedYear}`}
+                                    {activeTableTab === 'produksi' && `Rincian produksi pangan per komoditas setiap bulan dari Januari s.d. Desember ${selectedYear}`}
                                 </p>
                             </div>
 
+                            {/* Tab Switcher + Direct Export PDF Button */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-slate-700 dark:bg-slate-800">
+                                    {[
+                                        { key: 'neraca' as const, label: 'Neraca Bulanan' },
+                                        { key: 'ketersediaan' as const, label: 'Ketersediaan' },
+                                        { key: 'kebutuhan' as const, label: 'Kebutuhan' },
+                                        { key: 'produksi' as const, label: 'Produksi' },
+                                    ].map((tab) => {
+                                        const isActive = activeTableTab === tab.key;
+                                        return (
+                                            <button
+                                                key={tab.key}
+                                                type="button"
+                                                onClick={() => setActiveTableTab(tab.key)}
+                                                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                                    isActive
+                                                        ? 'bg-[#006565] text-white shadow-xs dark:bg-emerald-600'
+                                                        : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                {tab.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
 
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleDownloadPdf(activeTableTab)}
+                                    className="h-8.5 gap-1.5 rounded-xl border-rose-300 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-400 dark:hover:bg-rose-950/80 font-bold text-xs shadow-2xs cursor-pointer"
+                                    title="Export tabulasi yang sedang aktif ke PDF"
+                                >
+                                    <Printer className="size-3.5 text-rose-600 dark:text-rose-400" />
+                                    <span>Export PDF</span>
+                                </Button>
+                            </div>
                         </div>
                     </CardHeader>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
-                            <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
-                                <tr>
-                                    <th className="py-3.5 px-4 w-12 text-center">No</th>
-                                    <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
-                                    <th className="py-3.5 px-4">Nama Komoditas</th>
-                                    <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
-                                    <th className="py-3.5 px-4 text-right">Produksi</th>
-                                    <th className="py-3.5 px-4 text-right">Ketersediaan</th>
-                                    <th className="py-3.5 px-4 text-right">Kebutuhan</th>
-                                    <th className="py-3.5 px-4 text-right">Selisih</th>
-                                    <th className="py-3.5 px-4 w-32 text-center">Status Neraca</th>
-                                    <th className="py-3.5 px-4">Catatan</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {filteredItems.length === 0 ? (
+
+                    {activeTableTab === 'neraca' ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm text-slate-700 dark:text-slate-300">
+                                <thead className="bg-slate-50 border-b border-slate-200/80 text-xs uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
                                     <tr>
-                                        <td colSpan={10} className="py-8 text-center text-slate-400">
-                                            Tidak ada data komoditas ditemukan.
-                                        </td>
+                                        <th className="py-3.5 px-4 w-12 text-center">No</th>
+                                        <th className="py-3.5 px-3 w-16 text-center">Gambar</th>
+                                        <th className="py-3.5 px-4">Nama Komoditas</th>
+                                        <th className="py-3.5 px-4 w-24 text-center">Satuan</th>
+                                        <th className="py-3.5 px-4 text-right">Produksi</th>
+                                        <th className="py-3.5 px-4 text-right">Ketersediaan</th>
+                                        <th className="py-3.5 px-4 text-right">Kebutuhan</th>
+                                        <th className="py-3.5 px-4 text-right">Selisih</th>
+                                        <th className="py-3.5 px-4 w-32 text-center">Status Neraca</th>
+                                        <th className="py-3.5 px-4">Catatan</th>
                                     </tr>
-                                ) : (
-                                    filteredItems.map((item, idx) => (
-                                        <tr
-                                            key={item.id}
-                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                                        >
-                                            <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
-                                                {idx + 1}
-                                            </td>
-                                            <td className="py-2.5 px-3 text-center">
-                                                <CommodityThumbnail item={item} />
-                                            </td>
-                                            <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
-                                                {item.name}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-center">
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                                >
-                                                    {item.unit}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
-                                                {item.is_recorded ? formatNumber(item.produksi) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
-                                                {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
-                                                {item.is_recorded ? (
-                                                    <span
-                                                        className={
-                                                            item.selisih !== null && item.selisih < 0
-                                                                ? 'text-rose-600 dark:text-rose-400'
-                                                                : 'text-emerald-600 dark:text-emerald-400'
-                                                        }
-                                                    >
-                                                        {item.selisih !== null && item.selisih >= 0 ? '+' : ''}
-                                                        {formatNumber(item.selisih)}
-                                                    </span>
-                                                ) : (
-                                                    '-'
-                                                )}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-center">
-                                                {!item.is_recorded ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
-                                                        Belum Ada Data
-                                                    </span>
-                                                ) : item.keterangan === 'Surplus' ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                                                        <CheckCircle2 className="size-3" />
-                                                        Surplus
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                                                        <AlertCircle className="size-3" />
-                                                        Defisit
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
-                                                {item.notes || '-'}
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {filteredItems.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={10} className="py-8 text-center text-slate-400">
+                                                Tidak ada data komoditas ditemukan.
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                            <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
-                                <tr>
-                                    <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                        Total Kumulatif
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono">
-                                        {formatNumber(statistics.total_produksi)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                        {formatNumber(statistics.total_ketersediaan)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                        {formatNumber(statistics.total_kebutuhan)}
-                                    </td>
-                                    <td className="py-3 px-4 text-right font-mono font-bold">
-                                        <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                            {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-center">
-                                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
-                                            {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
-                                        </span>
-                                    </td>
-                                    <td className="py-3 px-4 text-xs text-slate-400">-</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
+                                    ) : (
+                                        filteredItems.map((item, idx) => (
+                                            <tr
+                                                key={item.id}
+                                                className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                            >
+                                                <td className="py-3.5 px-4 text-center text-slate-400 font-mono text-xs">
+                                                    {idx + 1}
+                                                </td>
+                                                <td className="py-2.5 px-3 text-center">
+                                                    <CommodityThumbnail item={item} />
+                                                </td>
+                                                <td className="py-3.5 px-4 font-semibold text-slate-800 dark:text-slate-100">
+                                                    {item.name}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-center">
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                                    >
+                                                        {item.unit}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
+                                                    {item.is_recorded ? formatNumber(item.produksi) : '-'}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                                                    {item.is_recorded ? formatNumber(item.ketersediaan) : '-'}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-medium text-slate-800 dark:text-slate-200">
+                                                    {item.is_recorded ? formatNumber(item.kebutuhan) : '-'}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-right font-mono text-xs font-semibold">
+                                                    {item.is_recorded ? (
+                                                        <span
+                                                            className={
+                                                                item.selisih !== null && item.selisih < 0
+                                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                                    : 'text-emerald-600 dark:text-emerald-400'
+                                                            }
+                                                        >
+                                                            {item.selisih !== null && item.selisih >= 0 ? '+' : ''}
+                                                            {formatNumber(item.selisih)}
+                                                        </span>
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-center">
+                                                    {!item.is_recorded ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                                            Belum Ada Data
+                                                        </span>
+                                                    ) : item.keterangan === 'Surplus' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                            <CheckCircle2 className="size-3" />
+                                                            Surplus
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                                                            <AlertCircle className="size-3" />
+                                                            Defisit
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3.5 px-4 text-xs text-slate-500 max-w-xs truncate">
+                                                    {item.notes || '-'}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                                <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
+                                    <tr>
+                                        <td colSpan={4} className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                            Total Kumulatif
+                                        </td>
+                                        <td className="py-3 px-4 text-right font-mono">
+                                            {formatNumber(statistics.total_produksi)}
+                                        </td>
+                                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                            {formatNumber(statistics.total_ketersediaan)}
+                                        </td>
+                                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100">
+                                            {formatNumber(statistics.total_kebutuhan)}
+                                        </td>
+                                        <td className="py-3 px-4 text-right font-mono font-bold">
+                                            <span className={statistics.total_selisih < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                                {statistics.total_selisih >= 0 ? '+' : ''}{formatNumber(statistics.total_selisih)}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statistics.total_selisih < 0 ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'}`}>
+                                                {statistics.total_selisih >= 0 ? 'Surplus' : 'Defisit'}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-xs text-slate-400">-</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    ) : (
+                        /* Matrix Table for Ketersediaan, Kebutuhan, or Produksi (Januari s.d. Desember + Total) */
+                        (() => {
+                            const metricKey = activeTableTab as 'ketersediaan' | 'kebutuhan' | 'produksi';
+                            const matrixCommodities = items.filter((item) =>
+                                searchTerm === '' || item.name.toLowerCase().includes(searchTerm.toLowerCase())
+                            );
+
+                            // Monthly totals across filtered commodities
+                            const monthlySums = MONTH_NAMES.map((m) => {
+                                let sum = 0;
+                                let anyRecorded = false;
+                                matrixCommodities.forEach((comm) => {
+                                    const mList = monthlyTrends?.by_commodity?.[comm.id] ?? [];
+                                    const entry = mList.find((x) => x.month === m.value);
+                                    if (entry && entry.has_data) {
+                                        sum += entry[metricKey] ?? 0;
+                                        anyRecorded = true;
+                                    }
+                                });
+                                return {
+                                    month: m.value,
+                                    sum: Number(sum.toFixed(2)),
+                                    anyRecorded,
+                                };
+                            });
+
+                            const grandTotal = Number(
+                                monthlySums.reduce((acc, cur) => acc + cur.sum, 0).toFixed(2)
+                            );
+
+                            return (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                                        <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] uppercase text-slate-500 font-semibold dark:bg-slate-800/50 dark:border-slate-700">
+                                            <tr>
+                                                <th className="py-3.5 px-3 w-10 text-center sticky left-0 bg-slate-50 dark:bg-slate-800 z-10">
+                                                    No
+                                                </th>
+                                                <th className="py-3.5 px-4 min-w-[180px] sticky left-10 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-200/80 dark:border-slate-700">
+                                                    Nama Komoditas
+                                                </th>
+                                                {MONTH_NAMES.map((m) => (
+                                                    <th key={m.value} className="py-3.5 px-3 text-right min-w-[92px]">
+                                                        {m.label}
+                                                    </th>
+                                                ))}
+                                                <th className="py-3.5 px-4 text-right min-w-[110px] bg-emerald-50/70 text-[#006565] font-bold border-l border-slate-200/80 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-slate-700">
+                                                    Total
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {matrixCommodities.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={15} className="py-8 text-center text-slate-400">
+                                                        Tidak ada data komoditas ditemukan.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                matrixCommodities.map((item, idx) => {
+                                                    const mList = monthlyTrends?.by_commodity?.[item.id] ?? [];
+                                                    let rowTotal = 0;
+                                                    let rowHasAnyData = false;
+
+                                                    return (
+                                                        <tr
+                                                            key={item.id}
+                                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                                        >
+                                                            <td className="py-3 px-3 text-center text-slate-400 font-mono text-xs sticky left-0 bg-white dark:bg-slate-900">
+                                                                {idx + 1}
+                                                            </td>
+                                                            <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-100 sticky left-10 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span>{item.name}</span>
+                                                                    <span className="text-[10px] font-normal text-slate-400">
+                                                                        ({item.unit})
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            {MONTH_NAMES.map((m) => {
+                                                                const entry = mList.find((x) => x.month === m.value);
+                                                                const val = entry && entry.has_data ? entry[metricKey] : null;
+                                                                if (val !== null) {
+                                                                    rowTotal += val;
+                                                                    rowHasAnyData = true;
+                                                                }
+                                                                return (
+                                                                    <td
+                                                                        key={m.value}
+                                                                        className="py-3 px-3 text-right font-mono text-xs text-slate-700 dark:text-slate-300"
+                                                                    >
+                                                                        {val !== null ? formatNumber(val) : '-'}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                            <td className="py-3 px-4 text-right font-mono text-xs font-bold bg-emerald-50/40 text-[#006565] border-l border-slate-100 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-slate-800">
+                                                                {rowHasAnyData ? formatNumber(Number(rowTotal.toFixed(2))) : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                        <tfoot className="bg-slate-50 border-t border-slate-200/90 font-semibold text-xs text-slate-800 dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-200">
+                                            <tr>
+                                                <td
+                                                    colSpan={2}
+                                                    className="py-3 px-4 text-center font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 sticky left-0 bg-slate-50 dark:bg-slate-800 border-r border-slate-200/80 dark:border-slate-700"
+                                                >
+                                                    Total
+                                                </td>
+                                                {monthlySums.map((ms) => (
+                                                    <td
+                                                        key={ms.month}
+                                                        className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100"
+                                                    >
+                                                        {ms.anyRecorded ? formatNumber(ms.sum) : '-'}
+                                                    </td>
+                                                ))}
+                                                <td className="py-3 px-4 text-right font-mono font-black text-[#006565] bg-emerald-50/70 border-l border-slate-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-slate-700">
+                                                    {formatNumber(grandTotal)}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            );
+                        })()
+                    )}
                 </Card>
 
                 {/* Explanatory Callout */}
