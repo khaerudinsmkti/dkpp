@@ -7,9 +7,11 @@ use App\Models\ConsumerPrice;
 use App\Models\Cppd;
 use App\Models\CppdInitialStock;
 use App\Models\FoodBalance;
+use App\Models\FoodBalanceCommodity;
 use App\Models\Fsva;
 use App\Models\IkpScore;
 use App\Models\Market;
+use App\Models\PphFoodGroup;
 use App\Models\PphScore;
 use App\Models\ProducerCommodity;
 use App\Models\ProducerPrice;
@@ -31,17 +33,28 @@ class DashboardController extends Controller
     ];
 
     /**
-     * Display the main administrator dashboard with 8 primary food security metrics.
+     * Build the 8-module summary dataset shared between the public landing page (Beranda)
+     * and the administrator executive dashboard.
+     *
+     * @return array<string, mixed>
      */
-    public function index(Request $request): Response
+    private function buildSummaryData(): array
     {
         $currentYear = (int) now()->year;
         $currentMonth = (int) now()->month;
         $todayStr = now()->format('Y-m-d');
 
-        // 1. IKP (Indeks Ketahanan Pangan) tahun ini dan target renstra
-        $ikpRecord = IkpScore::where('tahun', $currentYear)->first()
-            ?? IkpScore::orderByDesc('tahun')->first();
+        // 1. IKP (Indeks Ketahanan Pangan) tahun ini, target renstra, dan tren historis
+        $allIkpScores = IkpScore::orderBy('tahun', 'asc')->get();
+        $ikpRecord = $allIkpScores->firstWhere('tahun', $currentYear)
+            ?? $allIkpScores->last();
+
+        $ikpHistory = $allIkpScores->slice(-5)->values()->map(fn (IkpScore $s) => [
+            'tahun' => (int) $s->tahun,
+            'nilai_ikp' => (float) $s->nilai_ikp,
+            'target_renstra' => (float) $s->target_renstra,
+            'status' => $s->category,
+        ])->all();
 
         $ikp = null;
         if ($ikpRecord) {
@@ -61,10 +74,12 @@ class DashboardController extends Controller
                 'indeks_pemanfaatan' => $ikpRecord->indeks_pemanfaatan !== null ? (float) $ikpRecord->indeks_pemanfaatan : null,
                 'kelompok_ikp' => $ikpRecord->kelompok_ikp ?: $ikpRecord->default_kelompok,
                 'keterangan' => $ikpRecord->keterangan,
+                'total_years' => $allIkpScores->count(),
+                'history' => $ikpHistory,
             ];
         }
 
-        // 2. Total Stok CPPD, total penyaluran CPPD tahun ini
+        // 2. Total Stok CPPD, total penyaluran CPPD tahun ini, dan cakupan wilayah
         $cppdYear = $currentYear;
         $initialStock = CppdInitialStock::where('year', $cppdYear)->first();
         if (! $initialStock && ! Cppd::whereYear('tanggal', $cppdYear)->exists()) {
@@ -81,6 +96,20 @@ class DashboardController extends Controller
         $totalAddendum = (float) Cppd::whereYear('tanggal', $cppdYear)->where('status', Cppd::STATUS_ADDENDUM)->sum('jumlah');
         $totalStok = $stokAwal + $totalPengadaan + $totalAddendum - $totalPenyaluran;
 
+        $penyaluranRecords = Cppd::whereYear('tanggal', $cppdYear)
+            ->where('status', Cppd::STATUS_PENYALURAN)
+            ->orderByDesc('tanggal')
+            ->get();
+
+        $desaPenerimaCount = $penyaluranRecords
+            ->map(fn ($r) => strtoupper(trim($r->kecamatan)).'___'.strtoupper(trim($r->desa)))
+            ->unique()
+            ->count();
+        $kecamatanPenerimaCount = $penyaluranRecords
+            ->map(fn ($r) => strtoupper(trim($r->kecamatan)))
+            ->unique()
+            ->count();
+
         $cppd = [
             'tahun' => $cppdYear,
             'total_stok' => $totalStok,
@@ -88,9 +117,12 @@ class DashboardController extends Controller
             'stok_awal' => $stokAwal,
             'total_pengadaan' => $totalPengadaan,
             'total_addendum' => $totalAddendum,
+            'desa_penerima_count' => $desaPenerimaCount,
+            'kecamatan_penerima_count' => $kecamatanPenerimaCount,
+            'transaksi_penyaluran_count' => $penyaluranRecords->count(),
         ];
 
-        // 3. Total Neraca bulan ini (ketersediaan - kebutuhan)
+        // 3. Total Neraca bulan ini (ketersediaan - kebutuhan) & daftar komoditas utama
         $fbYear = $currentYear;
         $fbMonth = $currentMonth;
         $hasCurrentFb = FoodBalance::where('year', $fbYear)->where('month', $fbMonth)->exists();
@@ -102,11 +134,39 @@ class DashboardController extends Controller
             }
         }
 
-        $balances = FoodBalance::where('year', $fbYear)->where('month', $fbMonth)->get();
+        $balances = FoodBalance::with('commodity')
+            ->where('year', $fbYear)
+            ->where('month', $fbMonth)
+            ->get();
         $totalKetersediaan = (float) $balances->sum('ketersediaan');
         $totalKebutuhan = (float) $balances->sum('kebutuhan');
         $totalProduksi = (float) $balances->sum('produksi');
         $totalNeraca = round($totalKetersediaan - $totalKebutuhan, 2);
+
+        $activeFbCommoditiesCount = FoodBalanceCommodity::where('is_active', true)->count();
+
+        $topFbCommodities = $balances
+            ->sortBy(fn (FoodBalance $b) => $b->commodity?->order ?? 999)
+            ->take(4)
+            ->values()
+            ->map(function (FoodBalance $b): array {
+                $ket = (float) $b->ketersediaan;
+                $keb = (float) $b->kebutuhan;
+                $prod = (float) $b->produksi;
+                $sel = round($ket - $keb, 2);
+
+                return [
+                    'id' => $b->id,
+                    'name' => $b->commodity?->name ?? 'Komoditas',
+                    'unit' => $b->commodity?->unit ?? 'Ton',
+                    'produksi' => $prod,
+                    'ketersediaan' => $ket,
+                    'kebutuhan' => $keb,
+                    'selisih' => $sel,
+                    'status' => $sel >= 0 ? 'Surplus' : 'Defisit',
+                ];
+            })
+            ->all();
 
         $foodBalance = [
             'year' => $fbYear,
@@ -121,12 +181,21 @@ class DashboardController extends Controller
             'status' => $totalNeraca >= 0 ? 'Surplus' : 'Defisit',
             'surplus_count' => $balances->filter(fn ($b) => ((float) $b->ketersediaan - (float) $b->kebutuhan) >= 0)->count(),
             'defisit_count' => $balances->filter(fn ($b) => ((float) $b->ketersediaan - (float) $b->kebutuhan) < 0)->count(),
-            'commodities_count' => $balances->count(),
+            'commodities_count' => $balances->count() > 0 ? $balances->count() : $activeFbCommoditiesCount,
+            'top_commodities' => $topFbCommodities,
         ];
 
-        // 4. Skor PPh tahun ini dibandingkan dengan target renstra
-        $pphRecord = PphScore::where('tahun', $currentYear)->first()
-            ?? PphScore::orderByDesc('tahun')->first();
+        // 4. Skor PPH Ketersediaan tahun ini dibandingkan dengan target renstra
+        $allPphScores = PphScore::orderBy('tahun', 'asc')->get();
+        $pphRecord = $allPphScores->firstWhere('tahun', $currentYear)
+            ?? $allPphScores->last();
+        $totalFoodGroups = PphFoodGroup::where('is_active', true)->count();
+
+        $pphHistory = $allPphScores->slice(-5)->values()->map(fn (PphScore $s) => [
+            'tahun' => (int) $s->tahun,
+            'skor_pph' => (float) $s->skor_pph,
+            'target_renstra' => (float) ($s->target_renstra ?? 94.0),
+        ])->all();
 
         $pph = null;
         if ($pphRecord) {
@@ -141,6 +210,9 @@ class DashboardController extends Controller
                 'capaian_percentage' => $target > 0 ? round(($skor / $target) * 100, 2) : 100,
                 'is_achieved' => $skor >= $target,
                 'keterangan' => $pphRecord->keterangan,
+                'total_food_groups' => $totalFoodGroups > 0 ? $totalFoodGroups : 9,
+                'total_years' => $allPphScores->count(),
+                'history' => $pphHistory,
             ];
         }
 
@@ -170,9 +242,10 @@ class DashboardController extends Controller
             'p6_count' => $fsvaRecords->where('komposit', 6)->count(),
         ];
 
-        // 6. Card Harga konsumen hari ini yang di atas HET
+        // 6. Card Harga konsumen hari ini & status HET
         $market = Market::where('is_active', true)->orderBy('order')->first();
         $marketId = $market?->id ?? 1;
+        $activeMarketsCount = Market::where('is_active', true)->count();
 
         $hasTodayConsumer = ConsumerPrice::where('market_id', $marketId)->where('recorded_date', $todayStr)->exists();
         $consumerEffectiveDate = $hasTodayConsumer
@@ -188,6 +261,7 @@ class DashboardController extends Controller
             ->keyBy('commodity_id');
 
         $aboveHetList = [];
+        $featuredConsumerList = [];
         $normalHetCount = 0;
         foreach ($consumerCommodities as $c) {
             $pRec = $consumerPrices->get($c->id);
@@ -195,9 +269,11 @@ class DashboardController extends Controller
             $hetRec = $c->hetAt($consumerEffectiveDate);
             $hetPrice = $hetRec ? (float) $hetRec->price : null;
 
-            if ($price > 0 && $hetPrice !== null && $price > $hetPrice) {
-                $diff = round($price - $hetPrice, 2);
-                $diffPercent = round(($diff / $hetPrice) * 100, 1);
+            $isAboveHet = $price > 0 && $hetPrice !== null && $price > $hetPrice;
+            $diff = ($price > 0 && $hetPrice !== null) ? round($price - $hetPrice, 2) : 0;
+            $diffPercent = ($price > 0 && $hetPrice !== null && $hetPrice > 0) ? round(($diff / $hetPrice) * 100, 1) : 0;
+
+            if ($isAboveHet) {
                 $aboveHetList[] = [
                     'id' => $c->id,
                     'name' => $c->name,
@@ -211,6 +287,19 @@ class DashboardController extends Controller
             } elseif ($price > 0 && $hetPrice !== null) {
                 $normalHetCount++;
             }
+
+            if ($price > 0 && count($featuredConsumerList) < 6) {
+                $featuredConsumerList[] = [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'unit' => $c->unit,
+                    'price' => $price,
+                    'het_price' => $hetPrice,
+                    'diff_percentage' => $diffPercent,
+                    'is_above_het' => $isAboveHet,
+                    'image_url' => $c->image_url,
+                ];
+            }
         }
         usort($aboveHetList, fn ($a, $b) => $b['diff_percentage'] <=> $a['diff_percentage']);
 
@@ -219,6 +308,7 @@ class DashboardController extends Controller
 
         $consumerPricesData = [
             'market_name' => $market?->name ?? 'Pasar Daerah Indramayu',
+            'active_markets_count' => $activeMarketsCount > 0 ? $activeMarketsCount : 1,
             'effective_date' => $consumerEffectiveDate,
             'effective_date_formatted' => $consumerDateFormatted,
             'is_today' => $consumerEffectiveDate === $todayStr,
@@ -226,9 +316,10 @@ class DashboardController extends Controller
             'above_het_count' => count($aboveHetList),
             'normal_het_count' => $normalHetCount,
             'commodities' => $aboveHetList,
+            'featured_commodities' => $featuredConsumerList,
         ];
 
-        // 7. Card Harga produsen hari ini yang di Bawah HAP
+        // 7. Card Harga produsen hari ini & status HAP
         $hasTodayProducer = ProducerPrice::where('recorded_date', $todayStr)->exists();
         $producerEffectiveDate = $hasTodayProducer
             ? $todayStr
@@ -238,6 +329,7 @@ class DashboardController extends Controller
         $producerCommodities = ProducerCommodity::where('is_active', true)->orderBy('order')->get();
 
         $belowHapList = [];
+        $allProducerList = [];
         $normalHapCount = 0;
         foreach ($producerCommodities as $pc) {
             $hapRec = $pc->hapAt($producerEffectiveDate);
@@ -245,9 +337,11 @@ class DashboardController extends Controller
             $key = $pc->key;
             $price = $producerRecord && $producerRecord->{$key} !== null ? (float) $producerRecord->{$key} : 0;
 
-            if ($price > 0 && $hapPrice > 0 && $price < $hapPrice) {
-                $diff = round($hapPrice - $price, 2);
-                $diffPercent = round(($diff / $hapPrice) * 100, 1);
+            $isBelowHap = $price > 0 && $hapPrice > 0 && $price < $hapPrice;
+            $diff = ($price > 0 && $hapPrice > 0) ? round($hapPrice - $price, 2) : 0;
+            $diffPercent = ($price > 0 && $hapPrice > 0) ? round(($diff / $hapPrice) * 100, 1) : 0;
+
+            if ($isBelowHap) {
                 $belowHapList[] = [
                     'id' => $pc->id,
                     'key' => $key,
@@ -262,6 +356,17 @@ class DashboardController extends Controller
             } elseif ($price > 0 && $hapPrice > 0) {
                 $normalHapCount++;
             }
+
+            $allProducerList[] = [
+                'id' => $pc->id,
+                'key' => $key,
+                'name' => $pc->name,
+                'unit' => $pc->unit,
+                'price' => $price,
+                'hap_price' => $hapPrice,
+                'is_below_hap' => $isBelowHap,
+                'image_url' => $pc->image_url,
+            ];
         }
         usort($belowHapList, fn ($a, $b) => $b['diff_percentage'] <=> $a['diff_percentage']);
 
@@ -276,6 +381,7 @@ class DashboardController extends Controller
             'below_hap_count' => count($belowHapList),
             'normal_hap_count' => $normalHapCount,
             'commodities' => $belowHapList,
+            'all_commodities' => array_slice($allProducerList, 0, 6),
         ];
 
         // 8. Kecamatan yang kompositnya status waspada/rentan pada SKPG
@@ -354,7 +460,7 @@ class DashboardController extends Controller
             'last_alert_record' => $lastAlertRecord,
         ];
 
-        return Inertia::render('dashboard', [
+        return [
             'ikp' => $ikp,
             'cppd' => $cppd,
             'foodBalance' => $foodBalance,
@@ -363,7 +469,23 @@ class DashboardController extends Controller
             'consumerPrices' => $consumerPricesData,
             'producerPrices' => $producerPricesData,
             'skpg' => $skpg,
-        ]);
+        ];
+    }
+
+    /**
+     * Display the public landing page (Beranda) summarizing all 8 food security modules.
+     */
+    public function publicHome(Request $request): Response
+    {
+        return Inertia::render('beranda', $this->buildSummaryData());
+    }
+
+    /**
+     * Display the main administrator dashboard with 8 primary food security metrics.
+     */
+    public function index(Request $request): Response
+    {
+        return Inertia::render('dashboard', $this->buildSummaryData());
     }
 }
 

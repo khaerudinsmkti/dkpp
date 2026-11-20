@@ -14,6 +14,7 @@ void createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'welcome' ||
+                name === 'beranda' ||
                 name === 'harga-konsumen' ||
                 name === 'harga-produsen' ||
                 name === 'neraca-pangan' ||

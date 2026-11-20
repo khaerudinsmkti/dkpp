@@ -27,9 +27,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return redirect()->route('ikp');
-})->name('home');
+Route::get('/', [DashboardController::class, 'publicHome'])->name('home');
 
 Route::redirect('/register', '/login');
 

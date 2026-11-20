@@ -232,7 +232,7 @@ export default function Dashboard({
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Link href="/ikp" target="_blank">
+                            <Link href="/" target="_blank">
                                 <Button
                                     variant="outline"
                                     size="sm"
