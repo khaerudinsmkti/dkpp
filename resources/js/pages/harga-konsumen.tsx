@@ -1276,7 +1276,32 @@ export default function HargaKonsumen({
         window.location.href = `/api/public-monthly-history-excel?${params.toString()}`;
     };
 
-    // Calculate period average for each commodity across historyRows
+    // Helper untuk menghitung Standar Deviasi (STDEV) dan Coefficient of Variation (CV %)
+    const calculateStdevAndCv = (rawValues: Array<number | null | undefined>): { stdev: number | null; cv: number | null } => {
+        const valid = rawValues
+            .filter((v): v is number => v !== null && v !== undefined && !isNaN(Number(v)) && Number(v) > 0)
+            .map((v) => Number(v));
+
+        if (valid.length === 0) {
+            return { stdev: null, cv: null };
+        }
+        if (valid.length === 1) {
+            return { stdev: 0, cv: 0 };
+        }
+
+        const mean = valid.reduce((acc, cur) => acc + cur, 0) / valid.length;
+        const variance =
+            valid.reduce((acc, cur) => acc + Math.pow(cur - mean, 2), 0) / (valid.length - 1);
+        const stdev = Math.sqrt(variance);
+        const cv = mean > 0 ? (stdev / mean) * 100 : 0;
+
+        return {
+            stdev: Math.round(stdev),
+            cv: Number(cv.toFixed(2)),
+        };
+    };
+
+    // Calculate period average, STDEV, and CV (%) for each commodity across historyRows
     const historyPeriodAvgs = useMemo(() => {
         const comms = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
         const avgs: Record<number | string, number | null> = {};
@@ -1293,6 +1318,16 @@ export default function HargaKonsumen({
             avgs[c.id] = count > 0 ? Math.round(sum / count) : null;
         });
         return avgs;
+    }, [historyRows, historyCommodities, commoditiesList]);
+
+    const historyPeriodStdevCv = useMemo(() => {
+        const comms = historyCommodities.length > 0 ? historyCommodities : commoditiesList;
+        const stats: Record<number | string, { stdev: number | null; cv: number | null }> = {};
+        comms.forEach((c) => {
+            const prices = historyRows.map((r) => r.prices[c.id]);
+            stats[c.id] = calculateStdevAndCv(prices);
+        });
+        return stats;
     }, [historyRows, historyCommodities, commoditiesList]);
 
     // Format % change and determine color styling:
@@ -1359,7 +1394,7 @@ export default function HargaKonsumen({
             weeks.forEach((w) => {
                 tableHeaders += `<th>${w.label}<br/><span style="font-weight:normal;font-size:6.5pt">(${w.range_label})</span></th>`;
             });
-            tableHeaders += '<th>Rata-rata</th>';
+            tableHeaders += '<th>Rata-rata</th><th>STDEV</th><th>CV (%)</th>';
 
             let tableRowsHtml = '';
             const weekSums: Record<number, number> = {};
@@ -1373,9 +1408,11 @@ export default function HargaKonsumen({
                 cells += `<td style="text-align:center">${r.unit}</td>`;
                 cells += `<td style="text-align:right">${r.het ? formatCurrency(r.het) : '-'}</td>`;
 
+                const rowWeekVals: Array<number | null | undefined> = [];
                 weeks.forEach((w) => {
                     const wInfo = r.weeks[w.num];
                     const avg = wInfo?.average;
+                    rowWeekVals.push(avg);
                     const status = wInfo?.status || 'normal';
 
                     let style = 'text-align:right;font-family:monospace;';
@@ -1412,6 +1449,10 @@ export default function HargaKonsumen({
                     cells += `<td style="text-align:center;color:#94a3b8">-</td>`;
                 }
 
+                const wStats = calculateStdevAndCv(rowWeekVals);
+                cells += `<td style="text-align:right;font-family:monospace;font-weight:bold;background-color:#f8fafc;">${wStats.stdev !== null ? formatCurrency(wStats.stdev) : '-'}</td>`;
+                cells += `<td style="text-align:right;font-family:monospace;font-weight:bold;background-color:#f8fafc;">${wStats.cv !== null ? `${wStats.cv.toFixed(2)}%` : '-'}</td>`;
+
                 tableRowsHtml += `<tr>${cells}</tr>`;
             });
 
@@ -1424,6 +1465,7 @@ export default function HargaKonsumen({
             });
             const ovrAvg = allMonthAverages.length > 0 ? Math.round(allMonthAverages.reduce((a, b) => a + b, 0) / allMonthAverages.length) : null;
             avgRowHtml += `<td style="text-align:right;font-weight:bold;font-family:monospace;background-color:#f8fafc;">${ovrAvg !== null ? formatCurrency(ovrAvg) : '-'}</td>`;
+            avgRowHtml += '<td style="text-align:center;background-color:#f8fafc;">-</td><td style="text-align:center;background-color:#f8fafc;">-</td>';
 
             let hetRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f8fafc;">Komoditas di Atas HET</td>';
             weeks.forEach((w) => {
@@ -1431,7 +1473,7 @@ export default function HargaKonsumen({
                 const style = cnt > 0 ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : 'color:#64748b;';
                 hetRowHtml += `<td style="text-align:center;${style}">${cnt} Komoditas</td>`;
             });
-            hetRowHtml += '<td style="text-align:center;color:#64748b">-</td>';
+            hetRowHtml += '<td style="text-align:center;color:#64748b">-</td><td style="text-align:center;color:#64748b">-</td><td style="text-align:center;color:#64748b">-</td>';
 
             const html = `
             <!DOCTYPE html>
@@ -1573,6 +1615,20 @@ export default function HargaKonsumen({
             pctMonthRowHtml += `<td style="text-align:right;font-weight:bold;white-space:nowrap;${res.style}">${res.text}</td>`;
         });
 
+        // 6. Baris Standar Deviasi (STDEV)
+        let stdevRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">Standar Deviasi (STDEV)</td>';
+        commoditiesToRender.forEach((c) => {
+            const st = historyPeriodStdevCv[c.id]?.stdev ?? null;
+            stdevRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;color:#0f172a;">${st !== null ? formatCurrency(st) : '-'}</td>`;
+        });
+
+        // 7. Baris CV (%)
+        let cvRowHtml = '<td colspan="2" style="text-align:center;font-weight:bold;background-color:#f1f5f9;color:#0f172a;">CV (%)</td>';
+        commoditiesToRender.forEach((c) => {
+            const cv = historyPeriodStdevCv[c.id]?.cv ?? null;
+            cvRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap;color:#006565;">${cv !== null ? `${cv.toFixed(2)}%` : '-'}</td>`;
+        });
+
         const html = `
         <!DOCTYPE html>
         <html lang="id">
@@ -1702,6 +1758,8 @@ export default function HargaKonsumen({
                     <tr>${pctHetRowHtml}</tr>
                     <tr>${prevMonthRowHtml}</tr>
                     <tr>${pctMonthRowHtml}</tr>
+                    <tr>${stdevRowHtml}</tr>
+                    <tr>${cvRowHtml}</tr>
                 </tfoot>
             </table>
             <div class="legend" style="margin-top: 8px; font-size: 6.8pt; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 5px;">
@@ -1744,7 +1802,7 @@ export default function HargaKonsumen({
         monthNames.forEach((m) => {
             tableHeaders += `<th>${m}</th>`;
         });
-        tableHeaders += '<th>Rata-rata</th>';
+        tableHeaders += '<th>Rata-rata</th><th>STDEV</th><th>CV (%)</th>';
 
         let tableRowsHtml = '';
         const rowsToRender = filteredMonthlyCommodityRows.length > 0 ? filteredMonthlyCommodityRows : monthlyCommodityRows;
@@ -1754,14 +1812,19 @@ export default function HargaKonsumen({
             cells += `<td style="text-align:center">${row.unit}</td>`;
             cells += `<td style="text-align:right;white-space:nowrap">${row.current_het ? formatCurrency(row.current_het) : '-'}</td>`;
 
+            const monthVals: Array<number | null | undefined> = [];
             for (let m = 1; m <= 12; m++) {
                 const price = row.monthly_prices[m];
+                monthVals.push(price);
                 const isAbove = row.is_above_het[m];
                 const bgStyle = isAbove ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : '';
                 cells += `<td style="text-align:right;white-space:nowrap;${bgStyle}">${price ? formatCurrency(price) : '-'}</td>`;
             }
 
+            const rowStats = calculateStdevAndCv(monthVals);
             cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap">${row.yearly_average ? formatCurrency(row.yearly_average) : '-'}</td>`;
+            cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap;background-color:#f8fafc;">${rowStats.stdev !== null ? formatCurrency(rowStats.stdev) : '-'}</td>`;
+            cells += `<td style="text-align:right;font-weight:bold;white-space:nowrap;background-color:#f8fafc;color:#006565;">${rowStats.cv !== null ? `${rowStats.cv.toFixed(2)}%` : '-'}</td>`;
             tableRowsHtml += `<tr>${cells}</tr>`;
         });
 
@@ -1771,7 +1834,7 @@ export default function HargaKonsumen({
             const avg = monthlySummary[m]?.average;
             avgRowHtml += `<td style="text-align:right;font-weight:bold;background-color:#f8fafc;white-space:nowrap">${avg ? formatCurrency(avg) : '-'}</td>`;
         }
-        avgRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+        avgRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td><td style="background-color:#f1f5f9;text-align:center">-</td><td style="background-color:#f1f5f9;text-align:center">-</td>';
 
         let hetCountRowHtml = '<td colspan="4" style="text-align:center;font-weight:bold;background-color:#f1f5f9;">Jml Komoditas di Atas HET</td>';
         for (let m = 1; m <= 12; m++) {
@@ -1779,7 +1842,7 @@ export default function HargaKonsumen({
             const bgStyle = cnt > 0 ? 'background-color:#fee2e2;color:#991b1b;font-weight:bold;' : 'background-color:#f8fafc;';
             hetCountRowHtml += `<td style="text-align:center;${bgStyle}">${cnt > 0 ? cnt + ' Komoditas' : '-'}</td>`;
         }
-        hetCountRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td>';
+        hetCountRowHtml += '<td style="background-color:#f1f5f9;text-align:center">-</td><td style="background-color:#f1f5f9;text-align:center">-</td><td style="background-color:#f1f5f9;text-align:center">-</td>';
 
         const html = `
         <!DOCTYPE html>
@@ -2133,9 +2196,9 @@ export default function HargaKonsumen({
     };
 
     // Helper penentu warna grafik batang berdasarkan persentase selisih terhadap batas HET:
-    // - Hijau (#006565): harga <= HET atau tidak memiliki HET (normal)
-    // - Kuning (#f59e0b): harga melebihi HET 1 - 10%
-    // - Merah (#ef4444): harga melebihi HET > 10%
+    // - Hijau (url(#barEmeraldGrad)): harga <= HET atau tidak memiliki HET (normal)
+    // - Kuning (url(#barAmberGrad)): harga melebihi HET 1 - 10%
+    // - Merah (url(#barRoseGrad)): harga melebihi HET > 10%
     const getBarColor = (entry: any) => {
         if (
             entry?.price === null ||
@@ -2144,17 +2207,17 @@ export default function HargaKonsumen({
             entry?.het === undefined ||
             Number(entry?.het) <= 0
         ) {
-            return '#006565';
+            return 'url(#barEmeraldGrad)';
         }
         const diff = Number(entry.price) - Number(entry.het);
         if (diff <= 0) {
-            return '#006565';
+            return 'url(#barEmeraldGrad)';
         }
         const pct = (diff / Number(entry.het)) * 100;
         if (pct > 10) {
-            return '#ef4444'; // Merah (> 10%)
+            return 'url(#barRoseGrad)'; // Merah (> 10%)
         }
-        return '#f59e0b'; // Kuning (1 - 10%)
+        return 'url(#barAmberGrad)'; // Kuning (1 - 10%)
     };
 
     // Group all commodities into slides (12 commodities per slide: 6 cols x 2 rows).
@@ -3481,34 +3544,74 @@ export default function HargaKonsumen({
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <AreaChart
                                                     data={chartPoints}
-                                                    margin={{ top: 10, right: 15, left: 10, bottom: 0 }}
+                                                    margin={{ top: 14, right: 18, left: 10, bottom: 4 }}
                                                 >
                                                     <defs>
+                                                        {/* Luminous multi-stop gradient for main price area */}
                                                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="0%" stopColor="#1C8379" stopOpacity={0.85} />
-                                                            <stop offset="50%" stopColor="#3AAB91" stopOpacity={0.55} />
-                                                            <stop offset="100%" stopColor="#58CEA7" stopOpacity={0.25} />
+                                                            <stop offset="0%" stopColor="#059669" stopOpacity={0.42} />
+                                                            <stop offset="30%" stopColor="#10b981" stopOpacity={0.26} />
+                                                            <stop offset="65%" stopColor="#14b8a6" stopOpacity={0.11} />
+                                                            <stop offset="90%" stopColor="#5eead4" stopOpacity={0.03} />
+                                                            <stop offset="100%" stopColor="#ffffff" stopOpacity={0.0} />
                                                         </linearGradient>
-                                                        <linearGradient id="colorHet" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
-                                                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
-                                                        </linearGradient>
+
+                                                        {/* Fine diagonal hatch pattern (arsir modern) masked by vertical fade */}
+                                                        <pattern
+                                                            id="diagonalHatch"
+                                                            width="8"
+                                                            height="8"
+                                                            patternTransform="rotate(45 0 0)"
+                                                            patternUnits="userSpaceOnUse"
+                                                        >
+                                                            <line
+                                                                x1="0"
+                                                                y1="0"
+                                                                x2="0"
+                                                                y2="8"
+                                                                stroke="#0d9488"
+                                                                strokeWidth="1.5"
+                                                                strokeOpacity="0.13"
+                                                            />
+                                                        </pattern>
+
+                                                        {/* Soft glow filter for the price trend line */}
+                                                        <filter id="priceLineGlow" x="-10%" y="-20%" width="120%" height="140%">
+                                                            <feDropShadow
+                                                                dx="0"
+                                                                dy="3"
+                                                                stdDeviation="3"
+                                                                floodColor="#059669"
+                                                                floodOpacity="0.28"
+                                                            />
+                                                        </filter>
                                                     </defs>
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <CartesianGrid
+                                                        strokeDasharray="4 4"
+                                                        vertical={false}
+                                                        stroke="#e2e8f0"
+                                                        strokeOpacity={0.75}
+                                                    />
                                                     <XAxis
                                                         dataKey="label"
-                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
                                                         axisLine={{ stroke: '#cbd5e1' }}
                                                         tickLine={false}
+                                                        dy={4}
                                                     />
                                                     <YAxis
-                                                        tick={{ fontSize: 11, fill: '#64748b' }}
+                                                        tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
                                                         axisLine={false}
                                                         tickLine={false}
                                                         tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
                                                         domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
                                                     />
                                                     <Tooltip
+                                                        cursor={{
+                                                            stroke: '#0d9488',
+                                                            strokeWidth: 1.5,
+                                                            strokeDasharray: '4 4',
+                                                        }}
                                                         formatter={(value: any, name: any) => [
                                                             value !== null && value !== undefined ? formatCurrency(Number(value)) : '-',
                                                             name === 'price' ? 'Harga Rata-rata' : 'Harga Eceran Tertinggi (HET)',
@@ -3518,44 +3621,93 @@ export default function HargaKonsumen({
                                                             return p?.full_date || p?.date_range || p?.full_month || label;
                                                         }}
                                                         contentStyle={{
-                                                            borderRadius: '12px',
-                                                            border: '1px solid #e2e8f0',
-                                                            backgroundColor: '#ffffff',
-                                                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                                            borderRadius: '14px',
+                                                            border: '1px solid #cbd5e1',
+                                                            backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                                                            boxShadow: '0 10px 25px -5px rgb(15 23 42 / 0.12)',
                                                             fontSize: '12px',
+                                                            fontWeight: 600,
+                                                            padding: '10px 14px',
                                                         }}
                                                     />
                                                     <Legend
                                                         verticalAlign="top"
                                                         align="right"
-                                                        wrapperStyle={{ paddingBottom: '12px', fontSize: '11px' }}
-                                                        formatter={(value) =>
-                                                            value === 'price' ? 'Harga Pasar' : 'Batas HET'
-                                                        }
+                                                        wrapperStyle={{ paddingBottom: '14px', fontSize: '11.5px', fontWeight: 600 }}
+                                                        formatter={(value) => {
+                                                            if (value === 'price_hatch') return null;
+                                                            return value === 'price' ? 'Harga Pasar' : 'Batas HET';
+                                                        }}
                                                     />
+                                                    {/* Layer 1: Smooth gradient glow fill */}
                                                     <Area
                                                         type="monotone"
                                                         dataKey="price"
-                                                        stroke="#1C8379"
-                                                        strokeWidth={2.5}
+                                                        stroke="none"
                                                         fillOpacity={1}
                                                         fill="url(#colorPrice)"
+                                                        name="price_hatch"
+                                                        legendType="none"
+                                                        tooltipType="none"
+                                                        connectNulls
+                                                        isAnimationActive={false}
+                                                    />
+                                                    {/* Layer 2: Subtle diagonal hatch pattern overlay + main line & dots */}
+                                                    <Area
+                                                        type="monotone"
+                                                        dataKey="price"
+                                                        stroke="#059669"
+                                                        strokeWidth={3}
+                                                        fillOpacity={1}
+                                                        fill="url(#diagonalHatch)"
+                                                        filter="url(#priceLineGlow)"
                                                         name="price"
                                                         connectNulls
-                                                        dot={{ r: 4, fill: '#f59e0b', stroke: '#ffffff', strokeWidth: 2 }}
-                                                        activeDot={{ r: 6, fill: '#d97706', stroke: '#ffffff', strokeWidth: 2 }}
+                                                        dot={(dotProps: any) => {
+                                                            const { cx, cy, payload, index } = dotProps;
+                                                            if (cx === undefined || cy === undefined || payload?.price === null) {
+                                                                return <g key={`dot-empty-${index}`} />;
+                                                            }
+                                                            const isAboveHet =
+                                                                payload?.het && Number(payload.price) > Number(payload.het);
+                                                            const dotFill = isAboveHet ? '#f59e0b' : '#10b981';
+                                                            return (
+                                                                <circle
+                                                                    key={`dot-${index}`}
+                                                                    cx={cx}
+                                                                    cy={cy}
+                                                                    r={4}
+                                                                    fill={dotFill}
+                                                                    stroke="#ffffff"
+                                                                    strokeWidth={2}
+                                                                />
+                                                            );
+                                                        }}
+                                                        activeDot={{
+                                                            r: 6.5,
+                                                            fill: '#047857',
+                                                            stroke: '#ffffff',
+                                                            strokeWidth: 2.5,
+                                                        }}
                                                     />
+                                                    {/* Layer 3: Crisp HET Reference Line without muddy background fill */}
                                                     <Area
                                                         type="monotone"
                                                         dataKey="het"
-                                                        stroke="#ef4444"
+                                                        stroke="#f43f5e"
                                                         strokeWidth={2}
-                                                        strokeDasharray="4 4"
-                                                        fillOpacity={1}
-                                                        fill="url(#colorHet)"
+                                                        strokeDasharray="6 4"
+                                                        fill="none"
+                                                        fillOpacity={0}
                                                         name="het"
                                                         connectNulls
                                                         dot={false}
+                                                        activeDot={{
+                                                            r: 4.5,
+                                                            fill: '#f43f5e',
+                                                            stroke: '#ffffff',
+                                                            strokeWidth: 2,
+                                                        }}
                                                     />
                                                 </AreaChart>
                                             </ResponsiveContainer>
@@ -3565,7 +3717,21 @@ export default function HargaKonsumen({
                                                     data={chartPoints}
                                                     margin={{ top: 25, right: 15, left: 10, bottom: 0 }}
                                                 >
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <defs>
+                                                        <linearGradient id="barEmeraldGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#10b981" stopOpacity={0.95} />
+                                                            <stop offset="100%" stopColor="#006565" stopOpacity={0.85} />
+                                                        </linearGradient>
+                                                        <linearGradient id="barAmberGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.95} />
+                                                            <stop offset="100%" stopColor="#d97706" stopOpacity={0.88} />
+                                                        </linearGradient>
+                                                        <linearGradient id="barRoseGrad" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="0%" stopColor="#fb7185" stopOpacity={0.95} />
+                                                            <stop offset="100%" stopColor="#e11d48" stopOpacity={0.88} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" strokeOpacity={0.75} />
                                                     <XAxis
                                                         dataKey="label"
                                                         tick={{ fontSize: 11, fill: '#64748b' }}
@@ -3824,7 +3990,7 @@ export default function HargaKonsumen({
                                     }`}
                                 >
                                     <Clock className="h-4 w-4" />
-                                    <span>Tab 1: Perkembangan Harian</span>
+                                    <span>Perkembangan Harian</span>
                                 </button>
                                 <button
                                     type="button"
@@ -3841,7 +4007,7 @@ export default function HargaKonsumen({
                                     }`}
                                 >
                                     <BarChart3 className="h-4 w-4" />
-                                    <span>Tab 2: Rata-rata Bulanan (Jan - Des)</span>
+                                    <span>Rata-rata Bulanan (Jan - Des)</span>
                                 </button>
                             </div>
                         </div>
@@ -4248,12 +4414,22 @@ export default function HargaKonsumen({
                                                         </div>
                                                     </th>
                                                 ))}
-                                                {/* Kolom Terakhir: Rata-rata Bulan */}
+                                                {/* Kolom Rata-rata Bulan */}
                                                 <th className="bg-emerald-50/90 px-4 py-3 text-right font-extrabold text-[#006565] min-w-[135px] border-l-2 border-emerald-300 whitespace-nowrap">
                                                     <div>Rata-rata Bulan</div>
                                                     <div className="text-[10px] font-normal text-emerald-800">
                                                         {MONTH_OPTIONS.find((m) => m.value === historySelectedMonth)?.label} {historySelectedYear}
                                                     </div>
+                                                </th>
+                                                {/* Kolom STDEV */}
+                                                <th className="bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[120px] border-l border-slate-200 whitespace-nowrap">
+                                                    <div>STDEV</div>
+                                                    <div className="text-[10px] font-normal text-slate-500">Standar Deviasi</div>
+                                                </th>
+                                                {/* Kolom CV (%) */}
+                                                <th className="bg-slate-100 px-3.5 py-3 text-right font-extrabold text-[#006565] min-w-[100px] border-l border-slate-200 whitespace-nowrap">
+                                                    <div>CV (%)</div>
+                                                    <div className="text-[10px] font-normal text-slate-500">Koef. Variasi</div>
                                                 </th>
                                             </tr>
                                         </thead>
@@ -4363,6 +4539,20 @@ export default function HargaKonsumen({
                                                                 <span className="text-slate-300 font-normal">-</span>
                                                             )}
                                                         </td>
+                                                        {(() => {
+                                                            const wPrices = weeklyData.weeks.map((w) => c.weeks[w.num]?.average);
+                                                            const wSt = calculateStdevAndCv(wPrices);
+                                                            return (
+                                                                <>
+                                                                    <td className="px-3.5 py-2.5 text-right border-l border-slate-200 font-mono font-bold text-slate-700 bg-slate-50/40 whitespace-nowrap">
+                                                                        {wSt.stdev !== null ? formatCurrency(wSt.stdev) : '-'}
+                                                                    </td>
+                                                                    <td className="px-3.5 py-2.5 text-right border-l border-slate-200 font-mono font-black text-[#006565] bg-slate-50/40 whitespace-nowrap">
+                                                                        {wSt.cv !== null ? `${wSt.cv.toFixed(2)}%` : '-'}
+                                                                    </td>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </tr>
                                                 );
                                             })}
@@ -4406,6 +4596,8 @@ export default function HargaKonsumen({
                                                         return avgMonthAll !== null ? formatCurrency(avgMonthAll) : '-';
                                                     })()}
                                                 </td>
+                                                <td className="px-3.5 py-2.5 text-center border-l border-slate-200 text-slate-400 bg-slate-50">-</td>
+                                                <td className="px-3.5 py-2.5 text-center border-l border-slate-200 text-slate-400 bg-slate-50">-</td>
                                             </tr>
 
                                             {/* Baris 2: Jumlah Komoditas di Atas HET */}
@@ -4459,6 +4651,8 @@ export default function HargaKonsumen({
                                                         );
                                                     })()}
                                                 </td>
+                                                <td className="px-3.5 py-2.5 text-center border-l border-slate-200 text-slate-400 bg-slate-50">-</td>
+                                                <td className="px-3.5 py-2.5 text-center border-l border-slate-200 text-slate-400 bg-slate-50">-</td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -4684,7 +4878,7 @@ export default function HargaKonsumen({
                                             </tr>
 
                                             {/* Baris 5: % Kenaikan/Penurunan terhadap Bulan Lalu */}
-                                            <tr>
+                                            <tr className="border-b border-slate-200">
                                                 <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
                                                     -
                                                 </td>
@@ -4701,6 +4895,54 @@ export default function HargaKonsumen({
                                                             className={`px-3 py-2 text-right border-r border-slate-200 font-mono whitespace-nowrap ${res.bgClass}`}
                                                         >
                                                             {res.text}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 6: Standar Deviasi (STDEV) */}
+                                            <tr className="border-b border-slate-200">
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                    Standar Deviasi (STDEV)
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const st = historyPeriodStdevCv[c.id]?.stdev ?? null;
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-800"
+                                                        >
+                                                            {st !== null ? formatCurrency(st) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="px-3 py-2 text-center border-l border-slate-200 text-slate-400 bg-slate-50">
+                                                    -
+                                                </td>
+                                            </tr>
+
+                                            {/* Baris 7: CV (%) */}
+                                            <tr>
+                                                <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                    -
+                                                </td>
+                                                <td className="sticky left-[50px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-[#006565]">
+                                                    CV (%)
+                                                </td>
+                                                {(historyCommodities.length > 0 ? historyCommodities : commoditiesList).map((c) => {
+                                                    const cv = historyPeriodStdevCv[c.id]?.cv ?? null;
+                                                    return (
+                                                        <td
+                                                            key={c.id}
+                                                            className="px-3 py-2 text-right border-r border-slate-200 font-mono font-black whitespace-nowrap bg-emerald-50/40 text-[#006565]"
+                                                        >
+                                                            {cv !== null ? `${cv.toFixed(2)}%` : '-'}
                                                         </td>
                                                     );
                                                 })}
@@ -4960,8 +5202,18 @@ export default function HargaKonsumen({
                                                             </th>
                                                         ))}
                                                         {/* Kolom 16: Rata-rata Tahunan */}
-                                                        <th className="sticky right-0 z-40 bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[125px] border-l-2 border-slate-300 shadow-xs">
+                                                        <th className="bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[120px] border-l-2 border-slate-300">
                                                             Rata-rata
+                                                        </th>
+                                                        {/* Kolom 17: Standar Deviasi (STDEV) */}
+                                                        <th className="bg-slate-100 px-3.5 py-3 text-right font-extrabold text-slate-800 min-w-[120px] border-l border-slate-200 whitespace-nowrap">
+                                                            <div>STDEV</div>
+                                                            <div className="text-[10px] font-normal text-slate-500">Standar Deviasi</div>
+                                                        </th>
+                                                        {/* Kolom 18: CV (%) */}
+                                                        <th className="bg-slate-100 px-3.5 py-3 text-right font-extrabold text-[#006565] min-w-[100px] border-l border-slate-200 whitespace-nowrap">
+                                                            <div>CV (%)</div>
+                                                            <div className="text-[10px] font-normal text-slate-500">Koef. Variasi</div>
                                                         </th>
                                                     </tr>
                                                 </thead>
@@ -5037,9 +5289,24 @@ export default function HargaKonsumen({
                                                                 );
                                                             })}
                                                             {/* Rata-rata Tahunan */}
-                                                            <td className="sticky right-0 z-20 bg-slate-50 group-hover:bg-slate-100 px-3.5 py-2.5 text-right border-l-2 border-slate-300 shadow-xs whitespace-nowrap font-mono font-black text-slate-900">
+                                                            <td className="bg-slate-50 group-hover:bg-slate-100 px-3.5 py-2.5 text-right border-l-2 border-slate-300 whitespace-nowrap font-mono font-black text-slate-900">
                                                                 {row.yearly_average ? formatCurrency(row.yearly_average) : '-'}
                                                             </td>
+                                                            {/* STDEV & CV (%) */}
+                                                            {(() => {
+                                                                const monthPrices = monthlyMonths.map((m) => row.monthly_prices[m.num]);
+                                                                const mSt = calculateStdevAndCv(monthPrices);
+                                                                return (
+                                                                    <>
+                                                                        <td className="bg-slate-50/60 group-hover:bg-slate-100 px-3.5 py-2.5 text-right border-l border-slate-200 whitespace-nowrap font-mono font-bold text-slate-700">
+                                                                            {mSt.stdev !== null ? formatCurrency(mSt.stdev) : '-'}
+                                                                        </td>
+                                                                        <td className="bg-emerald-50/40 group-hover:bg-emerald-50/80 px-3.5 py-2.5 text-right border-l border-slate-200 whitespace-nowrap font-mono font-black text-[#006565]">
+                                                                            {mSt.cv !== null ? `${mSt.cv.toFixed(2)}%` : '-'}
+                                                                        </td>
+                                                                    </>
+                                                                );
+                                                            })()}
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -5067,7 +5334,13 @@ export default function HargaKonsumen({
                                                                 </td>
                                                             );
                                                         })}
-                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l border-slate-200 text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l border-slate-200 text-slate-400 font-mono">
                                                             -
                                                         </td>
                                                     </tr>
@@ -5096,7 +5369,13 @@ export default function HargaKonsumen({
                                                                 </td>
                                                             );
                                                         })}
-                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 shadow-xs text-slate-400 font-mono">
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l-2 border-slate-300 text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l border-slate-200 text-slate-400 font-mono">
+                                                            -
+                                                        </td>
+                                                        <td className="bg-slate-100 px-3.5 py-2 text-right border-l border-slate-200 text-slate-400 font-mono">
                                                             -
                                                         </td>
                                                     </tr>
@@ -5216,9 +5495,9 @@ export default function HargaKonsumen({
                                                         );
                                                     })}
                                                 </tbody>
-                                                {/* TFoot: Rata-rata Tahunan */}
+                                                {/* TFoot: Rata-rata Tahunan, STDEV & CV (%) */}
                                                 <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-semibold text-slate-800">
-                                                    <tr>
+                                                    <tr className="border-b border-slate-200">
                                                         <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
                                                             -
                                                         </td>
@@ -5233,6 +5512,52 @@ export default function HargaKonsumen({
                                                                 {c.yearly_average ? formatCurrency(c.yearly_average) : '-'}
                                                             </td>
                                                         ))}
+                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                            -
+                                                        </td>
+                                                    </tr>
+                                                    <tr className="border-b border-slate-200">
+                                                        <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            -
+                                                        </td>
+                                                        <td className="sticky left-[45px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-slate-800">
+                                                            Standar Deviasi (STDEV)
+                                                        </td>
+                                                        {monthlyCommodityRows.map((c) => {
+                                                            const mPrices = monthlyMonths.map((m) => c.monthly_prices[m.num]);
+                                                            const mSt = calculateStdevAndCv(mPrices);
+                                                            return (
+                                                                <td
+                                                                    key={c.id}
+                                                                    className="px-3 py-2 text-right border-r border-slate-200 font-mono font-bold whitespace-nowrap bg-slate-50 text-slate-800"
+                                                                >
+                                                                    {mSt.stdev !== null ? formatCurrency(mSt.stdev) : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
+                                                            -
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="sticky left-0 z-20 bg-slate-100 px-3 py-2 text-center font-bold text-slate-500 border-r border-slate-200">
+                                                            -
+                                                        </td>
+                                                        <td className="sticky left-[45px] z-20 bg-slate-100 px-4 py-2 border-r-2 border-slate-300 shadow-xs whitespace-nowrap font-black text-[#006565]">
+                                                            CV (%)
+                                                        </td>
+                                                        {monthlyCommodityRows.map((c) => {
+                                                            const mPrices = monthlyMonths.map((m) => c.monthly_prices[m.num]);
+                                                            const mSt = calculateStdevAndCv(mPrices);
+                                                            return (
+                                                                <td
+                                                                    key={c.id}
+                                                                    className="px-3 py-2 text-right border-r border-slate-200 font-mono font-black whitespace-nowrap bg-emerald-50/40 text-[#006565]"
+                                                                >
+                                                                    {mSt.cv !== null ? `${mSt.cv.toFixed(2)}%` : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
                                                         <td className="sticky right-0 z-20 bg-slate-100 px-3 py-2 text-center border-l-2 border-slate-300 shadow-xs text-slate-400">
                                                             -
                                                         </td>

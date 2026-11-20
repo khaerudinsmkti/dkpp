@@ -2309,7 +2309,7 @@ export default function HargaProdusen({
                                     }`}
                                 >
                                     <Clock className="h-4 w-4" />
-                                    <span>Tab 1: Perkembangan Harian</span>
+                                    <span>Perkembangan Harian</span>
                                 </button>
                                 <button
                                     type="button"
@@ -2326,7 +2326,7 @@ export default function HargaProdusen({
                                     }`}
                                 >
                                     <Calendar className="h-4 w-4" />
-                                    <span>Tab 2: Rata-rata Bulanan (Jan - Des)</span>
+                                    <span>Rata-rata Bulanan (Jan - Des)</span>
                                 </button>
                             </div>
                         </div>
