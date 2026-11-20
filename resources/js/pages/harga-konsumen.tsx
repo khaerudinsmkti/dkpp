@@ -3604,7 +3604,7 @@ export default function HargaKonsumen({
                                                         axisLine={false}
                                                         tickLine={false}
                                                         tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
-                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
+                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 10000)]}
                                                     />
                                                     <Tooltip
                                                         cursor={{
@@ -3743,7 +3743,7 @@ export default function HargaKonsumen({
                                                         axisLine={false}
                                                         tickLine={false}
                                                         tickFormatter={(val) => `Rp ${(val / 1000).toFixed(0)}k`}
-                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 'auto')]}
+                                                        domain={[0, (dataMax: number) => (dataMax > 0 ? Math.ceil(dataMax * 1.15) : 10000)]}
                                                     />
                                                     <Tooltip
                                                         formatter={(value: any, name: any, item: any) => {
@@ -3799,8 +3799,8 @@ export default function HargaKonsumen({
                                                             position="top"
                                                             offset={8}
                                                             formatter={(val: any) => {
-                                                                if (val === null || val === undefined || isNaN(val) || Number(val) <= 0) return '';
-                                                                return formatCurrency(Number(val));
+                                                                if (val === null || val === undefined || isNaN(val) || Number(val) < 0) return '';
+                                                                return Number(val) === 0 ? 'Rp 0' : formatCurrency(Number(val));
                                                             }}
                                                             fill="#0f172a"
                                                             fontSize={chartTab === 'weekly' ? 11 : 10}

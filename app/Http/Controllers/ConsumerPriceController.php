@@ -399,18 +399,16 @@ class ConsumerPriceController extends Controller
 
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)) {
                 $endDate = $latestRecordedDate;
-            } elseif ($endDate > $latestRecordedDate && ! ConsumerPrice::where('market_id', $marketId)->where('commodity_id', $commodityId)->where('recorded_date', $endDate)->exists()) {
-                $endDate = $latestRecordedDate;
             }
 
             if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
                 $startDate = Carbon::parse($endDate)->subDays(30)->format('Y-m-d');
             } else {
-                // Enforce max 31 days
+                // Enforce valid order and max 31 days without shifting outside user's requested range
                 $startCarbon = Carbon::parse($startDate);
                 $endCarbon = Carbon::parse($endDate);
                 if ($startCarbon->gt($endCarbon)) {
-                    $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
+                    $startDate = $endCarbon->copy()->format('Y-m-d');
                 } elseif ($startCarbon->diffInDays($endCarbon) > 31) {
                     $startDate = $endCarbon->copy()->subDays(30)->format('Y-m-d');
                 }
@@ -436,7 +434,7 @@ class ConsumerPriceController extends Controller
                     'date' => $dStr,
                     'label' => $current->translatedFormat('d M'),
                     'full_date' => $current->translatedFormat('l, d F Y'),
-                    'price' => $priceRec ? (float) $priceRec->price : null,
+                    'price' => $priceRec && $priceRec->price !== null ? (float) $priceRec->price : 0,
                     'het' => $het ? (float) $het->price : null,
                 ];
 
@@ -466,6 +464,7 @@ class ConsumerPriceController extends Controller
             $prices = ConsumerPrice::where('market_id', $marketId)
                 ->where('commodity_id', $commodityId)
                 ->whereBetween('recorded_date', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                ->where('price', '>', 0)
                 ->orderBy('recorded_date')
                 ->get();
 
@@ -486,7 +485,7 @@ class ConsumerPriceController extends Controller
                     return $d->betweenIncluded($wStart, $wEnd);
                 });
 
-                $avgPrice = $wPrices->count() > 0 ? round($wPrices->avg('price'), 0) : null;
+                $avgPrice = $wPrices->count() > 0 ? round((float) $wPrices->avg('price'), 0) : 0;
                 $midDate = $wStart->copy()->addDays((int) ($wStart->diffInDays($wEnd) / 2))->format('Y-m-d');
                 $het = $commodity?->hetAt($midDate);
 
@@ -521,6 +520,7 @@ class ConsumerPriceController extends Controller
             $prices = ConsumerPrice::where('market_id', $marketId)
                 ->where('commodity_id', $commodityId)
                 ->whereBetween('recorded_date', [$startOfYear->format('Y-m-d'), $endOfYear->format('Y-m-d')])
+                ->where('price', '>', 0)
                 ->get();
 
             $monthlyData = [];
@@ -535,7 +535,7 @@ class ConsumerPriceController extends Controller
                     return $d->betweenIncluded($mStart, $mEnd);
                 });
 
-                $avgPrice = $mPrices->count() > 0 ? round($mPrices->avg('price'), 0) : null;
+                $avgPrice = $mPrices->count() > 0 ? round((float) $mPrices->avg('price'), 0) : 0;
                 $midDate = $mCarbon->copy()->day(15)->format('Y-m-d');
                 $het = $commodity?->hetAt($midDate);
 
