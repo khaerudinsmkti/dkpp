@@ -236,6 +236,54 @@ export default function CppdPublicPage({
     // Monthly chart comparison & visualization controls
     const [compareYearOption, setCompareYearOption] = useState<string>('none');
     const [monthlyChartType, setMonthlyChartType] = useState<'bar' | 'line'>('bar');
+    const [activeTransactionTab, setActiveTransactionTab] = useState<'history' | 'monthly'>('history');
+    const [monthlyPeriodMode, setMonthlyPeriodMode] = useState<'default' | 'triwulan' | 'semester'>('default');
+
+    // Dynamic columns for Bulanan matrix (supports default, triwulan, semester)
+    const monthlyMatrixColumns = useMemo(() => {
+        const cols: Array<{
+            key: string;
+            type: 'month' | 'subtotal' | 'total';
+            label: string;
+            months: number[];
+        }> = [];
+
+        DEFAULT_MONTHS.forEach((m) => {
+            cols.push({
+                key: `m_${m.month}`,
+                type: 'month',
+                label: m.month_name,
+                months: [m.month],
+            });
+
+            if (monthlyPeriodMode === 'triwulan' && m.month % 3 === 0) {
+                const q = m.month / 3;
+                cols.push({
+                    key: `tw_${q}`,
+                    type: 'subtotal',
+                    label: `Total Triwulan ${q}`,
+                    months: [m.month - 2, m.month - 1, m.month],
+                });
+            } else if (monthlyPeriodMode === 'semester' && m.month % 6 === 0) {
+                const s = m.month / 6;
+                cols.push({
+                    key: `sem_${s}`,
+                    type: 'subtotal',
+                    label: `Total Semester ${s}`,
+                    months: Array.from({ length: 6 }, (_, i) => m.month - 5 + i),
+                });
+            }
+        });
+
+        cols.push({
+            key: 'total_year',
+            type: 'total',
+            label: 'Total',
+            months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        });
+
+        return cols;
+    }, [monthlyPeriodMode]);
 
     // Change year filter
     const handleYearChange = (year: number) => {
@@ -368,7 +416,7 @@ export default function CppdPublicPage({
         };
     }, [monthlyPenyaluranByYear, selectedYear, activeChartYears, comparisonYearCandidates]);
 
-    // Download PDF Report
+    // Download PDF Report (adapts to activeTransactionTab: 'history' or 'monthly' + monthlyPeriodMode)
     const handleDownloadPdf = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) {
@@ -381,6 +429,254 @@ export default function CppdPublicPage({
             month: 'long',
             year: 'numeric',
         }).format(new Date());
+
+        if (activeTransactionTab === 'monthly') {
+            const periodLabel =
+                monthlyPeriodMode === 'triwulan'
+                    ? 'Rekap Bulanan & Triwulan (Januari – Desember)'
+                    : monthlyPeriodMode === 'semester'
+                      ? 'Rekap Bulanan & Semester (Januari – Desember)'
+                      : 'Rekap Bulanan (Januari – Desember)';
+
+            const colTotals = monthlyMatrixColumns.map((col) => {
+                const sum = recipientVillages.reduce((acc, v) => {
+                    const cellSum = col.months.reduce(
+                        (mAcc, mNum) => mAcc + Number(v.monthly_penyaluran?.[mNum] ?? 0),
+                        0
+                    );
+                    return acc + cellSum;
+                }, 0);
+                return Number(sum.toFixed(2));
+            });
+
+            const headerColsHtml = monthlyMatrixColumns
+                .map((col) => {
+                    const bg =
+                        col.type === 'total'
+                            ? 'background:#064e3b;color:#ffffff;'
+                            : col.type === 'subtotal'
+                              ? 'background:#0f766e;color:#ffffff;'
+                              : '';
+                    return `<th style="text-align:right;${bg}">${col.label}</th>`;
+                })
+                .join('');
+
+            let bodyRowsHtml = '';
+            recipientVillages.forEach((v) => {
+                const cellsHtml = monthlyMatrixColumns
+                    .map((col) => {
+                        const val = Number(
+                            col.months
+                                .reduce((acc, mNum) => acc + Number(v.monthly_penyaluran?.[mNum] ?? 0), 0)
+                                .toFixed(2)
+                        );
+                        const style =
+                            col.type === 'total'
+                                ? 'text-align:right;font-weight:800;background:#ecfdf5;color:#065f46;'
+                                : col.type === 'subtotal'
+                                  ? 'text-align:right;font-weight:700;background:#f0fdfa;color:#0f766e;'
+                                  : 'text-align:right;';
+                        return `<td style="${style}">${val > 0 ? formatKg(val) : '-'}</td>`;
+                    })
+                    .join('');
+
+                bodyRowsHtml += `
+                    <tr>
+                        <td style="font-weight:bold;color:#0f172a;">
+                            Desa ${v.desa}
+                            <div style="font-size:6.5pt;color:#64748b;font-weight:normal;">Kec. ${v.kecamatan}</div>
+                        </td>
+                        ${cellsHtml}
+                    </tr>
+                `;
+            });
+
+            if (recipientVillages.length === 0) {
+                bodyRowsHtml = `
+                    <tr>
+                        <td colspan="${1 + monthlyMatrixColumns.length}" style="text-align:center;padding:16px;color:#64748b;font-style:italic">
+                            Tidak ada data penyaluran desa yang tercatat untuk Tahun Anggaran ${selectedYear}.
+                        </td>
+                    </tr>
+                `;
+            }
+
+            const footerCellsHtml = colTotals
+                .map((tot, idx) => {
+                    const col = monthlyMatrixColumns[idx];
+                    const bg =
+                        col.type === 'total'
+                            ? 'background:#d1fae5;color:#065f46;'
+                            : col.type === 'subtotal'
+                              ? 'background:#ccfbf1;color:#115e59;'
+                              : '';
+                    return `<td style="text-align:right;font-weight:800;${bg}">${tot > 0 ? formatKg(tot) : '-'}</td>`;
+                })
+                .join('');
+
+            const monthlyHtml = `
+            <!DOCTYPE html>
+            <html lang="id">
+            <head>
+                <meta charset="UTF-8"/>
+                <title>Laporan Penyaluran CPPD Bulanan Tahun ${selectedYear} - DKPP Kabupaten Indramayu</title>
+                <style>
+                    @page {
+                        size: A4 landscape;
+                        margin: 10mm 8mm;
+                    }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                        margin: 0;
+                        padding: 10px;
+                        color: #0f172a;
+                        font-size: 7.5pt;
+                        line-height: 1.35;
+                    }
+                    .no-print {
+                        margin-bottom: 14px;
+                        padding: 10px 14px;
+                        background: #f0fdf4;
+                        border: 1px solid #bbf7d0;
+                        border-radius: 8px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 12px;
+                    }
+                    .btn {
+                        background: #006565;
+                        color: white;
+                        border: none;
+                        padding: 7px 14px;
+                        border-radius: 6px;
+                        font-weight: bold;
+                        font-size: 8.5pt;
+                        cursor: pointer;
+                    }
+                    .header-kop {
+                        text-align: center;
+                        border-bottom: 3px double #0f172a;
+                        padding-bottom: 6px;
+                        margin-bottom: 10px;
+                    }
+                    .header-kop h2 {
+                        margin: 0;
+                        font-size: 12pt;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                    }
+                    .header-kop h3 {
+                        margin: 2px 0;
+                        font-size: 10.5pt;
+                        font-weight: 700;
+                        text-transform: uppercase;
+                    }
+                    .header-kop p {
+                        margin: 2px 0 0 0;
+                        font-size: 7.5pt;
+                        color: #475569;
+                    }
+                    .doc-title {
+                        text-align: center;
+                        margin: 10px 0;
+                    }
+                    .doc-title h4 {
+                        margin: 0;
+                        font-size: 10.5pt;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        color: #006565;
+                    }
+                    .doc-title p {
+                        margin: 2px 0 0 0;
+                        font-size: 8pt;
+                        color: #475569;
+                    }
+                    .data-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 8px;
+                    }
+                    .data-table th, .data-table td {
+                        border: 1px solid #cbd5e1;
+                        padding: 4px 5px;
+                        font-size: 6.8pt;
+                    }
+                    .data-table th {
+                        background: #006565;
+                        color: #ffffff;
+                        font-weight: 700;
+                        text-align: center;
+                    }
+                    .data-table tr:nth-child(even) {
+                        background-color: #f8fafc;
+                    }
+                    .data-table tfoot td {
+                        background: #f1f5f9;
+                        font-weight: 800;
+                        border-top: 2px solid #006565;
+                    }
+                    @media print {
+                        .no-print { display: none !important; }
+                        body { padding: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="no-print">
+                    <div>
+                        <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan sebagai PDF</button>
+                        <span style="font-size:8pt;color:#334155;margin-left:8px">Tips: Gunakan orientasi <strong>Landscape</strong> saat menyimpan PDF.</span>
+                    </div>
+                    <button class="btn" style="background:#64748b" onclick="window.close()">Tutup</button>
+                </div>
+
+                <div class="header-kop">
+                    <h2>Pemerintah Daerah Kabupaten Indramayu</h2>
+                    <h3>Dinas Ketahanan Pangan dan Pertanian</h3>
+                    <p>Jl. MT. Haryono No. 12, Indramayu, Jawa Barat 45214 • Telp: (0234) 272211 • Email: dkpp@indramayukab.go.id</p>
+                </div>
+
+                <div class="doc-title">
+                    <h4>Laporan Penyaluran Bulanan Cadangan Pangan Pemerintah Daerah (CPPD) Per Desa</h4>
+                    <p>Tahun Anggaran ${selectedYear} | Mode: ${periodLabel} | Tanggal Cetak: ${currentDateFormatted}</p>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left;min-width:110px;">Nama Desa</th>
+                            ${headerColsHtml}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${bodyRowsHtml}
+                    </tbody>
+                    ${
+                        recipientVillages.length > 0
+                            ? `<tfoot>
+                                <tr>
+                                    <td style="text-align:left;">TOTAL (${recipientVillages.length} DESA)</td>
+                                    ${footerCellsHtml}
+                                </tr>
+                            </tfoot>`
+                            : ''
+                    }
+                </table>
+            </body>
+            </html>
+            `;
+
+            printWindow.document.open();
+            printWindow.document.write(monthlyHtml);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 300);
+            return;
+        }
 
         let rowsHtml = '';
         recentTransactions.forEach((tx, idx) => {
@@ -1675,103 +1971,335 @@ export default function CppdPublicPage({
                     )}
                 </section>
 
-                {/* 5. LOG RIWAYAT TRANSAKSI TERAKHIR (PENGADAAN, PENYALURAN, ADDENDUM) */}
+                {/* 5. LOG RIWAYAT TRANSAKSI TERAKHIR (PENGADAAN, PENYALURAN, ADDENDUM) & TABEL BULANAN PER DESA */}
                 <section id="riwayat-transaksi-cppd" className="rounded-3xl border border-slate-200/90 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/95 sm:p-6 scroll-mt-20">
-                    <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                    <div className="mb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-100 pb-3.5 dark:border-slate-800">
                         <div>
                             <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                <span>Riwayat Transaksi CPPD Terkini ({selectedYear})</span>
+                                <span>
+                                    {activeTransactionTab === 'history'
+                                        ? `Riwayat Transaksi CPPD Terkini (${selectedYear})`
+                                        : `Tabel Penyaluran CPPD Bulanan Per Desa (Januari – Desember ${selectedYear})`}
+                                </span>
                             </h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Log histori seluruh aktivitas mutasi pengadaan, penyaluran, dan addendum cadangan pangan.
+                                {activeTransactionTab === 'history'
+                                    ? 'Log histori seluruh aktivitas mutasi pengadaan, penyaluran, dan addendum cadangan pangan.'
+                                    : `Rekapitulasi total penyaluran cadangan pangan per desa setiap bulan dari Januari s.d. Desember ${selectedYear}.`}
                             </p>
                         </div>
+
                         <div className="flex flex-wrap items-center gap-2">
-                            {recentTransactions.length > 5 && (
+                            {/* Tab Switcher: History vs Bulanan */}
+                            <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/90 bg-slate-100/90 p-1 dark:border-slate-700 dark:bg-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTransactionTab('history')}
+                                    className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                        activeTransactionTab === 'history'
+                                            ? 'bg-[#006565] text-white shadow-xs dark:bg-emerald-600'
+                                            : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-white'
+                                    }`}
+                                >
+                                    History
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTransactionTab('monthly')}
+                                    className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                                        activeTransactionTab === 'monthly'
+                                            ? 'bg-[#006565] text-white shadow-xs dark:bg-emerald-600'
+                                            : 'text-slate-600 hover:bg-white/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-white'
+                                    }`}
+                                >
+                                    Bulanan
+                                </button>
+                            </div>
+
+                            {activeTransactionTab === 'history' && recentTransactions.length > 5 && (
                                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-full">
                                     {recentTransactions.length} aktivitas
                                 </span>
                             )}
+                            {activeTransactionTab === 'monthly' && recipientVillages.length > 0 && (
+                                <span className="text-[11px] font-bold text-[#006565] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full">
+                                    {recipientVillages.length} desa
+                                </span>
+                            )}
+
                             <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 onClick={handleDownloadPdf}
                                 className="h-8 gap-1.5 rounded-xl border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-50 hover:text-rose-800 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40 cursor-pointer shadow-xs"
-                                title="Unduh / Cetak Dokumen PDF"
+                                title="Unduh / Cetak Dokumen PDF sesuai tabulasi yang aktif"
                             >
                                 <FileText className="h-3.5 w-3.5 text-rose-600" />
-                                <span>Unduh PDF</span>
+                                <span>
+                                    {activeTransactionTab === 'history' ? 'Unduh PDF (History)' : 'Unduh PDF (Bulanan)'}
+                                </span>
                             </Button>
                             <a
-                                href={`/cppd/export-excel?year=${selectedYear}`}
+                                href={`/cppd/export-excel?year=${selectedYear}&tab=${activeTransactionTab}&period=${monthlyPeriodMode}`}
                                 download
                                 className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 transition-colors shadow-xs"
-                                title="Unduh Berkas Excel (.xlsx)"
+                                title="Unduh Berkas Excel (.xlsx) sesuai tabulasi yang aktif"
                             >
                                 <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>Unduh Excel</span>
+                                <span>
+                                    {activeTransactionTab === 'history' ? 'Unduh Excel (History)' : 'Unduh Excel (Bulanan)'}
+                                </span>
                             </a>
                         </div>
                     </div>
 
-                    <div className="max-h-[365px] overflow-y-auto overscroll-contain pr-1.5 space-y-2 scrollbar-thin">
-                        {recentTransactions.map((tx) => {
-                            let badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
-                            if (tx.status === 'pengadaan') {
-                                badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300';
-                            } else if (tx.status === 'penyaluran') {
-                                badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300';
-                            } else if (tx.status === 'addendum') {
-                                badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300';
-                            }
+                    {activeTransactionTab === 'history' ? (
+                        <div className="max-h-[365px] overflow-y-auto overscroll-contain pr-1.5 space-y-2 scrollbar-thin">
+                            {recentTransactions.map((tx) => {
+                                let badgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                                if (tx.status === 'pengadaan') {
+                                    badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300';
+                                } else if (tx.status === 'penyaluran') {
+                                    badgeClass = 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-300';
+                                } else if (tx.status === 'addendum') {
+                                    badgeClass = 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300';
+                                }
 
-                            return (
-                                <div
-                                    key={tx.id}
-                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-200/70 p-3 hover:bg-slate-50/80 transition-colors dark:border-slate-800 dark:hover:bg-slate-800/60"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <Badge className={`rounded-xl px-2.5 py-1 text-[10px] font-black border ${badgeClass}`}>
-                                            {tx.status_label}
-                                        </Badge>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-black text-slate-900 dark:text-white">
-                                                    Desa {tx.desa}, Kec. {tx.kecamatan}
-                                                </span>
-                                                <span className="text-[10px] text-slate-400">• {tx.tanggal}</span>
+                                return (
+                                    <div
+                                        key={tx.id}
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border border-slate-200/70 p-3 hover:bg-slate-50/80 transition-colors dark:border-slate-800 dark:hover:bg-slate-800/60"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Badge className={`rounded-xl px-2.5 py-1 text-[10px] font-black border ${badgeClass}`}>
+                                                {tx.status_label}
+                                            </Badge>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-900 dark:text-white">
+                                                        Desa {tx.desa}, Kec. {tx.kecamatan}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">• {tx.tanggal}</span>
+                                                </div>
+                                                {tx.keterangan && (
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                                                        {tx.keterangan}
+                                                    </p>
+                                                )}
                                             </div>
-                                            {tx.keterangan && (
-                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
-                                                    {tx.keterangan}
-                                                </p>
-                                            )}
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                            <span className={`text-sm font-black ${
+                                                tx.status === 'penyaluran'
+                                                    ? 'text-rose-600 dark:text-rose-400'
+                                                    : tx.status === 'pengadaan'
+                                                        ? 'text-[#006565] dark:text-emerald-400'
+                                                        : 'text-amber-600 dark:text-amber-400'
+                                            }`}>
+                                                {tx.status === 'penyaluran' ? '− ' : '+ '}
+                                                {formatKg(tx.jumlah)}
+                                            </span>
                                         </div>
                                     </div>
+                                );
+                            })}
+                            {recentTransactions.length === 0 && (
+                                <p className="text-xs text-slate-400 text-center py-6">
+                                    Belum ada transaksi yang tercatat untuk tahun {selectedYear}.
+                                </p>
+                            )}
+                        </div>
+                    ) : (
+                        /* Tabulasi Kedua: Bulanan (Nama Desa, Januari s.d. Desember + Filter Triwulan/Semester, Total) */
+                        (() => {
+                            const colSums = monthlyMatrixColumns.map((col) => {
+                                const sum = recipientVillages.reduce((acc, v) => {
+                                    const cellVal = col.months.reduce(
+                                        (mAcc, mNum) => mAcc + Number(v.monthly_penyaluran?.[mNum] ?? 0),
+                                        0
+                                    );
+                                    return acc + cellVal;
+                                }, 0);
+                                return {
+                                    key: col.key,
+                                    type: col.type,
+                                    sum: Number(sum.toFixed(2)),
+                                };
+                            });
 
-                                    <div className="text-right shrink-0">
-                                        <span className={`text-sm font-black ${
-                                            tx.status === 'penyaluran'
-                                                ? 'text-rose-600 dark:text-rose-400'
-                                                : tx.status === 'pengadaan'
-                                                    ? 'text-[#006565] dark:text-emerald-400'
-                                                    : 'text-amber-600 dark:text-amber-400'
-                                        }`}>
-                                            {tx.status === 'penyaluran' ? '− ' : '+ '}
-                                            {formatKg(tx.jumlah)}
+                            return (
+                                <div className="space-y-3">
+                                    {/* Filter Bar Inside Bulanan Tab: Bulanan Standar | Triwulan | Semester */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-800/40">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                                                <Filter className="h-3.5 w-3.5 text-[#006565] dark:text-emerald-400" />
+                                                <span>Filter Rekap Periode:</span>
+                                            </span>
+                                            <div className="inline-flex items-center gap-1 rounded-xl border border-slate-200/90 bg-white p-1 shadow-2xs dark:border-slate-700 dark:bg-slate-900">
+                                                {[
+                                                    { key: 'default' as const, label: 'Bulanan (Jan – Des)' },
+                                                    { key: 'triwulan' as const, label: 'Triwulan (+ Total TW 1–4)' },
+                                                    { key: 'semester' as const, label: 'Semester (+ Total Sem 1–2)' },
+                                                ].map((opt) => {
+                                                    const isActive = monthlyPeriodMode === opt.key;
+                                                    return (
+                                                        <button
+                                                            key={opt.key}
+                                                            type="button"
+                                                            onClick={() => setMonthlyPeriodMode(opt.key)}
+                                                            className={`rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                                                                isActive
+                                                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                            {monthlyPeriodMode === 'triwulan' &&
+                                                'Menampilkan kolom subtotal otomatis setiap 3 bulan (Triwulan 1 s.d. 4)'}
+                                            {monthlyPeriodMode === 'semester' &&
+                                                'Menampilkan kolom subtotal otomatis setiap 6 bulan (Semester 1 & 2)'}
+                                            {monthlyPeriodMode === 'default' &&
+                                                'Menampilkan matriks penyaluran bulanan Januari s.d. Desember'}
                                         </span>
+                                    </div>
+
+                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                                        <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                                            <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] uppercase text-slate-500 font-black tracking-wider dark:bg-slate-800/80 dark:border-slate-700 dark:text-slate-400">
+                                                <tr>
+                                                    <th className="py-3.5 px-4 min-w-[200px] sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-200/80 dark:border-slate-700">
+                                                        Nama Desa
+                                                    </th>
+                                                    {monthlyMatrixColumns.map((col) => (
+                                                        <th
+                                                            key={col.key}
+                                                            className={`py-3.5 px-3 text-right ${
+                                                                col.type === 'total'
+                                                                    ? 'min-w-[115px] bg-emerald-100/80 text-[#006565] font-black border-l border-slate-200/80 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-slate-700'
+                                                                    : col.type === 'subtotal'
+                                                                      ? 'min-w-[115px] bg-teal-50/90 text-teal-800 font-black border-x border-teal-200/70 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/60'
+                                                                      : 'min-w-[96px]'
+                                                            }`}
+                                                        >
+                                                            {col.label}
+                                                        </th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {recipientVillages.length === 0 ? (
+                                                    <tr>
+                                                        <td
+                                                            colSpan={1 + monthlyMatrixColumns.length}
+                                                            className="py-10 text-center text-slate-400 font-medium"
+                                                        >
+                                                            Belum ada data penyaluran desa tercatat untuk tahun {selectedYear}.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    recipientVillages.map((village) => (
+                                                        <tr
+                                                            key={village.key}
+                                                            className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                                                        >
+                                                            <td className="py-3 px-4 sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800">
+                                                                <div className="font-black text-slate-900 dark:text-white">
+                                                                    Desa {village.desa}
+                                                                </div>
+                                                                <div className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                                                                    Kec. {village.kecamatan}
+                                                                </div>
+                                                            </td>
+                                                            {monthlyMatrixColumns.map((col) => {
+                                                                const val = Number(
+                                                                    col.months
+                                                                        .reduce(
+                                                                            (acc, mNum) =>
+                                                                                acc + Number(village.monthly_penyaluran?.[mNum] ?? 0),
+                                                                            0
+                                                                        )
+                                                                        .toFixed(2)
+                                                                );
+
+                                                                if (col.type === 'total') {
+                                                                    return (
+                                                                        <td
+                                                                            key={col.key}
+                                                                            className="py-3 px-4 text-right font-mono text-xs font-black bg-emerald-50/50 text-[#006565] border-l border-slate-100 dark:bg-emerald-950/25 dark:text-emerald-300 dark:border-slate-800"
+                                                                        >
+                                                                            {formatKg(val)}
+                                                                        </td>
+                                                                    );
+                                                                }
+
+                                                                if (col.type === 'subtotal') {
+                                                                    return (
+                                                                        <td
+                                                                            key={col.key}
+                                                                            className="py-3 px-3 text-right font-mono text-xs font-black bg-teal-50/50 text-teal-800 border-x border-teal-100 dark:bg-teal-950/25 dark:text-teal-300 dark:border-teal-900/40"
+                                                                        >
+                                                                            {val > 0 ? formatKg(val) : '-'}
+                                                                        </td>
+                                                                    );
+                                                                }
+
+                                                                return (
+                                                                    <td
+                                                                        key={col.key}
+                                                                        className={`py-3 px-3 text-right font-mono text-xs ${
+                                                                            val > 0
+                                                                                ? 'font-bold text-slate-800 dark:text-slate-100'
+                                                                                : 'text-slate-400 dark:text-slate-600'
+                                                                        }`}
+                                                                    >
+                                                                        {val > 0 ? formatKg(val) : '-'}
+                                                                    </td>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                            {recipientVillages.length > 0 && (
+                                                <tfoot className="bg-slate-100/80 border-t-2 border-slate-200 font-black text-xs text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                                                    <tr>
+                                                        <td className="py-3.5 px-4 uppercase tracking-wider sticky left-0 bg-slate-100 dark:bg-slate-800 border-r border-slate-200/80 dark:border-slate-700">
+                                                            Total ({recipientVillages.length} Desa)
+                                                        </td>
+                                                        {colSums.map((cs) => (
+                                                            <td
+                                                                key={cs.key}
+                                                                className={`py-3.5 px-3 text-right font-mono ${
+                                                                    cs.type === 'total'
+                                                                        ? 'px-4 font-black text-[#006565] bg-emerald-100/80 border-l border-slate-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-slate-700'
+                                                                        : cs.type === 'subtotal'
+                                                                          ? 'font-black text-teal-900 bg-teal-100/70 border-x border-teal-200/70 dark:bg-teal-950/50 dark:text-teal-200 dark:border-teal-800/60'
+                                                                          : 'font-bold text-slate-900 dark:text-slate-100'
+                                                                }`}
+                                                            >
+                                                                {cs.sum > 0 ? formatKg(cs.sum) : '-'}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                </tfoot>
+                                            )}
+                                        </table>
                                     </div>
                                 </div>
                             );
-                        })}
-                        {recentTransactions.length === 0 && (
-                            <p className="text-xs text-slate-400 text-center py-6">
-                                Belum ada transaksi yang tercatat untuk tahun {selectedYear}.
-                            </p>
-                        )}
-                    </div>
+                        })()
+                    )}
                 </section>
             </main>
 

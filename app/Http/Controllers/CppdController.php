@@ -92,6 +92,7 @@ class CppdController extends Controller
                     'kecamatan' => $kec,
                     'desa' => $des,
                     'total_penyaluran' => 0.0,
+                    'monthly_penyaluran' => array_fill(1, 12, 0.0),
                     'transaksi_count' => 0,
                     'latest_tanggal' => $row->tanggal->format('Y-m-d'),
                     'keterangan_list' => [],
@@ -99,7 +100,12 @@ class CppdController extends Controller
                 ];
             }
 
-            $recipientGroups[$key]['total_penyaluran'] += (float) $row->jumlah;
+            $monthNum = (int) $row->tanggal->format('n');
+            $recipientGroups[$key]['total_penyaluran'] = round($recipientGroups[$key]['total_penyaluran'] + (float) $row->jumlah, 2);
+            $recipientGroups[$key]['monthly_penyaluran'][$monthNum] = round(
+                $recipientGroups[$key]['monthly_penyaluran'][$monthNum] + (float) $row->jumlah,
+                2
+            );
             $recipientGroups[$key]['transaksi_count']++;
             if ($row->keterangan) {
                 $recipientGroups[$key]['keterangan_list'][] = [
@@ -416,11 +422,16 @@ class CppdController extends Controller
     }
 
     /**
-     * Export CPPD transactions history to Excel (.xlsx) for a given year.
+     * Export CPPD transactions history or monthly village matrix to Excel (.xlsx) for a given year.
      */
     public function exportExcel(Request $request, SimpleExcelService $excelService): SymfonyResponse
     {
         $year = (int) $request->query('year', now()->year);
+        $tab = (string) $request->query('tab', 'history');
+        $periodMode = (string) $request->query('period', 'default');
+        if (! in_array($periodMode, ['default', 'triwulan', 'semester'], true)) {
+            $periodMode = 'default';
+        }
 
         $initialStockRecord = CppdInitialStock::where('year', $year)->first();
         $stokAwal = (float) ($initialStockRecord?->amount ?? 0);
@@ -446,6 +457,45 @@ class CppdController extends Controller
             'total_addendum' => $totalAddendum,
             'stok_akhir' => $stokAkhir,
         ];
+
+        if ($tab === 'monthly') {
+            $penyaluranRows = Cppd::whereYear('tanggal', $year)
+                ->where('status', Cppd::STATUS_PENYALURAN)
+                ->orderBy('tanggal', 'desc')
+                ->get();
+
+            $groups = [];
+            foreach ($penyaluranRows as $row) {
+                $kec = strtoupper(trim($row->kecamatan));
+                $des = strtoupper(trim($row->desa));
+                $key = $kec.'___'.$des;
+
+                if (! isset($groups[$key])) {
+                    $groups[$key] = [
+                        'kecamatan' => $kec,
+                        'desa' => $des,
+                        'total_penyaluran' => 0.0,
+                        'monthly_penyaluran' => array_fill(1, 12, 0.0),
+                    ];
+                }
+
+                $m = (int) $row->tanggal->format('n');
+                $groups[$key]['total_penyaluran'] = round($groups[$key]['total_penyaluran'] + (float) $row->jumlah, 2);
+                $groups[$key]['monthly_penyaluran'][$m] = round($groups[$key]['monthly_penyaluran'][$m] + (float) $row->jumlah, 2);
+            }
+
+            $villages = array_values($groups);
+            usort($villages, fn ($a, $b) => $b['total_penyaluran'] <=> $a['total_penyaluran']);
+
+            $xlsx = $excelService->exportCppdMonthlyXlsx($villages, $year, $summary, $periodMode);
+            $periodSuffix = $periodMode !== 'default' ? '_'.ucfirst($periodMode) : '';
+            $filename = "Penyaluran_CPPD_Bulanan{$periodSuffix}_Indramayu_{$year}.xlsx";
+
+            return response($xlsx, 200, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            ]);
+        }
 
         $transactions = Cppd::whereYear('tanggal', $year)
             ->orderBy('tanggal', 'desc')

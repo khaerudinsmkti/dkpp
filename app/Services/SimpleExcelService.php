@@ -3501,6 +3501,196 @@ class SimpleExcelService
     }
 
     /**
+     * Export CPPD monthly distribution matrix per village to Excel (.xlsx), supporting Triwulan & Semester columns.
+     *
+     * @param  array<int, array{kecamatan: string, desa: string, total_penyaluran: float, monthly_penyaluran: array<int, float>}>  $villages
+     * @param  array{stok_awal: float, total_pengadaan: float, total_penyaluran: float, total_addendum: float, stok_akhir: float}  $summary
+     */
+    public function exportCppdMonthlyXlsx(array $villages, int $year, array $summary, string $periodMode = 'default'): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'dkpp_cppd_m_');
+        if ($tempFile === false) {
+            throw new \RuntimeException('Gagal membuat temporary file export CPPD bulanan.');
+        }
+
+        @unlink($tempFile);
+        $zipPath = $tempFile.'.xlsx';
+
+        $zip = new ZipArchive;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('Gagal menginisialisasi file XLSX.');
+        }
+
+        $contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            .'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            .'<Default Extension="xml" ContentType="application/xml"/>'
+            .'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            .'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            .'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            .'</Types>';
+        $zip->addFromString('[Content_Types].xml', $contentTypes);
+
+        $rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('_rels/.rels', $rootRels);
+
+        $wbRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            .'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            .'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            .'</Relationships>';
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $wbRels);
+
+        $workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            .'<sheets><sheet name="Penyaluran Bulanan '.$year.'" sheetId="1" r:id="rId1"/></sheets>'
+            .'</workbook>';
+        $zip->addFromString('xl/workbook.xml', $workbook);
+
+        $styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<fonts count="4">'
+            .'<font><sz val="10"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="13"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'<font><b/><sz val="10"/><color rgb="FF006565"/><name val="Calibri"/></font>'
+            .'</fonts>'
+            .'<fills count="4">'
+            .'<fill><patternFill patternType="none"/></fill>'
+            .'<fill><patternFill patternType="gray125"/></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FF006565"/></patternFill></fill>'
+            .'<fill><patternFill patternType="solid"><fgColor rgb="FFD1FAE5"/></patternFill></fill>'
+            .'</fills>'
+            .'<borders count="2">'
+            .'<border><left/><right/><top/><bottom/><diagonal/></border>'
+            .'<border>'
+            .'<left style="thin"><color rgb="FFCBD5E1"/></left>'
+            .'<right style="thin"><color rgb="FFCBD5E1"/></right>'
+            .'<top style="thin"><color rgb="FFCBD5E1"/></top>'
+            .'<bottom style="thin"><color rgb="FFCBD5E1"/></bottom>'
+            .'</border>'
+            .'</borders>'
+            .'<cellStyleXfs count="1">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>'
+            .'</cellStyleXfs>'
+            .'<cellXfs count="5">'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+            .'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'
+            .'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+            .'<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+            .'</cellXfs>'
+            .'</styleSheet>';
+        $zip->addFromString('xl/styles.xml', $styles);
+
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        $columns = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $columns[] = ['type' => 'month', 'label' => $monthNames[$m], 'months' => [$m]];
+            if ($periodMode === 'triwulan' && $m % 3 === 0) {
+                $q = intdiv($m, 3);
+                $columns[] = ['type' => 'subtotal', 'label' => "Total Triwulan {$q}", 'months' => [$m - 2, $m - 1, $m]];
+            } elseif ($periodMode === 'semester' && $m % 6 === 0) {
+                $s = intdiv($m, 6);
+                $columns[] = ['type' => 'subtotal', 'label' => "Total Semester {$s}", 'months' => range($m - 5, $m)];
+            }
+        }
+        $columns[] = ['type' => 'total', 'label' => 'Total', 'months' => range(1, 12)];
+
+        $totalCols = 2 + count($columns);
+        $sheetXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            .'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            .'<cols>'
+            .'<col min="1" max="1" width="26" customWidth="1"/>'
+            .'<col min="2" max="2" width="20" customWidth="1"/>'
+            .'<col min="3" max="'.$totalCols.'" width="16" customWidth="1"/>'
+            .'</cols>'
+            .'<sheetData>';
+
+        $modeLabel = $periodMode === 'triwulan'
+            ? ' (Filter Triwulan)'
+            : ($periodMode === 'semester' ? ' (Filter Semester)' : '');
+
+        $sheetXml .= '<row r="1" ht="24" customHeight="1">'
+            .'<c r="A1" s="3" t="inlineStr"><is><t>LAPORAN PENYALURAN CPPD BULANAN PER DESA TAHUN '.$year.$modeLabel.'</t></is></c>'
+            .'</row>'
+            .'<row r="2" ht="18" customHeight="1">'
+            .'<c r="A2" s="0" t="inlineStr"><is><t>Pemerintah Kabupaten Indramayu - Dinas Ketahanan Pangan dan Pertanian (Satuan: Kg)</t></is></c>'
+            .'</row>';
+
+        // Header row at row 4
+        $sheetXml .= '<row r="4" ht="24" customHeight="1">'
+            .'<c r="A4" s="1" t="inlineStr"><is><t>Nama Desa</t></is></c>'
+            .'<c r="B4" s="1" t="inlineStr"><is><t>Kecamatan</t></is></c>';
+
+        foreach ($columns as $cIdx => $col) {
+            $letter = $this->getColumnLetter(3 + $cIdx);
+            $lbl = htmlspecialchars($col['label'], ENT_XML1, 'UTF-8');
+            $sheetXml .= '<c r="'.$letter.'4" s="1" t="inlineStr"><is><t>'.$lbl.'</t></is></c>';
+        }
+        $sheetXml .= '</row>';
+
+        $rowIdx = 5;
+        $colTotals = array_fill(0, count($columns), 0.0);
+
+        foreach ($villages as $v) {
+            $desa = htmlspecialchars('Desa '.($v['desa'] ?? ''), ENT_XML1, 'UTF-8');
+            $kec = htmlspecialchars((string) ($v['kecamatan'] ?? ''), ENT_XML1, 'UTF-8');
+
+            $sheetXml .= '<row r="'.$rowIdx.'">'
+                .'<c r="A'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$desa.'</t></is></c>'
+                .'<c r="B'.$rowIdx.'" s="2" t="inlineStr"><is><t>'.$kec.'</t></is></c>';
+
+            foreach ($columns as $cIdx => $col) {
+                $letter = $this->getColumnLetter(3 + $cIdx);
+                $val = 0.0;
+                foreach ($col['months'] as $mNum) {
+                    $val += (float) ($v['monthly_penyaluran'][$mNum] ?? 0);
+                }
+                $val = round($val, 2);
+                $colTotals[$cIdx] = round($colTotals[$cIdx] + $val, 2);
+                $style = $col['type'] !== 'month' ? 4 : 2;
+                $sheetXml .= '<c r="'.$letter.$rowIdx.'" s="'.$style.'"><v>'.$val.'</v></c>';
+            }
+
+            $sheetXml .= '</row>';
+            $rowIdx++;
+        }
+
+        // Footer Total row
+        $sheetXml .= '<row r="'.$rowIdx.'" ht="22" customHeight="1">'
+            .'<c r="A'.$rowIdx.'" s="1" t="inlineStr"><is><t>TOTAL KESELURUHAN</t></is></c>'
+            .'<c r="B'.$rowIdx.'" s="1" t="inlineStr"><is><t>'.count($villages).' Desa</t></is></c>';
+
+        foreach ($colTotals as $cIdx => $totVal) {
+            $letter = $this->getColumnLetter(3 + $cIdx);
+            $sheetXml .= '<c r="'.$letter.$rowIdx.'" s="1"><v>'.$totVal.'</v></c>';
+        }
+        $sheetXml .= '</row>';
+
+        $sheetXml .= '</sheetData></worksheet>';
+        $zip->addFromString('xl/worksheets/sheet1.xml', $sheetXml);
+        $zip->close();
+
+        $content = file_get_contents($zipPath);
+        @unlink($zipPath);
+
+        if ($content === false) {
+            throw new \RuntimeException('Gagal membaca file export CPPD bulanan XLSX.');
+        }
+
+        return $content;
+    }
+
+    /**
      * Generate Excel .xlsx template for FSVA (317 Desa/Kelurahan se-Kabupaten Indramayu).
      *
      * @param  array<string, mixed>  $existingData
