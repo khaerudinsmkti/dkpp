@@ -2,28 +2,31 @@ import { Head, router } from '@inertiajs/react';
 import {
     Award,
     Briefcase,
-    Building2,
     Calendar,
     CalendarPlus,
     CheckCircle2,
+    ChevronDown,
+    ChevronRight,
     Coins,
-    Copy,
+    Download,
     Edit3,
     FileCheck2,
+    FileSpreadsheet,
     FileText,
+    FolderKanban,
+    Layers,
     MapPin,
+    Merge,
     Plus,
-    Printer,
     Save,
     Search,
-    Sparkles,
     Trash2,
     UserCheck,
     UserPlus,
     Users,
     Wallet,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -87,24 +90,35 @@ interface KecamatanOption {
     zona: string;
 }
 
-interface SppdParticipantItem {
+interface SubKegiatanItem {
     id: number;
+    no_rekening: string;
+    nama_kegiatan: string;
+    sub_kegiatan: string;
+    kode_sub_kegiatan: string;
+    is_active: boolean;
+}
+
+interface DpaItem {
+    id: number;
+    nomor_dpa: string;
+    tanggal_dpa: string | null;
+    tanggal_dpa_formatted: string;
+    tahun_anggaran: number;
+    keterangan: string | null;
+    is_active: boolean;
+}
+
+interface SppdBatchEmployeeSummary {
     pegawai_id: number | null;
-    urutan: number;
     nama: string;
     nip: string | null;
     pangkat: string | null;
     golongan: string | null;
     jabatan: string | null;
-    tanggal_berangkat: string;
-    tanggal_spt: string;
-    tujuan: string;
-    nama_kecamatan: string;
-    zona: string | null;
-    uang_saku: number;
 }
 
-interface SppdRecordItem {
+interface SppdBatchChildItem {
     id: number;
     nomor_spt: string;
     tanggal_spt: string;
@@ -114,46 +128,69 @@ interface SppdRecordItem {
     tujuan: string;
     nama_kecamatan: string;
     zona: string | null;
-    kepala_dinas_id: number | null;
-    kepala_dinas: {
-        id: number;
-        nama: string;
-        nip: string | null;
-        pangkat: string | null;
-        golongan: string | null;
-        jabatan: string | null;
-    } | null;
-    pptk_id: number | null;
-    pptk: {
-        id: number;
-        nama: string;
-        nip: string | null;
-        pangkat: string | null;
-        golongan: string | null;
-        jabatan: string | null;
-    } | null;
-    bendahara_id: number | null;
-    bendahara: {
-        id: number;
-        nama: string;
-        nip: string | null;
-        pangkat: string | null;
-        golongan: string | null;
-        jabatan: string | null;
-    } | null;
     total_uang_saku: number;
-    participants: SppdParticipantItem[];
+    participants: {
+        id: number;
+        pegawai_id: number | null;
+        urutan: number;
+        nama: string;
+        nip: string | null;
+        pangkat: string | null;
+        golongan: string | null;
+        jabatan: string | null;
+        uang_saku: number;
+    }[];
+}
+
+interface SppdBatchGroupItem {
+    batch_code: string;
+    spt_count: number;
+    sub_kegiatan_id: number | null;
+    sub_kegiatan: {
+        id: number;
+        no_rekening: string;
+        nama_kegiatan: string;
+        sub_kegiatan: string;
+        kode_sub_kegiatan: string;
+    } | null;
+    dpa_id: number | null;
+    dpa: {
+        id: number;
+        nomor_dpa: string;
+        tahun_anggaran: number;
+        keterangan: string | null;
+    } | null;
+    kepala_dinas_id: number | null;
+    pptk_id: number | null;
+    bendahara_id: number | null;
+    kecamatan_list: string[];
+    tujuan_list: string[];
+    primary_tujuan: string;
+    primary_kecamatan: string;
+    first_tanggal_berangkat_formatted?: string;
+    last_tanggal_berangkat_formatted?: string;
+    last_tanggal_berangkat: string;
+    last_tanggal_spt: string;
+    employees: SppdBatchEmployeeSummary[];
+    total_uang_saku: number;
+    terbilang_uang_saku?: string;
+    created_at_formatted: string;
+    items: SppdBatchChildItem[];
 }
 
 interface PageProps {
-    sppdRecords: SppdRecordItem[];
+    sppdBatches: SppdBatchGroupItem[];
+    lastBatchCode?: string | null;
     pegawais: PegawaiItem[];
     kepalaDinasList: PejabatItem[];
     pptkList: PejabatItem[];
     bendaharaList: PejabatItem[];
     zonasis: ZonasiItem[];
     kecamatanOptions: KecamatanOption[];
+    subKegiatans: SubKegiatanItem[];
+    dpas: DpaItem[];
     statistics: {
+        total_batches: number;
         total_sppd: number;
         total_personil_berangkat: number;
         total_anggaran_uang_saku: number;
@@ -212,9 +249,6 @@ const ZONASI_GOLONGAN_OPTIONS = [
     'Golongan I',
 ];
 
-/**
- * Otomatis ekstrak Tanggal Lahir (YYYY-MM-DD) dari 8 digit awal NIP.
- */
 function extractBirthDateFromNip(nip: string): string | null {
     const digits = nip.replace(/\D/g, '');
     if (digits.length < 8) return null;
@@ -266,18 +300,27 @@ function addDaysToDateStr(dateStr: string, days: number): string {
 }
 
 export default function SppdDalamKotaIndex({
-    sppdRecords,
+    sppdBatches = [],
+    lastBatchCode = null,
     pegawais,
     kepalaDinasList,
     pptkList,
     bendaharaList,
     zonasis,
     kecamatanOptions,
+    subKegiatans = [],
+    dpas = [],
     statistics,
 }: PageProps) {
-    // 6 Tab utama sesuai urutan alur permintaan user
     const [activeTab, setActiveTab] = useState<
-        'sppd' | 'pegawai' | 'kepala_dinas' | 'pptk' | 'bendahara' | 'zonasi'
+        | 'sppd'
+        | 'sub_kegiatan'
+        | 'dpa'
+        | 'pegawai'
+        | 'kepala_dinas'
+        | 'pptk'
+        | 'bendahara'
+        | 'zonasi'
     >('sppd');
 
     const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -291,9 +334,74 @@ export default function SppdDalamKotaIndex({
     const defaultBendaharaId = String(
         bendaharaList.find((b) => b.is_active)?.id || bendaharaList[0]?.id || ''
     );
+    const defaultSubKegiatanId = String(
+        subKegiatans.find((s) => s.is_active)?.id || subKegiatans[0]?.id || ''
+    );
+    const defaultDpaId = String(
+        dpas.find((d) => d.is_active)?.id || dpas[0]?.id || ''
+    );
 
     // =========================================================================
-    // 6. STATE FORM INPUT SPPD DALAM KOTA (MULTI-ORANG & MULTI-TANGGAL)
+    // STEP 1 FORM SPPD: PILIH SUB KEGIATAN, NOMOR DPA & TARGET BATCH
+    // =========================================================================
+    const [selectedSubKegiatanId, setSelectedSubKegiatanId] =
+        useState<string>(defaultSubKegiatanId);
+    const [selectedDpaId, setSelectedDpaId] = useState<string>(defaultDpaId);
+
+    // Default target batch: jika sudah ada batch untuk sub kegiatan tersebut, otomatis pilih batch itu supaya tergabung rapi!
+    const [targetBatchSelection, setTargetBatchSelection] = useState<string>(() => {
+        if (lastBatchCode) return lastBatchCode;
+        if (sppdBatches.length > 0) return sppdBatches[0].batch_code;
+        return 'NEW';
+    });
+
+    // State baris Batch yang sedang diklik/dibuka (expand) di tabel
+    const [expandedBatches, setExpandedBatches] = useState<
+        Record<string, boolean>
+    >(() => {
+        if (sppdBatches.length > 0) {
+            return { [sppdBatches[0].batch_code]: true };
+        }
+        return {};
+    });
+
+    // State checkbox untuk menggabungkan beberapa batch menjadi 1 batch
+    const [selectedBatchCodesToMerge, setSelectedBatchCodesToMerge] = useState<
+        string[]
+    >([]);
+
+    const toggleExpandBatch = (batchCode: string) => {
+        setExpandedBatches((prev) => ({
+            ...prev,
+            [batchCode]: !prev[batchCode],
+        }));
+    };
+
+    const activeSubKegiatanObj = useMemo(() => {
+        return (
+            subKegiatans.find(
+                (s) => String(s.id) === String(selectedSubKegiatanId)
+            ) || null
+        );
+    }, [subKegiatans, selectedSubKegiatanId]);
+
+    const activeDpaObj = useMemo(() => {
+        return dpas.find((d) => String(d.id) === String(selectedDpaId)) || null;
+    }, [dpas, selectedDpaId]);
+
+    // Ketika Sub Kegiatan diganti, jika ada Batch dengan Sub Kegiatan tersebut, tawarkan/arahkan ke Batch tersebut
+    const handleSubKegiatanChange = (newSubId: string) => {
+        setSelectedSubKegiatanId(newSubId);
+        const matchingBatch = sppdBatches.find(
+            (b) => String(b.sub_kegiatan_id) === String(newSubId)
+        );
+        if (matchingBatch) {
+            setTargetBatchSelection(matchingBatch.batch_code);
+        }
+    };
+
+    // =========================================================================
+    // STEP 2 FORM SPPD: DATA KEBERANGKATAN (MULTI-ORANG & MULTI-TANGGAL)
     // =========================================================================
     const createInitialBatch = (
         dateBerangkat = todayStr,
@@ -337,7 +445,16 @@ export default function SppdDalamKotaIndex({
 
     const [sppdSearch, setSppdSearch] = useState('');
 
-    // Helper lookup uang saku & zona berdasarkan kecamatan & pegawai_id
+    useEffect(() => {
+        if (
+            targetBatchSelection !== 'NEW' &&
+            sppdBatches.length > 0 &&
+            !sppdBatches.some((b) => b.batch_code === targetBatchSelection)
+        ) {
+            setTargetBatchSelection(sppdBatches[0].batch_code);
+        }
+    }, [sppdBatches, targetBatchSelection]);
+
     const getTarifInfo = (pegawaiIdStr: string, namaKecamatan: string) => {
         const peg = pegawais.find((p) => String(p.id) === String(pegawaiIdStr));
         const kecObj = kecamatanOptions.find(
@@ -364,10 +481,17 @@ export default function SppdDalamKotaIndex({
         };
     };
 
-    // Update field pada Orang Pertama (sekaligus sinkronkan ke orang ke-2 dst. pada batch yang sama)
     const handleUpdatePrimaryTripField = (
         batchIdx: number,
-        field: 'tanggal_berangkat' | 'tanggal_spt' | 'tujuan' | 'nama_kecamatan' | 'nomor_spt' | 'kepala_dinas_id' | 'pptk_id' | 'bendahara_id',
+        field:
+            | 'tanggal_berangkat'
+            | 'tanggal_spt'
+            | 'tujuan'
+            | 'nama_kecamatan'
+            | 'nomor_spt'
+            | 'kepala_dinas_id'
+            | 'pptk_id'
+            | 'bendahara_id',
         value: string
     ) => {
         setBatches((prev) =>
@@ -392,7 +516,6 @@ export default function SppdDalamKotaIndex({
         );
     };
 
-    // Update field pada salah satu baris orang/pegawai
     const handleUpdateParticipantField = (
         batchIdx: number,
         ptIdx: number,
@@ -408,8 +531,6 @@ export default function SppdDalamKotaIndex({
                     return { ...pt, [field]: value };
                 });
 
-                // Jika orang ke-1 mengubah tanggal_berangkat / tanggal_spt / tujuan / nama_kecamatan,
-                // sinkronkan ke header batch & orang ke-2 yang belum diubah terpisah
                 const updatedBatch = { ...batch, participants: nextParticipants };
                 if (
                     ptIdx === 0 &&
@@ -429,7 +550,6 @@ export default function SppdDalamKotaIndex({
         );
     };
 
-    // Tombol "+ Tambah Orang Kedua (dengan Isian yang Sama)"
     const handleAddSameTripPerson = (batchIdx: number) => {
         setBatches((prev) =>
             prev.map((batch, idx) => {
@@ -458,7 +578,7 @@ export default function SppdDalamKotaIndex({
             })
         );
         toast.success(
-            'Baris pegawai berikutnya ditambahkan dengan Tanggal, Tujuan & Kecamatan yang sama.'
+            'Baris pegawai berikutnya ditambahkan dengan Tanggal, SPT, Tujuan & Kecamatan yang sama.'
         );
     };
 
@@ -474,7 +594,6 @@ export default function SppdDalamKotaIndex({
         );
     };
 
-    // Tombol "+ Tambah SPPD Lagi di Tanggal yang Berbeda"
     const handleAddDifferentDateBatch = () => {
         const lastBatch = batches[batches.length - 1];
         const nextDate = addDaysToDateStr(
@@ -520,7 +639,7 @@ export default function SppdDalamKotaIndex({
 
         setBatches((prev) => [...prev, newBatch]);
         toast.info(
-            `Form SPPD baru untuk tanggal berbeda (${nextDate}) berhasil ditambahkan.`
+            `Form tanggal keberangkatan baru (${nextDate}) ditambahkan ke dalam Batch ini.`
         );
     };
 
@@ -529,24 +648,31 @@ export default function SppdDalamKotaIndex({
         setBatches((prev) => prev.filter((_, idx) => idx !== batchIdx));
     };
 
-    // Simpan semua batch SPPD
+    // Simpan semua tanggal SPPD ke dalam Batch yang dipilih
     const handleSubmitSppd = (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!selectedSubKegiatanId) {
+            toast.error(
+                'Silakan pilih Sub Kegiatan terlebih dahulu pada Langkah 1.'
+            );
+            return;
+        }
 
         for (let i = 0; i < batches.length; i++) {
             const b = batches[i];
             if (!b.tujuan.trim()) {
-                toast.error(`Mohon isi Tujuan perjalanan dinas pada SPPD #${i + 1}.`);
+                toast.error(`Mohon isi Tujuan perjalanan dinas pada Tanggal #${i + 1}.`);
                 return;
             }
             if (!b.nama_kecamatan) {
-                toast.error(`Mohon pilih Kecamatan tujuan pada SPPD #${i + 1}.`);
+                toast.error(`Mohon pilih Kecamatan tujuan pada Tanggal #${i + 1}.`);
                 return;
             }
             for (let j = 0; j < b.participants.length; j++) {
                 if (!b.participants[j].pegawai_id) {
                     toast.error(
-                        `Mohon pilih Nama Pegawai ke-${j + 1} pada SPPD #${i + 1}.`
+                        `Mohon pilih Nama Pegawai ke-${j + 1} pada Tanggal #${i + 1}.`
                     );
                     return;
                 }
@@ -566,7 +692,13 @@ export default function SppdDalamKotaIndex({
         router.post(
             '/sppd-dalam-kota/sppd',
             {
+                batch_code:
+                    targetBatchSelection === 'NEW' ? null : targetBatchSelection,
+                sub_kegiatan_id: Number(selectedSubKegiatanId),
+                dpa_id: selectedDpaId ? Number(selectedDpaId) : null,
                 batches: batches.map((b) => ({
+                    sub_kegiatan_id: Number(selectedSubKegiatanId),
+                    dpa_id: selectedDpaId ? Number(selectedDpaId) : null,
                     nomor_spt: b.nomor_spt || null,
                     tanggal_berangkat: b.tanggal_berangkat,
                     tanggal_spt: b.tanggal_spt,
@@ -588,9 +720,20 @@ export default function SppdDalamKotaIndex({
             },
             {
                 preserveScroll: true,
-                onSuccess: () => {
+                onSuccess: (page) => {
                     setIsSubmittingSppd(false);
                     setLastSavedReference(savedRef);
+                    const flashBatch =
+                        (page.props as unknown as PageProps)?.lastBatchCode ||
+                        (page.props as unknown as PageProps)?.sppdBatches?.[0]
+                            ?.batch_code;
+                    if (flashBatch) {
+                        setTargetBatchSelection(flashBatch);
+                        setExpandedBatches((prev) => ({
+                            ...prev,
+                            [flashBatch]: true,
+                        }));
+                    }
                     setAfterSavePromptOpen(true);
                 },
                 onError: (errors) => {
@@ -632,10 +775,16 @@ export default function SppdDalamKotaIndex({
             );
         }
 
+        const targetBatchCode =
+            lastBatchCode ||
+            (targetBatchSelection !== 'NEW'
+                ? targetBatchSelection
+                : sppdBatches[0]?.batch_code || 'NEW');
+        setTargetBatchSelection(targetBatchCode);
         setBatches([nextBatch]);
         setAfterSavePromptOpen(false);
         toast.info(
-            `Silakan sesuaikan Tanggal Berangkat baru (${nextDate}) untuk SPPD berikutnya.`
+            `Menambahkan tanggal baru (${nextDate}) ke dalam Batch ${targetBatchCode}.`
         );
     };
 
@@ -644,176 +793,294 @@ export default function SppdDalamKotaIndex({
         setAfterSavePromptOpen(false);
     };
 
-    const handleDeleteSppd = (sppd: SppdRecordItem) => {
+    const handleAppendDateToExistingBatch = (
+        grp: SppdBatchGroupItem,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        setTargetBatchSelection(grp.batch_code);
+        if (grp.sub_kegiatan_id) {
+            setSelectedSubKegiatanId(String(grp.sub_kegiatan_id));
+        }
+        if (grp.dpa_id) {
+            setSelectedDpaId(String(grp.dpa_id));
+        }
+
+        const nextDate = addDaysToDateStr(grp.last_tanggal_berangkat || todayStr, 1);
+        const newDraft = createInitialBatch(
+            nextDate,
+            grp.last_tanggal_spt || todayStr,
+            grp.primary_tujuan || '',
+            grp.primary_kecamatan || defaultKecamatan
+        );
+
+        if (grp.employees.length > 0) {
+            newDraft.participants = grp.employees.map((emp, idx) => ({
+                uid: `pt-${Date.now()}-${idx + 1}`,
+                pegawai_id: String(emp.pegawai_id || pegawais[0]?.id || ''),
+                tanggal_berangkat: nextDate,
+                tanggal_spt: grp.last_tanggal_spt || todayStr,
+                tujuan: grp.primary_tujuan || '',
+                nama_kecamatan: grp.primary_kecamatan || defaultKecamatan,
+            }));
+        }
+
+        setBatches([newDraft]);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        toast.info(
+            `Form siap menambahkan tanggal baru ke dalam Batch ${grp.batch_code}.`
+        );
+    };
+
+    const handleDownloadBatchPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/pdf`;
+    };
+
+    const handleDownloadBatchSptjbPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sptjb-pdf`;
+    };
+
+    const handleDownloadBatchC2Pdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/c2-pdf`;
+    };
+
+    const handleDeleteBatch = (
+        grp: SppdBatchGroupItem,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
         if (
             !window.confirm(
-                `Hapus data SPPD tujuan Kecamatan ${sppd.nama_kecamatan} (${sppd.tanggal_berangkat_formatted})?`
+                `Hapus seluruh Batch ${grp.batch_code} (${grp.spt_count} data SPPD)?`
             )
         ) {
             return;
         }
 
-        router.delete(`/sppd-dalam-kota/sppd/${sppd.id}`, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Data SPPD berhasil dihapus.'),
-        });
+        router.delete(
+            `/sppd-dalam-kota/batch/${encodeURIComponent(grp.batch_code)}`,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(`Batch ${grp.batch_code} berhasil dihapus.`);
+                },
+            }
+        );
     };
 
-    // Cetak Dokumen SPT & Kwitansi SPPD Dalam Kota
-    const handlePrintSppd = (sppd: SppdRecordItem) => {
-        const win = window.open('', '_blank');
-        if (!win) {
-            toast.error('Mohon izinkan pop-up browser untuk mencetak SPT / SPPD.');
+    const handleMergeSelectedBatches = () => {
+        if (selectedBatchCodesToMerge.length < 2) {
+            toast.error('Pilih minimal 2 Batch yang ingin digabungkan.');
             return;
         }
 
-        const kadin = sppd.kepala_dinas || kepalaDinasList[0];
-        const pptk = sppd.pptk || pptkList[0];
-        const bendahara = sppd.bendahara || bendaharaList[0];
+        router.post(
+            '/sppd-dalam-kota/batches/merge',
+            {
+                batch_codes: selectedBatchCodesToMerge,
+                target_batch_code: selectedBatchCodesToMerge[0],
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        'Batch yang dipilih berhasil digabungkan menjadi 1 Batch!'
+                    );
+                    setExpandedBatches((prev) => ({
+                        ...prev,
+                        [selectedBatchCodesToMerge[0]]: true,
+                    }));
+                    setSelectedBatchCodesToMerge([]);
+                },
+            }
+        );
+    };
 
-        const participantRowsHtml = sppd.participants
-            .map(
-                (pt, idx) => `
-            <tr>
-                <td style="text-align:center;">${idx + 1}</td>
-                <td>
-                    <strong>${pt.nama}</strong><br/>
-                    <span style="font-size:11px;color:#475569;">NIP. ${pt.nip || '-'}</span>
-                </td>
-                <td>${pt.pangkat || '-'} (${pt.golongan || '-'})</td>
-                <td>${pt.jabatan || '-'}</td>
-                <td style="text-align:center;">${pt.nama_kecamatan} (${pt.zona || '-'})</td>
-                <td style="text-align:right;font-weight:bold;">${formatRupiah(pt.uang_saku)}</td>
-                <td style="height:40px;">${idx + 1}. .................</td>
-            </tr>
-        `
-            )
-            .join('');
+    // =========================================================================
+    // STATE MASTER SUB KEGIATAN
+    // =========================================================================
+    const [subKegiatanSearch, setSubKegiatanSearch] = useState('');
+    const [subKegiatanModalOpen, setSubKegiatanModalOpen] = useState(false);
+    const [editingSubKegiatan, setEditingSubKegiatan] =
+        useState<SubKegiatanItem | null>(null);
+    const [skNoRekening, setSkNoRekening] = useState('5.1.02.04.01.0003');
+    const [skNamaKegiatan, setSkNamaKegiatan] = useState('');
+    const [skSubKegiatan, setSkSubKegiatan] = useState('');
+    const [skKodeSubKegiatan, setSkKodeSubKegiatan] = useState('');
+    const [skIsActive, setSkIsActive] = useState(true);
+    const [isSavingSubKegiatan, setIsSavingSubKegiatan] = useState(false);
 
-        win.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>SPT & Daftar Uang Saku SPPD Dalam Kota - ${sppd.nomor_spt}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; color: #0f172a; margin: 28px; font-size: 12px; line-height: 1.5; }
-                    .kop { text-align: center; border-bottom: 3px double #0f172a; padding-bottom: 10px; margin-bottom: 18px; }
-                    .kop h2 { margin: 0; font-size: 15px; text-transform: uppercase; }
-                    .kop h1 { margin: 2px 0; font-size: 18px; text-transform: uppercase; }
-                    .kop p { margin: 0; font-size: 11px; }
-                    .title { text-align: center; margin-bottom: 16px; }
-                    .title h3 { margin: 0; text-decoration: underline; font-size: 14px; }
-                    .title p { margin: 2px 0; font-size: 12px; }
-                    table.meta { width: 100%; margin-bottom: 14px; }
-                    table.meta td { padding: 3px 4px; vertical-align: top; }
-                    table.grid { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                    table.grid th, table.grid td { border: 1px solid #334155; padding: 6px 8px; font-size: 11.5px; }
-                    table.grid th { background: #f1f5f9; text-align: center; }
-                    .signs { width: 100%; margin-top: 28px; }
-                    .signs td { width: 33.3%; text-align: center; vertical-align: top; }
-                    @media print {
-                        button.no-print { display: none; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div style="text-align:right;margin-bottom:10px;">
-                    <button class="no-print" onclick="window.print()" style="padding:6px 14px;background:#006565;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">
-                        Cetak Dokumen
-                    </button>
-                </div>
-                <div class="kop">
-                    <h2>Pemerintah Kabupaten Indramayu</h2>
-                    <h1>Dinas Ketahanan Pangan dan Pertanian</h1>
-                    <p>Jl. Raya Pabean Udik No. 1 Indramayu - Jawa Barat</p>
-                </div>
+    const filteredSubKegiatans = useMemo(() => {
+        const q = subKegiatanSearch.trim().toLowerCase();
+        if (!q) return subKegiatans;
+        return subKegiatans.filter(
+            (s) =>
+                s.sub_kegiatan.toLowerCase().includes(q) ||
+                s.nama_kegiatan.toLowerCase().includes(q) ||
+                s.kode_sub_kegiatan.toLowerCase().includes(q) ||
+                s.no_rekening.toLowerCase().includes(q)
+        );
+    }, [subKegiatans, subKegiatanSearch]);
 
-                <div class="title">
-                    <h3>SURAT PERINTAH TUGAS &amp; DAFTAR PENERIMAAN UANG SAKU SPPD DALAM KOTA</h3>
-                    <p>Nomor SPT: <strong>${sppd.nomor_spt}</strong></p>
-                </div>
+    const handleOpenCreateSubKegiatan = () => {
+        setEditingSubKegiatan(null);
+        setSkNoRekening('5.1.02.04.01.0003');
+        setSkNamaKegiatan('');
+        setSkSubKegiatan('');
+        setSkKodeSubKegiatan('');
+        setSkIsActive(true);
+        setSubKegiatanModalOpen(true);
+    };
 
-                <table class="meta">
-                    <tr>
-                        <td style="width:160px;font-weight:bold;">Tanggal SPT</td>
-                        <td style="width:15px;">:</td>
-                        <td>${sppd.tanggal_spt_formatted}</td>
-                        <td style="width:160px;font-weight:bold;">Kecamatan Tujuan</td>
-                        <td style="width:15px;">:</td>
-                        <td><strong>Kecamatan ${sppd.nama_kecamatan}</strong> (${sppd.zona || '-'})</td>
-                    </tr>
-                    <tr>
-                        <td style="font-weight:bold;">Tanggal Berangkat</td>
-                        <td>:</td>
-                        <td><strong>${sppd.tanggal_berangkat_formatted}</strong></td>
-                        <td style="font-weight:bold;">Total Personil</td>
-                        <td>:</td>
-                        <td>${sppd.participants.length} Orang</td>
-                    </tr>
-                    <tr>
-                        <td style="font-weight:bold;">Maksud / Tujuan</td>
-                        <td>:</td>
-                        <td colspan="4">${sppd.tujuan}</td>
-                    </tr>
-                </table>
+    const handleOpenEditSubKegiatan = (sk: SubKegiatanItem) => {
+        setEditingSubKegiatan(sk);
+        setSkNoRekening(sk.no_rekening);
+        setSkNamaKegiatan(sk.nama_kegiatan);
+        setSkSubKegiatan(sk.sub_kegiatan);
+        setSkKodeSubKegiatan(sk.kode_sub_kegiatan);
+        setSkIsActive(sk.is_active);
+        setSubKegiatanModalOpen(true);
+    };
 
-                <table class="grid">
-                    <thead>
-                        <tr>
-                            <th style="width:32px;">No</th>
-                            <th>Nama Pegawai / NIP</th>
-                            <th>Pangkat / Golongan</th>
-                            <th>Jabatan</th>
-                            <th>Kecamatan (Zona)</th>
-                            <th>Uang Saku</th>
-                            <th style="width:120px;">Tanda Tangan</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${participantRowsHtml}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th colspan="5" style="text-align:right;">TOTAL UANG SAKU PERJALANAN DINAS</th>
-                            <th style="text-align:right;font-size:12.5px;">${formatRupiah(sppd.total_uang_saku)}</th>
-                            <th></th>
-                        </tr>
-                    </tfoot>
-                </table>
+    const handleSaveSubKegiatan = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSavingSubKegiatan(true);
 
-                <table class="signs">
-                    <tr>
-                        <td>
-                            Mengetahui / Menyetujui,<br/>
-                            <strong>${kadin?.jabatan || 'Kepala Dinas'}</strong>
-                            <br/><br/><br/><br/>
-                            <strong><u>${kadin?.nama || '-'}</u></strong><br/>
-                            ${kadin?.pangkat ? `${kadin.pangkat} (${kadin.golongan || '-'})<br/>` : ''}
-                            NIP. ${kadin?.nip || '-'}
-                        </td>
-                        <td>
-                            Pejabat Pelaksana Teknis Kegiatan,<br/>
-                            <strong>${pptk?.jabatan || 'PPTK'}</strong>
-                            <br/><br/><br/><br/>
-                            <strong><u>${pptk?.nama || '-'}</u></strong><br/>
-                            ${pptk?.pangkat ? `${pptk.pangkat} (${pptk.golongan || '-'})<br/>` : ''}
-                            NIP. ${pptk?.nip || '-'}
-                        </td>
-                        <td>
-                            Indramayu, ${sppd.tanggal_spt_formatted}<br/>
-                            Lunas Dibayar,<br/>
-                            <strong>${bendahara?.jabatan || 'Bendahara Pengeluaran'}</strong>
-                            <br/><br/><br/>
-                            <strong><u>${bendahara?.nama || '-'}</u></strong><br/>
-                            ${bendahara?.pangkat ? `${bendahara.pangkat} (${bendahara.golongan || '-'})<br/>` : ''}
-                            NIP. ${bendahara?.nip || '-'}
-                        </td>
-                    </tr>
-                </table>
-            </body>
-            </html>
-        `);
-        win.document.close();
+        const payload = {
+            no_rekening: skNoRekening.trim(),
+            nama_kegiatan: skNamaKegiatan.trim(),
+            sub_kegiatan: skSubKegiatan.trim(),
+            kode_sub_kegiatan: skKodeSubKegiatan.trim(),
+            is_active: skIsActive,
+        };
+
+        if (editingSubKegiatan) {
+            router.put(
+                `/sppd-dalam-kota/sub-kegiatan/${editingSubKegiatan.id}`,
+                payload,
+                {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        toast.success('Master Sub Kegiatan berhasil diperbarui.');
+                        setSubKegiatanModalOpen(false);
+                        setIsSavingSubKegiatan(false);
+                    },
+                    onError: (err) => {
+                        toast.error(
+                            Object.values(err)[0] ||
+                                'Gagal memperbarui sub kegiatan.'
+                        );
+                        setIsSavingSubKegiatan(false);
+                    },
+                }
+            );
+        } else {
+            router.post('/sppd-dalam-kota/sub-kegiatan', payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Master Sub Kegiatan baru berhasil ditambahkan.');
+                    setSubKegiatanModalOpen(false);
+                    setIsSavingSubKegiatan(false);
+                },
+                onError: (err) => {
+                    toast.error(
+                        Object.values(err)[0] || 'Gagal menambahkan sub kegiatan.'
+                    );
+                    setIsSavingSubKegiatan(false);
+                },
+            });
+        }
+    };
+
+    // =========================================================================
+    // STATE MASTER NOMOR DPA
+    // =========================================================================
+    const [dpaModalOpen, setDpaModalOpen] = useState(false);
+    const [editingDpa, setEditingDpa] = useState<DpaItem | null>(null);
+    const [dNomorDpa, setDNomorDpa] = useState('');
+    const [dTanggalDpa, setDTanggalDpa] = useState(todayStr);
+    const [dTahunAnggaran, setDTahunAnggaran] = useState(
+        String(new Date().getFullYear())
+    );
+    const [dKeterangan, setDKeterangan] = useState('');
+    const [dIsActive, setDIsActive] = useState(true);
+    const [isSavingDpa, setIsSavingDpa] = useState(false);
+
+    const handleOpenCreateDpa = () => {
+        setEditingDpa(null);
+        setDNomorDpa('DPA/A.1/2.09.3.27.0.00.10.0000/001/2026');
+        setDTanggalDpa(todayStr);
+        setDTahunAnggaran(String(new Date().getFullYear()));
+        setDKeterangan('');
+        setDIsActive(true);
+        setDpaModalOpen(true);
+    };
+
+    const handleOpenEditDpa = (dpa: DpaItem) => {
+        setEditingDpa(dpa);
+        setDNomorDpa(dpa.nomor_dpa);
+        setDTanggalDpa(dpa.tanggal_dpa || '');
+        setDTahunAnggaran(String(dpa.tahun_anggaran));
+        setDKeterangan(dpa.keterangan || '');
+        setDIsActive(dpa.is_active);
+        setDpaModalOpen(true);
+    };
+
+    const handleSaveDpa = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSavingDpa(true);
+
+        const payload = {
+            nomor_dpa: dNomorDpa.trim(),
+            tanggal_dpa: dTanggalDpa || null,
+            tahun_anggaran: Number(dTahunAnggaran) || new Date().getFullYear(),
+            keterangan: dKeterangan.trim() || null,
+            is_active: dIsActive,
+        };
+
+        if (editingDpa) {
+            router.put(`/sppd-dalam-kota/dpa/${editingDpa.id}`, payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Master Nomor DPA berhasil diperbarui.');
+                    setDpaModalOpen(false);
+                    setIsSavingDpa(false);
+                },
+                onError: (err) => {
+                    toast.error(
+                        Object.values(err)[0] || 'Gagal memperbarui Nomor DPA.'
+                    );
+                    setIsSavingDpa(false);
+                },
+            });
+        } else {
+            router.post('/sppd-dalam-kota/dpa', payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Master Nomor DPA baru berhasil ditambahkan.');
+                    setDpaModalOpen(false);
+                    setIsSavingDpa(false);
+                },
+                onError: (err) => {
+                    toast.error(
+                        Object.values(err)[0] || 'Gagal menambahkan Nomor DPA.'
+                    );
+                    setIsSavingDpa(false);
+                },
+            });
+        }
     };
 
     // =========================================================================
@@ -1116,19 +1383,21 @@ export default function SppdDalamKotaIndex({
         );
     }, [pegawais, pegawaiSearch]);
 
-    const filteredSppdRecords = useMemo(() => {
+    const filteredSppdBatches = useMemo(() => {
         const q = sppdSearch.trim().toLowerCase();
-        if (!q) return sppdRecords;
-        return sppdRecords.filter(
-            (s) =>
-                s.tujuan.toLowerCase().includes(q) ||
-                s.nama_kecamatan.toLowerCase().includes(q) ||
-                s.nomor_spt.toLowerCase().includes(q) ||
-                s.participants.some((pt) => pt.nama.toLowerCase().includes(q))
+        if (!q) return sppdBatches;
+        return sppdBatches.filter(
+            (b) =>
+                b.batch_code.toLowerCase().includes(q) ||
+                b.tujuan_list.some((t) => t.toLowerCase().includes(q)) ||
+                b.kecamatan_list.some((k) => k.toLowerCase().includes(q)) ||
+                (b.sub_kegiatan &&
+                    b.sub_kegiatan.sub_kegiatan.toLowerCase().includes(q)) ||
+                (b.dpa && b.dpa.nomor_dpa.toLowerCase().includes(q)) ||
+                b.employees.some((emp) => emp.nama.toLowerCase().includes(q))
         );
-    }, [sppdRecords, sppdSearch]);
+    }, [sppdBatches, sppdSearch]);
 
-    // Render Reusable Pejabat Master Card (Kepala Dinas / PPTK / Bendahara)
     const renderPejabatSection = (
         tipe: 'kepala_dinas' | 'pptk' | 'bendahara',
         title: string,
@@ -1149,7 +1418,7 @@ export default function SppdDalamKotaIndex({
                         className="gap-1.5 bg-[#006565] text-xs text-white hover:bg-[#005252]"
                     >
                         <Plus className="size-4" />
-                        Tambah {title.replace('Master Data ', '')}
+                        Tambah Data
                     </Button>
                 </div>
             </CardHeader>
@@ -1280,7 +1549,7 @@ export default function SppdDalamKotaIndex({
                                 Modul SPPD Dalam Kota &amp; Master Perjalanan Dinas
                             </h1>
                             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                                Pengelolaan SPT/SPPD Dalam Daerah, Master Pegawai (Tanggal Lahir otomatis dari NIP), Kepala Dinas, PPTK, Bendahara, dan Zonasi Uang Saku.
+                                Data SPPD dikelompokkan per Batch. Klik baris Batch pada tabel untuk melihat daftar rincian SPPD, serta unduh PDF <strong>SPT</strong> &amp; <strong>SPTJB</strong>.
                             </p>
                         </div>
                     </div>
@@ -1288,11 +1557,19 @@ export default function SppdDalamKotaIndex({
                     <div className="flex flex-wrap items-center gap-2">
                         <Button
                             variant="outline"
-                            onClick={handleOpenCreatePegawai}
+                            onClick={handleOpenCreateSubKegiatan}
                             className="gap-1.5 border-teal-300 text-teal-800 hover:bg-teal-50"
                         >
-                            <UserPlus className="size-4" />
-                            Tambah Pegawai
+                            <FolderKanban className="size-4" />
+                            Tambah Sub Kegiatan
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleOpenCreateDpa}
+                            className="gap-1.5 border-teal-300 text-teal-800 hover:bg-teal-50"
+                        >
+                            <FileSpreadsheet className="size-4" />
+                            Tambah Nomor DPA
                         </Button>
                         <Button
                             onClick={() => {
@@ -1302,7 +1579,7 @@ export default function SppdDalamKotaIndex({
                             className="gap-1.5 bg-[#006565] text-white hover:bg-[#005252]"
                         >
                             <CalendarPlus className="size-4" />
-                            Tambah SPPD Tanggal Berbeda
+                            Tambah Tanggal SPT di Form
                         </Button>
                     </div>
                 </div>
@@ -1314,13 +1591,13 @@ export default function SppdDalamKotaIndex({
                     <Card className="border-sidebar-border/70">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-xs font-medium text-neutral-500">
-                                Total Dokumen SPPD
+                                Total Batch &amp; Data SPPD
                             </CardTitle>
                             <FileCheck2 className="size-4 text-[#006565]" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">
-                                {statistics.total_sppd} SPT/SPPD
+                                {statistics.total_batches} Batch ({statistics.total_sppd} SPPD)
                             </div>
                             <p className="mt-1 text-xs text-neutral-500">
                                 {statistics.total_personil_berangkat} total keberangkatan personil
@@ -1331,16 +1608,16 @@ export default function SppdDalamKotaIndex({
                     <Card className="border-teal-200 bg-teal-50/40 dark:border-teal-950/60 dark:bg-teal-950/10">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-xs font-medium text-teal-700">
-                                Master Data Pegawai
+                                Sub Kegiatan &amp; DPA
                             </CardTitle>
-                            <Users className="size-4 text-teal-700" />
+                            <FolderKanban className="size-4 text-teal-700" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-teal-800 dark:text-teal-300">
-                                {statistics.total_pegawai} Pegawai
+                                {subKegiatans.length} Sub Kegiatan
                             </div>
                             <p className="mt-1 text-xs text-teal-700/80">
-                                Tanggal lahir otomatis terdeteksi dari NIP
+                                {dpas.length} Nomor DPA terdaftar
                             </p>
                         </CardContent>
                     </Card>
@@ -1348,16 +1625,16 @@ export default function SppdDalamKotaIndex({
                     <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-950/60 dark:bg-blue-950/10">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-xs font-medium text-blue-600">
-                                Cakupan Master Zonasi
+                                Pegawai &amp; Zonasi
                             </CardTitle>
-                            <MapPin className="size-4 text-blue-600" />
+                            <Users className="size-4 text-blue-600" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                                {statistics.total_kecamatan_zonasi} Kecamatan
+                                {statistics.total_pegawai} Pegawai
                             </div>
                             <p className="mt-1 text-xs text-blue-600/80">
-                                {zonasis.length} tarif uang saku per Zona &amp; Golongan
+                                {statistics.total_kecamatan_zonasi} Kecamatan Zonasi
                             </p>
                         </CardContent>
                     </Card>
@@ -1365,7 +1642,7 @@ export default function SppdDalamKotaIndex({
                     <Card className="border-amber-200 bg-amber-50/40 dark:border-amber-950/60 dark:bg-amber-950/10">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-xs font-medium text-amber-700">
-                                Total Uang Saku Tercatat
+                                Total Uang Saku (SPTJB)
                             </CardTitle>
                             <Wallet className="size-4 text-amber-700" />
                         </CardHeader>
@@ -1374,14 +1651,14 @@ export default function SppdDalamKotaIndex({
                                 {formatRupiah(statistics.total_anggaran_uang_saku)}
                             </div>
                             <p className="mt-1 text-xs text-amber-700/80">
-                                Otomatis dihitung sesuai Zonasi &amp; Golongan
+                                Siap diunduh ke dalam PDF SPT &amp; SPTJB
                             </p>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* ========================================================= */}
-                {/* 6 TAB NAVIGATION BAR                                      */}
+                {/* TAB NAVIGATION BAR (FORM SPPD + 7 MASTER DATA)            */}
                 {/* ========================================================= */}
                 <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-neutral-100 p-1.5 dark:bg-neutral-900">
                     <button
@@ -1394,7 +1671,33 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <FileText className="size-4" />
-                        <span>Form Input &amp; Data SPPD Dalam Kota</span>
+                        <span>Form Input &amp; Batch SPPD</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('sub_kegiatan')}
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
+                            activeTab === 'sub_kegiatan'
+                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
+                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
+                        }`}
+                    >
+                        <FolderKanban className="size-3.5" />
+                        <span>Master Sub Kegiatan ({subKegiatans.length})</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab('dpa')}
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
+                            activeTab === 'dpa'
+                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
+                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
+                        }`}
+                    >
+                        <FileSpreadsheet className="size-3.5" />
+                        <span>Master Nomor DPA ({dpas.length})</span>
                     </button>
 
                     <button
@@ -1407,7 +1710,7 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <Users className="size-3.5" />
-                        <span>1. Master Pegawai ({pegawais.length})</span>
+                        <span>Master Pegawai ({pegawais.length})</span>
                     </button>
 
                     <button
@@ -1420,7 +1723,7 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <Award className="size-3.5" />
-                        <span>2. Master Kepala Dinas ({kepalaDinasList.length})</span>
+                        <span>Master Kepala Dinas ({kepalaDinasList.length})</span>
                     </button>
 
                     <button
@@ -1433,7 +1736,7 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <UserCheck className="size-3.5" />
-                        <span>3. Master PPTK ({pptkList.length})</span>
+                        <span>Master PPTK ({pptkList.length})</span>
                     </button>
 
                     <button
@@ -1446,7 +1749,7 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <Coins className="size-3.5" />
-                        <span>4. Master Bendahara ({bendaharaList.length})</span>
+                        <span>Master Bendahara ({bendaharaList.length})</span>
                     </button>
 
                     <button
@@ -1459,16 +1762,191 @@ export default function SppdDalamKotaIndex({
                         }`}
                     >
                         <MapPin className="size-3.5" />
-                        <span>5. Master Zonasi ({zonasis.length})</span>
+                        <span>Master Zonasi ({zonasis.length})</span>
                     </button>
                 </div>
 
                 {/* ========================================================= */}
-                {/* TAB UTAMA: FORM INPUT SPPD & DAFTAR SPPD DALAM KOTA       */}
+                {/* TAB UTAMA: FORM INPUT SPPD & DAFTAR BATCH SPPD            */}
                 {/* ========================================================= */}
                 {activeTab === 'sppd' && (
                     <div className="space-y-6">
                         <form onSubmit={handleSubmitSppd} className="space-y-4">
+                            {/* ================================================= */}
+                            {/* LANGKAH 1: PILIH SUB KEGIATAN, DPA & TARGET BATCH */}
+                            {/* ================================================= */}
+                            <Card className="border-2 border-[#006565]/80 bg-gradient-to-r from-teal-50/90 via-white to-emerald-50/60 shadow-sm dark:border-teal-700 dark:from-teal-950/40 dark:via-neutral-900">
+                                <CardHeader className="pb-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2.5">
+                                            <span className="inline-flex items-center justify-center rounded-lg bg-[#006565] px-2.5 py-1 text-xs font-extrabold text-white">
+                                                Langkah 1
+                                            </span>
+                                            <div>
+                                                <CardTitle className="text-base font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                    Pilih Sub Kegiatan, Nomor DPA &amp; Kelompok Batch
+                                                </CardTitle>
+                                                <p className="text-xs text-neutral-500">
+                                                    SPPD yang diinput pada Batch yang sama akan tergabung dalam 1 baris Batch (cetak SPT &amp; SPTJB sekaligus).
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleOpenCreateSubKegiatan}
+                                                className="h-8 text-xs border-teal-300 text-[#006565]"
+                                            >
+                                                <Plus className="mr-1 size-3.5" />
+                                                Sub Kegiatan Baru
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleOpenCreateDpa}
+                                                className="h-8 text-xs border-teal-300 text-[#006565]"
+                                            >
+                                                <Plus className="mr-1 size-3.5" />
+                                                Nomor DPA Baru
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="space-y-3 pt-0">
+                                    <div className="grid gap-3 md:grid-cols-12">
+                                        <div className="space-y-1.5 md:col-span-5">
+                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                1. Pilih Sub Kegiatan *
+                                            </Label>
+                                            <Select
+                                                value={selectedSubKegiatanId}
+                                                onValueChange={handleSubKegiatanChange}
+                                            >
+                                                <SelectTrigger className="h-10 bg-white font-semibold text-xs border-teal-300">
+                                                    <SelectValue placeholder="-- Pilih Sub Kegiatan --" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {subKegiatans.map((sk) => (
+                                                        <SelectItem
+                                                            key={sk.id}
+                                                            value={String(sk.id)}
+                                                        >
+                                                            [{sk.kode_sub_kegiatan}]{' '}
+                                                            {sk.sub_kegiatan}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5 md:col-span-4">
+                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                2. Pilih Nomor DPA *
+                                            </Label>
+                                            <Select
+                                                value={selectedDpaId}
+                                                onValueChange={setSelectedDpaId}
+                                            >
+                                                <SelectTrigger className="h-10 bg-white font-semibold text-xs border-teal-300">
+                                                    <SelectValue placeholder="-- Pilih Nomor DPA --" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {dpas.map((d) => (
+                                                        <SelectItem
+                                                            key={d.id}
+                                                            value={String(d.id)}
+                                                        >
+                                                            {d.nomor_dpa} (TA{' '}
+                                                            {d.tahun_anggaran})
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5 md:col-span-3">
+                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                3. Masukkan ke Batch *
+                                            </Label>
+                                            <Select
+                                                value={targetBatchSelection}
+                                                onValueChange={setTargetBatchSelection}
+                                            >
+                                                <SelectTrigger className="h-10 bg-white font-bold text-xs border-teal-300">
+                                                    <SelectValue placeholder="Pilih Batch" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {sppdBatches.map((b) => (
+                                                        <SelectItem
+                                                            key={b.batch_code}
+                                                            value={b.batch_code}
+                                                        >
+                                                            Gabung ke: {b.batch_code} (
+                                                            {b.spt_count} SPPD)
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="NEW">
+                                                        + Buat Batch Baru Terpisah
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    {activeSubKegiatanObj && (
+                                        <div className="grid gap-2.5 rounded-xl border border-teal-200/90 bg-white/90 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:border-teal-900 dark:bg-neutral-900">
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                    Kode Sub Kegiatan
+                                                </span>
+                                                <div className="font-mono font-extrabold text-[#006565] dark:text-teal-300">
+                                                    {
+                                                        activeSubKegiatanObj.kode_sub_kegiatan
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                    Nomor Rekening
+                                                </span>
+                                                <div className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                    {activeSubKegiatanObj.no_rekening}
+                                                </div>
+                                            </div>
+                                            <div className="sm:col-span-2">
+                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                    Nama Kegiatan &amp; Sub Kegiatan
+                                                </span>
+                                                <div className="font-bold text-neutral-800 dark:text-neutral-200">
+                                                    {activeSubKegiatanObj.sub_kegiatan}
+                                                </div>
+                                                <div className="text-[11px] text-neutral-500">
+                                                    Kegiatan:{' '}
+                                                    {activeSubKegiatanObj.nama_kegiatan}
+                                                    {activeDpaObj && (
+                                                        <>
+                                                            {' '}
+                                                            &bull; DPA:{' '}
+                                                            <strong className="font-mono">
+                                                                {activeDpaObj.nomor_dpa}
+                                                            </strong>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* ================================================= */}
+                            {/* LANGKAH 2: INPUT DETAIL PERJALANAN & PEGAWAI      */}
+                            {/* ================================================= */}
                             {batches.map((batch, batchIdx) => {
                                 const batchTotalUangSaku = batch.participants.reduce(
                                     (acc, pt) =>
@@ -1485,30 +1963,31 @@ export default function SppdDalamKotaIndex({
                                         key={batch.uid}
                                         className="border-2 border-teal-200/90 shadow-xs dark:border-teal-900/70"
                                     >
-                                        <CardHeader className="border-b border-teal-100 bg-gradient-to-r from-teal-50/80 via-white to-emerald-50/40 pb-3.5 dark:border-teal-900/50 dark:from-teal-950/30 dark:via-neutral-900">
+                                        <CardHeader className="border-b border-teal-100 bg-gradient-to-r from-teal-50/60 via-white to-emerald-50/30 pb-3.5 dark:border-teal-900/50 dark:from-teal-950/30 dark:via-neutral-900">
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2.5">
                                                     <span className="inline-flex items-center justify-center rounded-lg bg-[#006565] px-2.5 py-1 text-xs font-extrabold text-white">
-                                                        Form SPPD #{batchIdx + 1}
+                                                        Langkah 2 &bull; SPT Tanggal #
+                                                        {batchIdx + 1}
                                                     </span>
                                                     <div>
                                                         <CardTitle className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                            Input Perjalanan Dinas Dalam Kota (
+                                                            Input Pegawai &amp; Tujuan SPPD Dalam Kota (
                                                             {batch.participants.length} Orang)
                                                         </CardTitle>
                                                         <p className="text-[11px] text-neutral-500">
-                                                            Isi data keberangkatan. Klik{' '}
+                                                            Klik{' '}
                                                             <strong>
                                                                 &ldquo;+ Tambah Orang Kedua&rdquo;
                                                             </strong>{' '}
-                                                            untuk menambah personil dengan tanggal, SPT, tujuan &amp; kecamatan yang sama.
+                                                            untuk menambah personil dengan tanggal berangkat, tanggal SPT, tujuan &amp; kecamatan yang sama.
                                                         </p>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-2">
                                                     <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 text-xs font-extrabold">
-                                                        Estimasi Total Uang Saku:{' '}
+                                                        Uang Saku Tanggal Ini:{' '}
                                                         {formatRupiah(batchTotalUangSaku)}
                                                     </Badge>
                                                     {batches.length > 1 && (
@@ -1522,7 +2001,7 @@ export default function SppdDalamKotaIndex({
                                                             className="h-8 gap-1 text-xs text-rose-600 hover:bg-rose-50"
                                                         >
                                                             <Trash2 className="size-3.5" />
-                                                            Hapus SPPD #{batchIdx + 1}
+                                                            Hapus Tanggal #{batchIdx + 1}
                                                         </Button>
                                                     )}
                                                 </div>
@@ -1530,7 +2009,6 @@ export default function SppdDalamKotaIndex({
                                         </CardHeader>
 
                                         <CardContent className="space-y-4 pt-4">
-                                            {/* Daftar Orang (Orang ke-1, Orang ke-2 dengan isian yang sama, dst.) */}
                                             <div className="space-y-3">
                                                 {batch.participants.map((pt, ptIdx) => {
                                                     const tarifInfo = getTarifInfo(
@@ -1616,9 +2094,7 @@ export default function SppdDalamKotaIndex({
                                                                 </div>
                                                             </div>
 
-                                                            {/* 5 Kolom Input Sesuai Permintaan: Nama Pegawai, Tanggal Berangkat, Tanggal SPT, Tujuan, Kecamatan */}
                                                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
-                                                                {/* 1. Nama Pegawai */}
                                                                 <div className="space-y-1 lg:col-span-3">
                                                                     <Label className="text-xs font-bold">
                                                                         1. Nama Pegawai *
@@ -1653,7 +2129,6 @@ export default function SppdDalamKotaIndex({
                                                                     </Select>
                                                                 </div>
 
-                                                                {/* 2. Tanggal Berangkat */}
                                                                 <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
                                                                         2. Tanggal Berangkat *
@@ -1676,7 +2151,6 @@ export default function SppdDalamKotaIndex({
                                                                     />
                                                                 </div>
 
-                                                                {/* 3. Tanggal SPT */}
                                                                 <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
                                                                         3. Tanggal SPT *
@@ -1697,10 +2171,9 @@ export default function SppdDalamKotaIndex({
                                                                     />
                                                                 </div>
 
-                                                                {/* 4. Tujuan */}
                                                                 <div className="space-y-1 lg:col-span-3">
                                                                     <Label className="text-xs font-bold">
-                                                                        4. Tujuan Perjalanan Dinas *
+                                                                        4. Tujuan (Tempat) *
                                                                     </Label>
                                                                     <Input
                                                                         value={pt.tujuan}
@@ -1712,13 +2185,12 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        placeholder="Contoh: Monitoring Harga & Stok Pangan"
+                                                                        placeholder="Contoh: Pasar Daerah Bondan"
                                                                         className="h-9 text-xs"
                                                                         required
                                                                     />
                                                                 </div>
 
-                                                                {/* 5. Kecamatan */}
                                                                 <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
                                                                         5. Kecamatan *
@@ -1764,7 +2236,6 @@ export default function SppdDalamKotaIndex({
                                                 })}
                                             </div>
 
-                                            {/* Baris Tombol "+ Tambah Orang yang Kedua dengan Isian yang Sama" & Pilihan Pejabat */}
                                             <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:bg-neutral-900">
                                                 <Button
                                                     type="button"
@@ -1789,8 +2260,8 @@ export default function SppdDalamKotaIndex({
                                                                 e.target.value
                                                             )
                                                         }
-                                                        placeholder="No. SPT (Kosongkan = Otomatis)"
-                                                        className="h-8 w-52 text-xs bg-white"
+                                                        placeholder="No. SPT (Default: 800.1.11.1/   /KDP)"
+                                                        className="h-8 w-56 text-xs bg-white"
                                                     />
 
                                                     <Select
@@ -1817,56 +2288,6 @@ export default function SppdDalamKotaIndex({
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
-
-                                                    <Select
-                                                        value={batch.pptk_id}
-                                                        onValueChange={(v) =>
-                                                            handleUpdatePrimaryTripField(
-                                                                batchIdx,
-                                                                'pptk_id',
-                                                                v
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="h-8 w-44 text-xs bg-white">
-                                                            <SelectValue placeholder="PPTK" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {pptkList.map((p) => (
-                                                                <SelectItem
-                                                                    key={p.id}
-                                                                    value={String(p.id)}
-                                                                >
-                                                                    PPTK: {p.nama}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-
-                                                    <Select
-                                                        value={batch.bendahara_id}
-                                                        onValueChange={(v) =>
-                                                            handleUpdatePrimaryTripField(
-                                                                batchIdx,
-                                                                'bendahara_id',
-                                                                v
-                                                            )
-                                                        }
-                                                    >
-                                                        <SelectTrigger className="h-8 w-44 text-xs bg-white">
-                                                            <SelectValue placeholder="Bendahara" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {bendaharaList.map((b) => (
-                                                                <SelectItem
-                                                                    key={b.id}
-                                                                    value={String(b.id)}
-                                                                >
-                                                                    Bendahara: {b.nama}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -1874,7 +2295,7 @@ export default function SppdDalamKotaIndex({
                                 );
                             })}
 
-                            {/* Action Footer: Tambah SPPD Lagi di Tanggal Berbeda & Simpan */}
+                            {/* Action Footer: Tambah SPPD Lagi di Tanggal Berbeda & Simpan ke Batch */}
                             <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-teal-900 dark:bg-teal-950/20">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Button
@@ -1887,7 +2308,13 @@ export default function SppdDalamKotaIndex({
                                         + Tambah SPPD Lagi di Tanggal yang Berbeda
                                     </Button>
                                     <span className="text-xs text-neutral-500">
-                                        Anda dapat menginput beberapa tanggal keberangkatan sekaligus atau menambahkannya setelah menyimpan.
+                                        Akan disimpan ke dalam{' '}
+                                        <strong>
+                                            {targetBatchSelection === 'NEW'
+                                                ? 'Batch Baru'
+                                                : `Batch ${targetBatchSelection}`}
+                                        </strong>
+                                        .
                                     </span>
                                 </div>
 
@@ -1899,31 +2326,53 @@ export default function SppdDalamKotaIndex({
                                     <Save className="size-4" />
                                     {isSubmittingSppd
                                         ? 'Menyimpan SPPD...'
-                                        : `Simpan ${batches.length} Dokumen SPPD`}
+                                        : `Simpan ke Batch (${batches.length} SPPD)`}
                                 </Button>
                             </div>
                         </form>
 
-                        {/* Tabel Daftar Riwayat SPPD Dalam Kota */}
+                        {/* ================================================= */}
+                        {/* TABEL DAFTAR SPPD DALAM KOTA TERSIMPAN (PER BATCH)*/}
+                        {/* KLIK BARIS BATCH UNTUK MELIHAT RINCIAN SPPD-NYA    */}
+                        {/* ================================================= */}
                         <Card className="border-sidebar-border/70 shadow-xs">
                             <CardHeader className="border-b border-neutral-100 pb-4 dark:border-neutral-800">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                     <div>
                                         <CardTitle className="text-base font-extrabold">
-                                            Daftar SPPD Dalam Kota Tersimpan ({filteredSppdRecords.length})
+                                            Daftar SPPD Dalam Kota Tersimpan ({filteredSppdBatches.length} Batch &bull; {statistics.total_sppd} Data SPPD)
                                         </CardTitle>
                                         <p className="text-xs text-neutral-500">
-                                            Klik tombol Cetak untuk mencetak Surat Perintah Tugas (SPT) &amp; Daftar Penerimaan Uang Saku.
+                                            <strong>Klik pada baris Batch</strong> di bawah ini untuk membuka / menyembunyikan rincian daftar SPPD di dalamnya, atau klik tombol <strong>Cetak SPT (PDF)</strong> &amp; <strong>Download SPTJB (PDF)</strong>.
                                         </p>
                                     </div>
-                                    <div className="relative w-full sm:w-72">
-                                        <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
-                                        <Input
-                                            placeholder="Cari pegawai, kecamatan, tujuan..."
-                                            value={sppdSearch}
-                                            onChange={(e) => setSppdSearch(e.target.value)}
-                                            className="h-9 pl-9 text-xs"
-                                        />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {selectedBatchCodesToMerge.length >= 2 && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={
+                                                    handleMergeSelectedBatches
+                                                }
+                                                className="h-9 gap-1.5 bg-amber-600 text-xs font-extrabold text-white hover:bg-amber-700"
+                                            >
+                                                <Merge className="size-4" />
+                                                Gabungkan{' '}
+                                                {selectedBatchCodesToMerge.length}{' '}
+                                                Batch Menjadi 1 Batch
+                                            </Button>
+                                        )}
+                                        <div className="relative w-full sm:w-72">
+                                            <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
+                                            <Input
+                                                placeholder="Cari kode batch, pegawai, sub kegiatan..."
+                                                value={sppdSearch}
+                                                onChange={(e) =>
+                                                    setSppdSearch(e.target.value)
+                                                }
+                                                className="h-9 pl-9 text-xs"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </CardHeader>
@@ -1933,108 +2382,580 @@ export default function SppdDalamKotaIndex({
                                     <table className="w-full border-collapse text-left text-xs">
                                         <thead>
                                             <tr className="border-b border-neutral-200 bg-neutral-50/80 text-[11px] font-bold tracking-wider text-neutral-500 uppercase dark:border-neutral-800 dark:bg-neutral-900/50">
-                                                <th className="px-4 py-3 text-center w-12">No</th>
-                                                <th className="px-4 py-3">Tanggal &amp; No. SPT</th>
-                                                <th className="px-4 py-3">Kecamatan &amp; Tujuan</th>
-                                                <th className="px-4 py-3">Daftar Pegawai Berangkat</th>
-                                                <th className="px-4 py-3 text-right">Total Uang Saku</th>
-                                                <th className="px-4 py-3 text-right">Aksi</th>
+                                                <th className="px-3 py-3 text-center w-10">
+                                                    #
+                                                </th>
+                                                <th className="px-4 py-3">
+                                                    Batch &amp; Jumlah SPPD
+                                                </th>
+                                                <th className="px-4 py-3">
+                                                    Sub Kegiatan &amp; DPA
+                                                </th>
+                                                <th className="px-4 py-3">
+                                                    Tujuan &amp; Kecamatan
+                                                </th>
+                                                <th className="px-4 py-3">
+                                                    Personil Pegawai
+                                                </th>
+                                                <th className="px-4 py-3 text-right">
+                                                    Total Uang Saku
+                                                </th>
+                                                <th className="px-4 py-3 text-right">
+                                                    Download PDF &amp; Aksi
+                                                </th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                                            {filteredSppdRecords.length === 0 ? (
+                                        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+                                            {filteredSppdBatches.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={6}
+                                                        colSpan={7}
                                                         className="px-4 py-10 text-center text-neutral-400"
                                                     >
-                                                        Belum ada data SPPD Dalam Kota yang tersimpan. Silakan input melalui form di atas.
+                                                        Belum ada Batch SPPD Dalam Kota yang tersimpan. Silakan pilih Sub Kegiatan &amp; input melalui form di atas.
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                filteredSppdRecords.map((sppd, idx) => (
-                                                    <tr
-                                                        key={sppd.id}
-                                                        className="hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
-                                                    >
-                                                        <td className="px-4 py-3 text-center font-semibold text-neutral-400">
-                                                            {idx + 1}
-                                                        </td>
-                                                        <td className="px-4 py-3 whitespace-nowrap">
-                                                            <div className="font-extrabold text-[#006565] dark:text-teal-400">
-                                                                Berangkat: {sppd.tanggal_berangkat_formatted}
-                                                            </div>
-                                                            <div className="text-[11px] text-neutral-500">
-                                                                Tgl SPT: {sppd.tanggal_spt_formatted}
-                                                            </div>
-                                                            <div className="font-mono text-[10px] text-neutral-400">
-                                                                {sppd.nomor_spt}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="font-bold text-neutral-900 dark:text-neutral-100">
-                                                                    Kec. {sppd.nama_kecamatan}
-                                                                </span>
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className="border-blue-300 bg-blue-50 text-blue-800 text-[10px] font-bold"
+                                                filteredSppdBatches.map(
+                                                    (grp, idx) => {
+                                                        const isExpanded =
+                                                            Boolean(
+                                                                expandedBatches[
+                                                                    grp
+                                                                        .batch_code
+                                                                ]
+                                                            );
+                                                        const isCheckedForMerge =
+                                                            selectedBatchCodesToMerge.includes(
+                                                                grp.batch_code
+                                                            );
+
+                                                        return (
+                                                            <React.Fragment
+                                                                key={
+                                                                    grp.batch_code
+                                                                }
+                                                            >
+                                                                {/* BARIS UTAMA BATCH (KLIK UNTUK EXPAND MUNCULKAN DAFTAR SPPD) */}
+                                                                <tr
+                                                                    onClick={() =>
+                                                                        toggleExpandBatch(
+                                                                            grp.batch_code
+                                                                        )
+                                                                    }
+                                                                    className={`cursor-pointer transition-colors ${
+                                                                        isExpanded
+                                                                            ? 'bg-teal-50/70 dark:bg-teal-950/30'
+                                                                            : 'hover:bg-neutral-50/90 dark:hover:bg-neutral-900/40'
+                                                                    }`}
                                                                 >
-                                                                    {sppd.zona}
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="mt-0.5 text-neutral-600 dark:text-neutral-300">
-                                                                {sppd.tujuan}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="space-y-1">
-                                                                {sppd.participants.map((pt) => (
-                                                                    <div
-                                                                        key={pt.id}
-                                                                        className="flex items-center justify-between gap-2 rounded-lg bg-neutral-50 px-2.5 py-1 dark:bg-neutral-900"
+                                                                    <td
+                                                                        className="px-3 py-3.5 text-center"
+                                                                        onClick={(
+                                                                            e
+                                                                        ) =>
+                                                                            e.stopPropagation()
+                                                                        }
                                                                     >
-                                                                        <div>
-                                                                            <span className="font-bold text-neutral-800 dark:text-neutral-200">
-                                                                                {pt.urutan}. {pt.nama}
-                                                                            </span>{' '}
-                                                                            <span className="text-[10px] text-neutral-500">
-                                                                                ({pt.golongan})
+                                                                        <div className="flex items-center justify-center gap-1.5">
+                                                                            {filteredSppdBatches.length >
+                                                                                1 && (
+                                                                                <Checkbox
+                                                                                    checked={
+                                                                                        isCheckedForMerge
+                                                                                    }
+                                                                                    onCheckedChange={(
+                                                                                        checked
+                                                                                    ) => {
+                                                                                        setSelectedBatchCodesToMerge(
+                                                                                            (
+                                                                                                prev
+                                                                                            ) =>
+                                                                                                checked
+                                                                                                    ? [
+                                                                                                          ...prev,
+                                                                                                          grp.batch_code,
+                                                                                                      ]
+                                                                                                    : prev.filter(
+                                                                                                          (
+                                                                                                              c
+                                                                                                          ) =>
+                                                                                                              c !==
+                                                                                                              grp.batch_code
+                                                                                                      )
+                                                                                        );
+                                                                                    }}
+                                                                                    title="Centang untuk menggabungkan Batch"
+                                                                                />
+                                                                            )}
+                                                                            <span className="font-bold text-neutral-500">
+                                                                                {idx +
+                                                                                    1}
                                                                             </span>
                                                                         </div>
-                                                                        <span className="font-mono text-[11px] font-bold text-emerald-700">
-                                                                            {formatRupiah(pt.uang_saku)}
-                                                                        </span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-mono font-extrabold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
-                                                            {formatRupiah(sppd.total_uang_saku)}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                                                            <div className="inline-flex items-center gap-1">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handlePrintSppd(sppd)}
-                                                                    className="h-7 gap-1 px-2.5 text-xs border-teal-300 text-[#006565] hover:bg-teal-50"
-                                                                >
-                                                                    <Printer className="size-3.5" />
-                                                                    Cetak SPT
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => handleDeleteSppd(sppd)}
-                                                                    className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
-                                                                >
-                                                                    <Trash2 className="size-3.5" />
-                                                                </Button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3.5 whitespace-nowrap">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="flex size-6 items-center justify-center rounded-md bg-[#006565]/10 text-[#006565]">
+                                                                                {isExpanded ? (
+                                                                                    <ChevronDown className="size-4 stroke-[2.5]" />
+                                                                                ) : (
+                                                                                    <ChevronRight className="size-4 stroke-[2.5]" />
+                                                                                )}
+                                                                            </span>
+                                                                            <div>
+                                                                                <div className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                                                    {
+                                                                                        grp.batch_code
+                                                                                    }
+                                                                                </div>
+                                                                                <div className="mt-1 flex items-center gap-1.5">
+                                                                                    <Badge className="bg-[#006565] text-white hover:bg-[#006565] text-[10px] font-extrabold">
+                                                                                        {
+                                                                                            grp.spt_count
+                                                                                        }{' '}
+                                                                                        Data SPPD
+                                                                                    </Badge>
+                                                                                    <span className="text-[10px] font-semibold text-[#006565] underline">
+                                                                                        {isExpanded
+                                                                                            ? 'Tutup Rincian'
+                                                                                            : 'Klik Lihat 3+ SPPD'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3.5 max-w-[260px]">
+                                                                        {grp.sub_kegiatan ? (
+                                                                            <div>
+                                                                                <div className="flex flex-wrap items-center gap-1">
+                                                                                    <span className="rounded bg-teal-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#006565]">
+                                                                                        {
+                                                                                            grp
+                                                                                                .sub_kegiatan
+                                                                                                .kode_sub_kegiatan
+                                                                                        }
+                                                                                    </span>
+                                                                                    <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">
+                                                                                        Rek:{' '}
+                                                                                        {
+                                                                                            grp
+                                                                                                .sub_kegiatan
+                                                                                                .no_rekening
+                                                                                        }
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="mt-1 font-bold text-neutral-800 dark:text-neutral-200 line-clamp-2">
+                                                                                    {
+                                                                                        grp
+                                                                                            .sub_kegiatan
+                                                                                            .sub_kegiatan
+                                                                                    }
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-neutral-400">
+                                                                                -
+                                                                            </span>
+                                                                        )}
+                                                                        {grp.dpa && (
+                                                                            <div className="mt-1 font-mono text-[10px] text-neutral-500">
+                                                                                DPA:{' '}
+                                                                                {
+                                                                                    grp
+                                                                                        .dpa
+                                                                                        .nomor_dpa
+                                                                                }
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3.5 max-w-[230px]">
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {grp.kecamatan_list.map(
+                                                                                (
+                                                                                    kec
+                                                                                ) => (
+                                                                                    <Badge
+                                                                                        key={
+                                                                                            kec
+                                                                                        }
+                                                                                        variant="outline"
+                                                                                        className="border-blue-300 bg-blue-50 text-blue-800 text-[10px] font-bold"
+                                                                                    >
+                                                                                        Kec.{' '}
+                                                                                        {
+                                                                                            kec
+                                                                                        }
+                                                                                    </Badge>
+                                                                                )
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="mt-1 text-neutral-600 dark:text-neutral-300 line-clamp-2">
+                                                                            {grp.tujuan_list.join(
+                                                                                ' • '
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3.5">
+                                                                        <div className="space-y-1">
+                                                                            {grp.employees.map(
+                                                                                (
+                                                                                    emp,
+                                                                                    eIdx
+                                                                                ) => (
+                                                                                    <div
+                                                                                        key={`${emp.nama}-${eIdx}`}
+                                                                                        className="flex items-center justify-between gap-2 rounded-lg bg-white/90 border border-neutral-200/70 px-2.5 py-1 dark:bg-neutral-900"
+                                                                                    >
+                                                                                        <span className="font-bold text-neutral-800 dark:text-neutral-200">
+                                                                                            {eIdx +
+                                                                                                1}
+
+                                                                                            .{' '}
+                                                                                            {
+                                                                                                emp.nama
+                                                                                            }
+                                                                                        </span>
+                                                                                        <span className="text-[10px] font-semibold text-[#006565]">
+                                                                                            {
+                                                                                                emp.golongan
+                                                                                            }
+                                                                                        </span>
+                                                                                    </div>
+                                                                                )
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                                                                        <div className="font-mono text-sm font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                                            {formatRupiah(
+                                                                                grp.total_uang_saku
+                                                                            )}
+                                                                        </div>
+                                                                        {grp.terbilang_uang_saku && (
+                                                                            <div className="text-[10px] italic text-neutral-500 max-w-[160px] truncate ml-auto">
+                                                                                {
+                                                                                    grp.terbilang_uang_saku
+                                                                                }
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+
+                                                                    <td
+                                                                        className="px-4 py-3.5 text-right whitespace-nowrap"
+                                                                        onClick={(
+                                                                            e
+                                                                        ) =>
+                                                                            e.stopPropagation()
+                                                                        }
+                                                                    >
+                                                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleDownloadBatchPdf(
+                                                                                        grp.batch_code,
+                                                                                        e
+                                                                                    )
+                                                                                }
+                                                                                className="h-8 gap-1.5 px-2.5 text-xs bg-[#006565] text-white hover:bg-[#005252]"
+                                                                                title={`Download ${grp.spt_count} Surat Tugas (SPT) dalam 1 file PDF`}
+                                                                            >
+                                                                                <Download className="size-3.5" />
+                                                                                Cetak SPT (PDF)
+                                                                            </Button>
+
+                                                                            <Button
+                                                                                size="sm"
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleDownloadBatchSptjbPdf(
+                                                                                        grp.batch_code,
+                                                                                        e
+                                                                                    )
+                                                                                }
+                                                                                className="h-8 gap-1.5 px-2.5 text-xs bg-indigo-700 text-white hover:bg-indigo-800"
+                                                                                title="Download Laporan Surat Pernyataan Tanggung Jawab Belanja (SPTJB) PDF"
+                                                                            >
+                                                                                <FileCheck2 className="size-3.5" />
+                                                                                SPTJB (PDF)
+                                                                            </Button>
+
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleAppendDateToExistingBatch(
+                                                                                        grp,
+                                                                                        e
+                                                                                    )
+                                                                                }
+                                                                                className="h-8 gap-1 px-2 text-xs border-amber-300 text-amber-800 hover:bg-amber-50"
+                                                                                title="Tambah data SPPD tanggal baru ke dalam Batch ini"
+                                                                            >
+                                                                                <CalendarPlus className="size-3.5" />
+                                                                                + SPPD
+                                                                            </Button>
+
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleDeleteBatch(
+                                                                                        grp,
+                                                                                        e
+                                                                                    )
+                                                                                }
+                                                                                className="h-8 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                                                                                title="Hapus seluruh Batch ini"
+                                                                            >
+                                                                                <Trash2 className="size-3.5" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+
+                                                                {/* BARIS ACCORDION RINCIAN DATA SPPD DI DALAM BATCH (MUNCUL SAAT DIKLIK) */}
+                                                                {isExpanded && (
+                                                                    <tr className="bg-neutral-50/90 dark:bg-neutral-900/60">
+                                                                        <td
+                                                                            colSpan={
+                                                                                7
+                                                                            }
+                                                                            className="p-4 border-b-2 border-teal-200 dark:border-teal-900"
+                                                                        >
+                                                                            <div className="rounded-xl border border-teal-200 bg-white p-3.5 shadow-2xs dark:border-teal-900 dark:bg-neutral-950">
+                                                                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2.5 dark:border-neutral-800">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Badge className="bg-[#006565] text-white">
+                                                                                            Rincian{' '}
+                                                                                            {
+                                                                                                grp.spt_count
+                                                                                            }{' '}
+                                                                                            Data SPPD
+                                                                                        </Badge>
+                                                                                        <span className="text-xs font-extrabold text-neutral-800 dark:text-neutral-200">
+                                                                                            Daftar Keberangkatan SPPD dalam Batch{' '}
+                                                                                            <span className="font-mono text-[#006565]">
+                                                                                                {
+                                                                                                    grp.batch_code
+                                                                                                }
+                                                                                            </span>
+                                                                                        </span>
+                                                                                    </div>
+
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="outline"
+                                                                                            onClick={() =>
+                                                                                                handleDownloadBatchPdf(
+                                                                                                    grp.batch_code
+                                                                                                )
+                                                                                            }
+                                                                                            className="h-7 gap-1 text-[11px] border-teal-300 text-[#006565]"
+                                                                                        >
+                                                                                            <Download className="size-3" />
+                                                                                            Unduh{' '}
+                                                                                            {
+                                                                                                grp.spt_count
+                                                                                            }{' '}
+                                                                                            SPT (1 PDF)
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="outline"
+                                                                                            onClick={() =>
+                                                                                                handleDownloadBatchSptjbPdf(
+                                                                                                    grp.batch_code
+                                                                                                )
+                                                                                            }
+                                                                                            className="h-7 gap-1 text-[11px] border-indigo-300 text-indigo-700"
+                                                                                        >
+                                                                                            <FileCheck2 className="size-3" />
+                                                                                            Unduh SPTJB (PDF)
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="overflow-x-auto">
+                                                                                    <table className="w-full border-collapse text-left text-xs">
+                                                                                        <thead>
+                                                                                            <tr className="border-b border-neutral-200 bg-neutral-100/80 text-[10px] font-extrabold text-neutral-600 uppercase dark:border-neutral-800 dark:bg-neutral-900">
+                                                                                                <th className="px-3 py-2 w-24">
+                                                                                                    Urutan SPPD
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2">
+                                                                                                    Hari &amp; Tanggal Berangkat
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2">
+                                                                                                    Tanggal &amp; Nomor SPT
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2">
+                                                                                                    Tempat Tujuan &amp; Kecamatan
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2">
+                                                                                                    Pegawai &amp; Rincian Uang Saku
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2 text-right">
+                                                                                                    Subtotal
+                                                                                                </th>
+                                                                                                <th className="px-3 py-2 text-right w-20">
+                                                                                                    Aksi
+                                                                                                </th>
+                                                                                            </tr>
+                                                                                        </thead>
+                                                                                        <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                                                                                            {grp.items.map(
+                                                                                                (
+                                                                                                    item,
+                                                                                                    itemIdx
+                                                                                                ) => (
+                                                                                                    <tr
+                                                                                                        key={
+                                                                                                            item.id
+                                                                                                        }
+                                                                                                        className="hover:bg-teal-50/30"
+                                                                                                    >
+                                                                                                        <td className="px-3 py-2.5 font-extrabold text-[#006565]">
+                                                                                                            SPPD #
+                                                                                                            {itemIdx +
+                                                                                                                1}
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5 font-bold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                                                                                                            {
+                                                                                                                item.tanggal_berangkat_formatted
+                                                                                                            }
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5 whitespace-nowrap">
+                                                                                                            <div className="font-semibold text-neutral-700 dark:text-neutral-300">
+                                                                                                                {
+                                                                                                                    item.tanggal_spt_formatted
+                                                                                                                }
+                                                                                                            </div>
+                                                                                                            <div className="font-mono text-[10px] text-neutral-400">
+                                                                                                                {
+                                                                                                                    item.nomor_spt
+                                                                                                                }
+                                                                                                            </div>
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5">
+                                                                                                            <div className="font-bold text-neutral-800 dark:text-neutral-200">
+                                                                                                                {
+                                                                                                                    item.tujuan
+                                                                                                                }
+                                                                                                            </div>
+                                                                                                            <div className="text-[11px] text-neutral-500">
+                                                                                                                Kecamatan{' '}
+                                                                                                                <strong>
+                                                                                                                    {
+                                                                                                                        item.nama_kecamatan
+                                                                                                                    }
+                                                                                                                </strong>{' '}
+                                                                                                                (
+                                                                                                                {
+                                                                                                                    item.zona
+                                                                                                                }
+
+                                                                                                                )
+                                                                                                            </div>
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5">
+                                                                                                            <div className="space-y-1">
+                                                                                                                {item.participants.map(
+                                                                                                                    (
+                                                                                                                        pt
+                                                                                                                    ) => (
+                                                                                                                        <div
+                                                                                                                            key={
+                                                                                                                                pt.id
+                                                                                                                            }
+                                                                                                                            className="flex items-center justify-between gap-3 rounded bg-neutral-50 px-2 py-0.5 text-[11px] dark:bg-neutral-900"
+                                                                                                                        >
+                                                                                                                            <span>
+                                                                                                                                {
+                                                                                                                                    pt.urutan
+                                                                                                                                }
+
+                                                                                                                                .{' '}
+                                                                                                                                <strong>
+                                                                                                                                    {
+                                                                                                                                        pt.nama
+                                                                                                                                    }
+                                                                                                                                </strong>{' '}
+                                                                                                                                (
+                                                                                                                                {
+                                                                                                                                    pt.golongan
+                                                                                                                                }
+
+                                                                                                                                )
+                                                                                                                            </span>
+                                                                                                                            <span className="font-mono font-bold text-emerald-700">
+                                                                                                                                {formatRupiah(
+                                                                                                                                    pt.uang_saku
+                                                                                                                                )}
+                                                                                                                            </span>
+                                                                                                                        </div>
+                                                                                                                    )
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5 text-right font-mono font-extrabold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
+                                                                                                            {formatRupiah(
+                                                                                                                item.total_uang_saku
+                                                                                                            )}
+                                                                                                        </td>
+                                                                                                        <td className="px-3 py-2.5 text-right">
+                                                                                                            <Button
+                                                                                                                size="sm"
+                                                                                                                variant="outline"
+                                                                                                                onClick={() => {
+                                                                                                                    if (
+                                                                                                                        window.confirm(
+                                                                                                                            `Hapus SPPD #${itemIdx + 1} (${item.tanggal_berangkat_formatted}) dari Batch ini?`
+                                                                                                                        )
+                                                                                                                    ) {
+                                                                                                                        router.delete(
+                                                                                                                            `/sppd-dalam-kota/sppd/${item.id}`,
+                                                                                                                            {
+                                                                                                                                preserveScroll:
+                                                                                                                                    true,
+                                                                                                                            }
+                                                                                                                        );
+                                                                                                                    }
+                                                                                                                }}
+                                                                                                                className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-50"
+                                                                                                                title="Hapus SPPD tanggal ini dari Batch"
+                                                                                                            >
+                                                                                                                <Trash2 className="size-3" />
+                                                                                                            </Button>
+                                                                                                        </td>
+                                                                                                    </tr>
+                                                                                                )
+                                                                                            )}
+                                                                                        </tbody>
+                                                                                    </table>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </React.Fragment>
+                                                        );
+                                                    }
+                                                )
                                             )}
                                         </tbody>
                                     </table>
@@ -2045,7 +2966,278 @@ export default function SppdDalamKotaIndex({
                 )}
 
                 {/* ========================================================= */}
-                {/* TAB 1: MASTER DATA PEGAWAI (TANGGAL LAHIR OTOMATIS NIP)   */}
+                {/* TAB: MASTER DATA SUB KEGIATAN                             */}
+                {/* ========================================================= */}
+                {activeTab === 'sub_kegiatan' && (
+                    <Card className="border-sidebar-border/70 shadow-xs">
+                        <CardHeader className="border-b border-neutral-100 pb-4 dark:border-neutral-800">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <CardTitle className="text-base font-extrabold">
+                                        Master Data Sub Kegiatan ({filteredSubKegiatans.length})
+                                    </CardTitle>
+                                    <p className="text-xs text-neutral-500">
+                                        Pengelolaan No. Rekening, Nama Kegiatan, Sub Kegiatan, dan Kode Sub Kegiatan untuk pembebanan SPPD &amp; SPTJB.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="relative w-64">
+                                        <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
+                                        <Input
+                                            placeholder="Cari sub kegiatan, kode, rekening..."
+                                            value={subKegiatanSearch}
+                                            onChange={(e) =>
+                                                setSubKegiatanSearch(e.target.value)
+                                            }
+                                            className="h-9 pl-9 text-xs"
+                                        />
+                                    </div>
+                                    <Button
+                                        onClick={handleOpenCreateSubKegiatan}
+                                        className="gap-1.5 bg-[#006565] text-xs text-white hover:bg-[#005252]"
+                                    >
+                                        <Plus className="size-4" />
+                                        Tambah Sub Kegiatan
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-neutral-200 bg-neutral-50/80 text-[11px] font-bold tracking-wider text-neutral-500 uppercase dark:border-neutral-800 dark:bg-neutral-900/50">
+                                            <th className="px-4 py-3 text-center w-12">No</th>
+                                            <th className="px-4 py-3">Kode Sub Kegiatan</th>
+                                            <th className="px-4 py-3">No. Rekening</th>
+                                            <th className="px-4 py-3">Nama Kegiatan</th>
+                                            <th className="px-4 py-3">Sub Kegiatan</th>
+                                            <th className="px-4 py-3 text-center">Status</th>
+                                            <th className="px-4 py-3 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                                        {filteredSubKegiatans.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={7}
+                                                    className="px-4 py-8 text-center text-neutral-400"
+                                                >
+                                                    Belum ada data Master Sub Kegiatan.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredSubKegiatans.map((sk, idx) => (
+                                                <tr
+                                                    key={sk.id}
+                                                    className="hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
+                                                >
+                                                    <td className="px-4 py-3 text-center font-semibold text-neutral-400">
+                                                        {idx + 1}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono font-extrabold text-[#006565] dark:text-teal-300">
+                                                        {sk.kode_sub_kegiatan}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono font-semibold text-neutral-700 dark:text-neutral-300">
+                                                        {sk.no_rekening}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-neutral-600 dark:text-neutral-300">
+                                                        {sk.nama_kegiatan}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-bold text-neutral-900 dark:text-neutral-100">
+                                                        {sk.sub_kegiatan}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        {sk.is_active ? (
+                                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                                                                Aktif
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline">
+                                                                Non-aktif
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <div className="inline-flex items-center gap-1">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    handleOpenEditSubKegiatan(
+                                                                        sk
+                                                                    )
+                                                                }
+                                                                className="h-7 px-2 text-xs"
+                                                            >
+                                                                <Edit3 className="size-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    if (
+                                                                        window.confirm(
+                                                                            `Hapus sub kegiatan ${sk.sub_kegiatan}?`
+                                                                        )
+                                                                    ) {
+                                                                        router.delete(
+                                                                            `/sppd-dalam-kota/sub-kegiatan/${sk.id}`,
+                                                                            {
+                                                                                preserveScroll:
+                                                                                    true,
+                                                                            }
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* ========================================================= */}
+                {/* TAB: MASTER DATA NOMOR DPA                                */}
+                {/* ========================================================= */}
+                {activeTab === 'dpa' && (
+                    <Card className="border-sidebar-border/70 shadow-xs">
+                        <CardHeader className="border-b border-neutral-100 pb-4 dark:border-neutral-800">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <CardTitle className="text-base font-extrabold">
+                                        Master Data Nomor DPA ({dpas.length})
+                                    </CardTitle>
+                                    <p className="text-xs text-neutral-500">
+                                        Pengelolaan Nomor Dokumen Pelaksanaan Anggaran (DPA / DPPA) Tahun Anggaran berjalan.
+                                    </p>
+                                </div>
+
+                                <Button
+                                    onClick={handleOpenCreateDpa}
+                                    className="gap-1.5 bg-[#006565] text-xs text-white hover:bg-[#005252]"
+                                >
+                                    <Plus className="size-4" />
+                                    Tambah Nomor DPA
+                                </Button>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-neutral-200 bg-neutral-50/80 text-[11px] font-bold tracking-wider text-neutral-500 uppercase dark:border-neutral-800 dark:bg-neutral-900/50">
+                                            <th className="px-4 py-3 text-center w-12">No</th>
+                                            <th className="px-4 py-3">Nomor DPA</th>
+                                            <th className="px-4 py-3">Tanggal DPA</th>
+                                            <th className="px-4 py-3 text-center">Tahun Anggaran</th>
+                                            <th className="px-4 py-3">Keterangan</th>
+                                            <th className="px-4 py-3 text-center">Status</th>
+                                            <th className="px-4 py-3 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                                        {dpas.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={7}
+                                                    className="px-4 py-8 text-center text-neutral-400"
+                                                >
+                                                    Belum ada data Master Nomor DPA.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            dpas.map((d, idx) => (
+                                                <tr
+                                                    key={d.id}
+                                                    className="hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
+                                                >
+                                                    <td className="px-4 py-3 text-center font-semibold text-neutral-400">
+                                                        {idx + 1}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-mono font-extrabold text-[#006565] dark:text-teal-300">
+                                                        {d.nomor_dpa}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-neutral-600">
+                                                        {d.tanggal_dpa_formatted}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center font-bold">
+                                                        {d.tahun_anggaran}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-neutral-700 dark:text-neutral-300">
+                                                        {d.keterangan || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        {d.is_active ? (
+                                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                                                                Aktif
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline">
+                                                                Non-aktif
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <div className="inline-flex items-center gap-1">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    handleOpenEditDpa(d)
+                                                                }
+                                                                className="h-7 px-2 text-xs"
+                                                            >
+                                                                <Edit3 className="size-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    if (
+                                                                        window.confirm(
+                                                                            `Hapus Nomor DPA ${d.nomor_dpa}?`
+                                                                        )
+                                                                    ) {
+                                                                        router.delete(
+                                                                            `/sppd-dalam-kota/dpa/${d.id}`,
+                                                                            {
+                                                                                preserveScroll:
+                                                                                    true,
+                                                                            }
+                                                                        );
+                                                                    }
+                                                                }}
+                                                                className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* ========================================================= */}
+                {/* TAB: MASTER DATA PEGAWAI (TANGGAL LAHIR OTOMATIS NIP)     */}
                 {/* ========================================================= */}
                 {activeTab === 'pegawai' && (
                     <Card className="border-sidebar-border/70 shadow-xs">
@@ -2053,7 +3245,7 @@ export default function SppdDalamKotaIndex({
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <CardTitle className="text-base font-extrabold">
-                                        1. Master Data Pegawai ({filteredPegawais.length})
+                                        Master Data Pegawai ({filteredPegawais.length})
                                     </CardTitle>
                                     <p className="text-xs text-neutral-500">
                                         Nama, NIP, Pangkat, Golongan, Jabatan, dan Tanggal Lahir yang terisi otomatis dari 8 digit pertama NIP.
@@ -2179,40 +3371,40 @@ export default function SppdDalamKotaIndex({
                 )}
 
                 {/* ========================================================= */}
-                {/* TAB 2: MASTER DATA KEPALA DINAS                           */}
+                {/* TAB: MASTER DATA KEPALA DINAS                             */}
                 {/* ========================================================= */}
                 {activeTab === 'kepala_dinas' &&
                     renderPejabatSection(
                         'kepala_dinas',
-                        '2. Master Data Kepala Dinas',
-                        'Pejabat penandatangan Surat Perintah Tugas (SPT) dan persetujuan SPPD Dalam Kota.',
+                        'Master Data Kepala Dinas',
+                        'Pejabat penandatangan Surat Tugas (SPT) dan Pengguna Anggaran pada SPTJB.',
                         kepalaDinasList
                     )}
 
                 {/* ========================================================= */}
-                {/* TAB 3: MASTER DATA PPTK                                   */}
+                {/* TAB: MASTER DATA PPTK                                     */}
                 {/* ========================================================= */}
                 {activeTab === 'pptk' &&
                     renderPejabatSection(
                         'pptk',
-                        '3. Master Data PPTK',
+                        'Master Data PPTK',
                         'Pejabat Pelaksana Teknis Kegiatan (PPTK) penanggung jawab kegiatan perjalanan dinas.',
                         pptkList
                     )}
 
                 {/* ========================================================= */}
-                {/* TAB 4: MASTER DATA BENDAHARA                              */}
+                {/* TAB: MASTER DATA BENDAHARA                                */}
                 {/* ========================================================= */}
                 {activeTab === 'bendahara' &&
                     renderPejabatSection(
                         'bendahara',
-                        '4. Master Data Bendahara',
+                        'Master Data Bendahara',
                         'Bendahara Pengeluaran penandatangan pencairan uang saku perjalanan dinas.',
                         bendaharaList
                     )}
 
                 {/* ========================================================= */}
-                {/* TAB 5: MASTER DATA ZONASI                                 */}
+                {/* TAB: MASTER DATA ZONASI                                   */}
                 {/* ========================================================= */}
                 {activeTab === 'zonasi' && (
                     <Card className="border-sidebar-border/70 shadow-xs">
@@ -2220,7 +3412,7 @@ export default function SppdDalamKotaIndex({
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
                                     <CardTitle className="text-base font-extrabold">
-                                        5. Master Data Zonasi &amp; Tarif Uang Saku ({filteredZonasis.length})
+                                        Master Data Zonasi &amp; Tarif Uang Saku ({filteredZonasis.length})
                                     </CardTitle>
                                     <p className="text-xs text-neutral-500">
                                         Pengaturan Nama Kecamatan, Zona Wilayah, Golongan, dan Besaran Uang Saku Harian SPPD Dalam Kota.
@@ -2389,15 +3581,16 @@ export default function SppdDalamKotaIndex({
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2 text-emerald-700">
                                 <CheckCircle2 className="size-5" />
-                                SPPD Dalam Kota Berhasil Disimpan!
+                                SPPD Berhasil Disimpan ke Batch!
                             </DialogTitle>
                             <DialogDescription>
                                 Apakah Anda ingin menambah SPPD lagi di{' '}
-                                <strong>tanggal yang berbeda</strong>?
+                                <strong>tanggal yang berbeda</strong> ke dalam{' '}
+                                <strong>Batch yang sama</strong>?
                             </DialogDescription>
                         </DialogHeader>
                         <div className="rounded-xl bg-teal-50/70 border border-teal-200 p-3 text-xs text-teal-900">
-                            Jika Anda memilih <strong>&ldquo;Ya, Tambah SPPD Tanggal Berbeda&rdquo;</strong>, sistem akan menyiapkan form baru dengan daftar pegawai dan tujuan sebelumnya untuk tanggal berikutnya sehingga Anda tidak perlu menginput ulang dari awal.
+                            Seluruh SPPD dalam Batch ini akan ditampilkan sebagai <strong>1 baris Batch</strong> pada tabel di bawah (ketika diklik akan muncul daftar SPPD-nya) dan siap diunduh ke dalam PDF <strong>SPT</strong> maupun <strong>SPTJB</strong>.
                         </div>
                         <DialogFooter className="flex-col gap-2 sm:flex-row">
                             <Button
@@ -2405,7 +3598,7 @@ export default function SppdDalamKotaIndex({
                                 variant="outline"
                                 onClick={handleResetFreshFormAfterSave}
                             >
-                                Selesai / Form Kosong Baru
+                                Selesai
                             </Button>
                             <Button
                                 type="button"
@@ -2413,9 +3606,214 @@ export default function SppdDalamKotaIndex({
                                 className="gap-1.5 bg-[#006565] text-white hover:bg-[#005252]"
                             >
                                 <CalendarPlus className="size-4" />
-                                Ya, Tambah SPPD Tanggal Berbeda
+                                Ya, Tambah Tanggal ke Batch Ini
                             </Button>
                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* ========================================================= */}
+                {/* DIALOG: CREATE / EDIT MASTER SUB KEGIATAN                 */}
+                {/* ========================================================= */}
+                <Dialog
+                    open={subKegiatanModalOpen}
+                    onOpenChange={setSubKegiatanModalOpen}
+                >
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {editingSubKegiatan
+                                    ? 'Edit Master Sub Kegiatan'
+                                    : 'Tambah Master Sub Kegiatan'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Masukkan No. Rekening, Nama Kegiatan, Sub Kegiatan, dan Kode Sub Kegiatan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleSaveSubKegiatan} className="space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label>Kode Sub Kegiatan *</Label>
+                                    <Input
+                                        value={skKodeSubKegiatan}
+                                        onChange={(e) =>
+                                            setSkKodeSubKegiatan(e.target.value)
+                                        }
+                                        placeholder="Contoh: 2.09.03.2.01.0014"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>Nomor Rekening *</Label>
+                                    <Input
+                                        value={skNoRekening}
+                                        onChange={(e) =>
+                                            setSkNoRekening(e.target.value)
+                                        }
+                                        placeholder="Contoh: 5.1.02.04.01.0003"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>Nama Kegiatan *</Label>
+                                    <Input
+                                        value={skNamaKegiatan}
+                                        onChange={(e) =>
+                                            setSkNamaKegiatan(e.target.value)
+                                        }
+                                        placeholder="Contoh: Penyediaan dan Penyaluran Pangan Pokok atau Pangan Lainnya..."
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>Nama Sub Kegiatan *</Label>
+                                    <Input
+                                        value={skSubKegiatan}
+                                        onChange={(e) =>
+                                            setSkSubKegiatan(e.target.value)
+                                        }
+                                        placeholder="Contoh: Koordinasi dan Sinkronisasi Pemantauan Stok, Pasokan dan Harga Pangan Pokok Strategis"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+                                    <Checkbox
+                                        id="sk-active"
+                                        checked={skIsActive}
+                                        onCheckedChange={(v) =>
+                                            setSkIsActive(Boolean(v))
+                                        }
+                                    />
+                                    <Label htmlFor="sk-active" className="text-xs">
+                                        Sub Kegiatan berstatus Aktif
+                                    </Label>
+                                </div>
+                            </div>
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setSubKegiatanModalOpen(false)}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingSubKegiatan}
+                                    className="bg-[#006565] text-white hover:bg-[#005252]"
+                                >
+                                    {isSavingSubKegiatan
+                                        ? 'Menyimpan...'
+                                        : 'Simpan Sub Kegiatan'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* ========================================================= */}
+                {/* DIALOG: CREATE / EDIT MASTER NOMOR DPA                    */}
+                {/* ========================================================= */}
+                <Dialog open={dpaModalOpen} onOpenChange={setDpaModalOpen}>
+                    <DialogContent className="sm:max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>
+                                {editingDpa
+                                    ? 'Edit Master Nomor DPA'
+                                    : 'Tambah Master Nomor DPA'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                Masukkan Nomor DPA/DPPA beserta Tanggal DPA dan Tahun Anggaran.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleSaveDpa} className="space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>Nomor DPA / DPPA *</Label>
+                                    <Input
+                                        value={dNomorDpa}
+                                        onChange={(e) =>
+                                            setDNomorDpa(e.target.value)
+                                        }
+                                        placeholder="DPA/A.1/2.09.3.27.0.00.10.0000/001/2026"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>Tanggal DPA</Label>
+                                    <Input
+                                        type="date"
+                                        value={dTanggalDpa}
+                                        onChange={(e) =>
+                                            setDTanggalDpa(e.target.value)
+                                        }
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label>Tahun Anggaran *</Label>
+                                    <Input
+                                        type="number"
+                                        min={2020}
+                                        max={2099}
+                                        value={dTahunAnggaran}
+                                        onChange={(e) =>
+                                            setDTahunAnggaran(e.target.value)
+                                        }
+                                        required
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5 sm:col-span-2">
+                                    <Label>Keterangan</Label>
+                                    <Input
+                                        value={dKeterangan}
+                                        onChange={(e) =>
+                                            setDKeterangan(e.target.value)
+                                        }
+                                        placeholder="DPA Induk DKPP Kabupaten Indramayu"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1 sm:col-span-2">
+                                    <Checkbox
+                                        id="dpa-active"
+                                        checked={dIsActive}
+                                        onCheckedChange={(v) =>
+                                            setDIsActive(Boolean(v))
+                                        }
+                                    />
+                                    <Label htmlFor="dpa-active" className="text-xs">
+                                        Nomor DPA berstatus Aktif
+                                    </Label>
+                                </div>
+                            </div>
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setDpaModalOpen(false)}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingDpa}
+                                    className="bg-[#006565] text-white hover:bg-[#005252]"
+                                >
+                                    {isSavingDpa
+                                        ? 'Menyimpan...'
+                                        : 'Simpan Nomor DPA'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
 
@@ -2441,7 +3839,7 @@ export default function SppdDalamKotaIndex({
                                     <Input
                                         value={pNama}
                                         onChange={(e) => setPNama(e.target.value)}
-                                        placeholder="Contoh: Dedi Kurniawan, S.P."
+                                        placeholder="Contoh: DEDEH SUMIATI, S.IP"
                                         required
                                     />
                                 </div>
@@ -2455,7 +3853,7 @@ export default function SppdDalamKotaIndex({
                                                 e.target.value
                                             )
                                         }
-                                        placeholder="198402152009021004"
+                                        placeholder="197009192007012009"
                                     />
                                 </div>
 
@@ -2505,7 +3903,7 @@ export default function SppdDalamKotaIndex({
                                     <Input
                                         value={pPangkat}
                                         onChange={(e) => setPPangkat(e.target.value)}
-                                        placeholder="Penata Tingkat I"
+                                        placeholder="Penata Tk. I"
                                         required
                                     />
                                 </div>
@@ -2515,7 +3913,7 @@ export default function SppdDalamKotaIndex({
                                     <Input
                                         value={pJabatan}
                                         onChange={(e) => setPJabatan(e.target.value)}
-                                        placeholder="Analis Ketahanan Pangan Ahli Muda"
+                                        placeholder="Analis Ketahanan Pangan Ahli Muda pada DKPP Kab. Indramayu"
                                         required
                                     />
                                 </div>
@@ -2591,6 +3989,7 @@ export default function SppdDalamKotaIndex({
                                     <Input
                                         value={pjNama}
                                         onChange={(e) => setPjNama(e.target.value)}
+                                        placeholder="RORY FIRMANSYAH.S.STP.M.Si"
                                         required
                                     />
                                 </div>
@@ -2600,6 +3999,7 @@ export default function SppdDalamKotaIndex({
                                     <Input
                                         value={pjNip}
                                         onChange={(e) => setPjNip(e.target.value)}
+                                        placeholder="197801011997031003"
                                     />
                                 </div>
 
@@ -2640,10 +4040,11 @@ export default function SppdDalamKotaIndex({
                                 </div>
 
                                 <div className="space-y-1.5 sm:col-span-2">
-                                    <Label>Jabatan *</Label>
+                                    <Label>Jabatan * (Awali &ldquo;Plt.&rdquo; jika Pelaksana Tugas)</Label>
                                     <Input
                                         value={pjJabatan}
                                         onChange={(e) => setPjJabatan(e.target.value)}
+                                        placeholder="Plt. Kepala Dinas Ketahanan Pangan dan Pertanian"
                                         required
                                     />
                                 </div>
@@ -2703,7 +4104,7 @@ export default function SppdDalamKotaIndex({
                                 <Input
                                     value={zKecamatan}
                                     onChange={(e) => setZKecamatan(e.target.value)}
-                                    placeholder="Contoh: Jatibarang"
+                                    placeholder="Contoh: Sukagumiwang"
                                     required
                                 />
                             </div>

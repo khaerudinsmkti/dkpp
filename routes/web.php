@@ -514,9 +514,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/users-roles/roles/{role}/matrix', [UserRoleController::class, 'updateMatrix'])->name('users-roles.roles.matrix');
     Route::delete('/users-roles/roles/{role}', [UserRoleController::class, 'destroyRole'])->name('users-roles.roles.destroy');
 
-    // Modul SPPD Dalam Kota & 5 Master Data Perjalanan Dinas
+    // Modul SPPD Dalam Kota & 7 Master Data Perjalanan Dinas
     Route::get('/sppd-dalam-kota', [SppdDalamKotaController::class, 'index'])->name('sppd-dalam-kota.index');
     Route::post('/sppd-dalam-kota/sppd', [SppdDalamKotaController::class, 'storeSppd'])->name('sppd-dalam-kota.sppd.store');
+    Route::post('/sppd-dalam-kota/batches/merge', [SppdDalamKotaController::class, 'mergeBatches'])->name('sppd-dalam-kota.batches.merge');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/pdf', [SppdDalamKotaController::class, 'downloadBatchPdf'])->name('sppd-dalam-kota.batch.pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/sptjb-pdf', [SppdDalamKotaController::class, 'downloadBatchSptjbPdf'])->name('sppd-dalam-kota.batch.sptjb-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/c2-pdf', [SppdDalamKotaController::class, 'downloadBatchC2Pdf'])->name('sppd-dalam-kota.batch.c2-pdf');
+    Route::delete('/sppd-dalam-kota/batch/{batchCode}', [SppdDalamKotaController::class, 'destroyBatch'])->name('sppd-dalam-kota.batch.destroy');
     Route::delete('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'destroySppd'])->name('sppd-dalam-kota.sppd.destroy');
 
     Route::post('/sppd-dalam-kota/pegawai', [SppdDalamKotaController::class, 'storePegawai'])->name('sppd-dalam-kota.pegawai.store');
@@ -530,6 +535,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/sppd-dalam-kota/zonasi', [SppdDalamKotaController::class, 'storeZonasi'])->name('sppd-dalam-kota.zonasi.store');
     Route::put('/sppd-dalam-kota/zonasi/{zonasi}', [SppdDalamKotaController::class, 'updateZonasi'])->name('sppd-dalam-kota.zonasi.update');
     Route::delete('/sppd-dalam-kota/zonasi/{zonasi}', [SppdDalamKotaController::class, 'destroyZonasi'])->name('sppd-dalam-kota.zonasi.destroy');
+
+    Route::post('/sppd-dalam-kota/sub-kegiatan', [SppdDalamKotaController::class, 'storeSubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.store');
+    Route::put('/sppd-dalam-kota/sub-kegiatan/{subKegiatan}', [SppdDalamKotaController::class, 'updateSubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.update');
+    Route::delete('/sppd-dalam-kota/sub-kegiatan/{subKegiatan}', [SppdDalamKotaController::class, 'destroySubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.destroy');
+
+    Route::post('/sppd-dalam-kota/dpa', [SppdDalamKotaController::class, 'storeDpa'])->name('sppd-dalam-kota.dpa.store');
+    Route::put('/sppd-dalam-kota/dpa/{dpa}', [SppdDalamKotaController::class, 'updateDpa'])->name('sppd-dalam-kota.dpa.update');
+    Route::delete('/sppd-dalam-kota/dpa/{dpa}', [SppdDalamKotaController::class, 'destroyDpa'])->name('sppd-dalam-kota.dpa.destroy');
 });
 
 require __DIR__.'/settings.php';
