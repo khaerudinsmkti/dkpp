@@ -521,7 +521,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sppd-dalam-kota/batch/{batchCode}/pdf', [SppdDalamKotaController::class, 'downloadBatchPdf'])->name('sppd-dalam-kota.batch.pdf');
     Route::get('/sppd-dalam-kota/batch/{batchCode}/sptjb-pdf', [SppdDalamKotaController::class, 'downloadBatchSptjbPdf'])->name('sppd-dalam-kota.batch.sptjb-pdf');
     Route::get('/sppd-dalam-kota/batch/{batchCode}/c2-pdf', [SppdDalamKotaController::class, 'downloadBatchC2Pdf'])->name('sppd-dalam-kota.batch.c2-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/rincian-pdf', [SppdDalamKotaController::class, 'downloadBatchRincianPdf'])->name('sppd-dalam-kota.batch.rincian-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/kwitansi-pdf', [SppdDalamKotaController::class, 'downloadBatchKwitansiPdf'])->name('sppd-dalam-kota.batch.kwitansi-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/kwitansi-2-pdf', [SppdDalamKotaController::class, 'downloadBatchKwitansi2Pdf'])->name('sppd-dalam-kota.batch.kwitansi-2-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/sppd-pdf', [SppdDalamKotaController::class, 'downloadBatchSppdPdf'])->name('sppd-dalam-kota.batch.sppd-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/rekap-pdf', [SppdDalamKotaController::class, 'downloadBatchRekapPdf'])->name('sppd-dalam-kota.batch.rekap-pdf');
+    Route::get('/sppd-dalam-kota/batch/{batchCode}/lhpd-pdf', [SppdDalamKotaController::class, 'downloadBatchLhpdPdf'])->name('sppd-dalam-kota.batch.lhpd-pdf');
     Route::delete('/sppd-dalam-kota/batch/{batchCode}', [SppdDalamKotaController::class, 'destroyBatch'])->name('sppd-dalam-kota.batch.destroy');
+    Route::put('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'updateSppd'])->name('sppd-dalam-kota.sppd.update');
     Route::delete('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'destroySppd'])->name('sppd-dalam-kota.sppd.destroy');
 
     Route::post('/sppd-dalam-kota/pegawai', [SppdDalamKotaController::class, 'storePegawai'])->name('sppd-dalam-kota.pegawai.store');

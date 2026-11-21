@@ -41,6 +41,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -121,13 +129,18 @@ interface SppdBatchEmployeeSummary {
 interface SppdBatchChildItem {
     id: number;
     nomor_spt: string;
+    raw_nomor_spt?: string | null;
     tanggal_spt: string;
     tanggal_spt_formatted: string;
     tanggal_berangkat: string;
     tanggal_berangkat_formatted: string;
     tujuan: string;
+    nama_desa: string | null;
     nama_kecamatan: string;
     zona: string | null;
+    kepala_dinas_id?: number | null;
+    pptk_id?: number | null;
+    bendahara_id?: number | null;
     total_uang_saku: number;
     participants: {
         id: number;
@@ -166,6 +179,7 @@ interface SppdBatchGroupItem {
     kecamatan_list: string[];
     tujuan_list: string[];
     primary_tujuan: string;
+    primary_desa?: string | null;
     primary_kecamatan: string;
     first_tanggal_berangkat_formatted?: string;
     last_tanggal_berangkat_formatted?: string;
@@ -205,6 +219,7 @@ interface ParticipantDraft {
     tanggal_berangkat: string;
     tanggal_spt: string;
     tujuan: string;
+    nama_desa: string;
     nama_kecamatan: string;
 }
 
@@ -214,6 +229,7 @@ interface SppdBatchDraft {
     tanggal_berangkat: string;
     tanggal_spt: string;
     tujuan: string;
+    nama_desa: string;
     nama_kecamatan: string;
     kepala_dinas_id: string;
     pptk_id: string;
@@ -407,6 +423,7 @@ export default function SppdDalamKotaIndex({
         dateBerangkat = todayStr,
         dateSpt = todayStr,
         tujuanInitial = '',
+        desaInitial = '',
         kecInitial = defaultKecamatan
     ): SppdBatchDraft => ({
         uid: `batch-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -414,6 +431,7 @@ export default function SppdDalamKotaIndex({
         tanggal_berangkat: dateBerangkat,
         tanggal_spt: dateSpt,
         tujuan: tujuanInitial,
+        nama_desa: desaInitial,
         nama_kecamatan: kecInitial,
         kepala_dinas_id: defaultKadinId,
         pptk_id: defaultPptkId,
@@ -425,6 +443,7 @@ export default function SppdDalamKotaIndex({
                 tanggal_berangkat: dateBerangkat,
                 tanggal_spt: dateSpt,
                 tujuan: tujuanInitial,
+                nama_desa: desaInitial,
                 nama_kecamatan: kecInitial,
             },
         ],
@@ -439,11 +458,144 @@ export default function SppdDalamKotaIndex({
         tanggal_berangkat: string;
         tanggal_spt: string;
         tujuan: string;
+        nama_desa: string;
         nama_kecamatan: string;
         participantIds: string[];
     } | null>(null);
 
     const [sppdSearch, setSppdSearch] = useState('');
+
+    // =========================================================================
+    // STATE MODAL EDIT KEBERANGKATAN SPPD DALAM BATCH
+    // =========================================================================
+    const [editSppdModalOpen, setEditSppdModalOpen] = useState(false);
+    const [editingSppdItem, setEditingSppdItem] =
+        useState<SppdBatchChildItem | null>(null);
+    const [editingSppdBatchCode, setEditingSppdBatchCode] = useState('');
+    const [esNomorSpt, setEsNomorSpt] = useState('');
+    const [esTanggalBerangkat, setEsTanggalBerangkat] = useState('');
+    const [esTanggalSpt, setEsTanggalSpt] = useState('');
+    const [esTujuan, setEsTujuan] = useState('');
+    const [esNamaDesa, setEsNamaDesa] = useState('');
+    const [esNamaKecamatan, setEsNamaKecamatan] = useState('');
+    const [esKepalaDinasId, setEsKepalaDinasId] = useState('');
+    const [esPptkId, setEsPptkId] = useState('');
+    const [esBendaharaId, setEsBendaharaId] = useState('');
+    const [esParticipantIds, setEsParticipantIds] = useState<string[]>([]);
+    const [isSavingEditSppd, setIsSavingEditSppd] = useState(false);
+
+    const handleOpenEditSppd = (
+        item: SppdBatchChildItem,
+        batchCode: string
+    ) => {
+        setEditingSppdItem(item);
+        setEditingSppdBatchCode(batchCode);
+        setEsNomorSpt(item.raw_nomor_spt || '');
+        setEsTanggalBerangkat(item.tanggal_berangkat || todayStr);
+        setEsTanggalSpt(item.tanggal_spt || todayStr);
+        setEsTujuan(item.tujuan || '');
+        setEsNamaDesa(item.nama_desa || '');
+        setEsNamaKecamatan(item.nama_kecamatan || defaultKecamatan);
+        setEsKepalaDinasId(
+            item.kepala_dinas_id ? String(item.kepala_dinas_id) : defaultKadinId
+        );
+        setEsPptkId(item.pptk_id ? String(item.pptk_id) : defaultPptkId);
+        setEsBendaharaId(
+            item.bendahara_id ? String(item.bendahara_id) : defaultBendaharaId
+        );
+        const existingIds = item.participants
+            .map((pt) => (pt.pegawai_id ? String(pt.pegawai_id) : ''))
+            .filter(Boolean);
+        setEsParticipantIds(
+            existingIds.length > 0
+                ? existingIds
+                : [String(pegawais[0]?.id || '')]
+        );
+        setEditSppdModalOpen(true);
+    };
+
+    const handleAddEditParticipant = () => {
+        const usedIds = new Set(esParticipantIds);
+        const nextAvailable =
+            pegawais.find((p) => !usedIds.has(String(p.id))) || pegawais[0];
+        setEsParticipantIds((prev) => [
+            ...prev,
+            String(nextAvailable?.id || ''),
+        ]);
+    };
+
+    const handleRemoveEditParticipant = (idx: number) => {
+        setEsParticipantIds((prev) =>
+            prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)
+        );
+    };
+
+    const handleChangeEditParticipant = (idx: number, pegawaiId: string) => {
+        setEsParticipantIds((prev) =>
+            prev.map((id, i) => (i === idx ? pegawaiId : id))
+        );
+    };
+
+    const handleSaveEditSppd = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingSppdItem) return;
+
+        if (!esTujuan.trim()) {
+            toast.error('Tujuan perjalanan wajib diisi.');
+            return;
+        }
+        if (!esNamaKecamatan) {
+            toast.error('Kecamatan tujuan wajib dipilih.');
+            return;
+        }
+        if (
+            esParticipantIds.length === 0 ||
+            esParticipantIds.some((id) => !id)
+        ) {
+            toast.error('Semua baris pegawai wajib dipilih.');
+            return;
+        }
+
+        setIsSavingEditSppd(true);
+        router.put(
+            `/sppd-dalam-kota/sppd/${editingSppdItem.id}`,
+            {
+                nomor_spt: esNomorSpt.trim() || null,
+                tanggal_berangkat: esTanggalBerangkat,
+                tanggal_spt: esTanggalSpt,
+                tujuan: esTujuan.trim(),
+                nama_desa: esNamaDesa.trim() || null,
+                nama_kecamatan: esNamaKecamatan,
+                kepala_dinas_id: esKepalaDinasId
+                    ? Number(esKepalaDinasId)
+                    : null,
+                pptk_id: esPptkId ? Number(esPptkId) : null,
+                bendahara_id: esBendaharaId ? Number(esBendaharaId) : null,
+                participant_pegawai_ids: esParticipantIds.map((id) =>
+                    Number(id)
+                ),
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        'Data keberangkatan SPPD dalam batch berhasil diperbarui.'
+                    );
+                    setEditSppdModalOpen(false);
+                    setEditingSppdItem(null);
+                },
+                onError: (errors) => {
+                    const firstErr = Object.values(errors)[0];
+                    toast.error(
+                        typeof firstErr === 'string'
+                            ? firstErr
+                            : 'Gagal memperbarui data SPPD.'
+                    );
+                },
+                onFinish: () => setIsSavingEditSppd(false),
+            }
+        );
+    };
 
     useEffect(() => {
         if (
@@ -487,6 +639,7 @@ export default function SppdDalamKotaIndex({
             | 'tanggal_berangkat'
             | 'tanggal_spt'
             | 'tujuan'
+            | 'nama_desa'
             | 'nama_kecamatan'
             | 'nomor_spt'
             | 'kepala_dinas_id'
@@ -503,6 +656,7 @@ export default function SppdDalamKotaIndex({
                     field === 'tanggal_berangkat' ||
                     field === 'tanggal_spt' ||
                     field === 'tujuan' ||
+                    field === 'nama_desa' ||
                     field === 'nama_kecamatan'
                 ) {
                     updatedBatch.participants = batch.participants.map((pt) => ({
@@ -537,6 +691,7 @@ export default function SppdDalamKotaIndex({
                     (field === 'tanggal_berangkat' ||
                         field === 'tanggal_spt' ||
                         field === 'tujuan' ||
+                        field === 'nama_desa' ||
                         field === 'nama_kecamatan')
                 ) {
                     updatedBatch[field] = value;
@@ -567,6 +722,7 @@ export default function SppdDalamKotaIndex({
                         firstPerson?.tanggal_berangkat || batch.tanggal_berangkat,
                     tanggal_spt: firstPerson?.tanggal_spt || batch.tanggal_spt,
                     tujuan: firstPerson?.tujuan || batch.tujuan,
+                    nama_desa: firstPerson?.nama_desa || batch.nama_desa,
                     nama_kecamatan:
                         firstPerson?.nama_kecamatan || batch.nama_kecamatan,
                 };
@@ -578,7 +734,7 @@ export default function SppdDalamKotaIndex({
             })
         );
         toast.success(
-            'Baris pegawai berikutnya ditambahkan dengan Tanggal, SPT, Tujuan & Kecamatan yang sama.'
+            'Baris pegawai berikutnya ditambahkan dengan Tanggal, SPT, Tujuan, Desa & Kecamatan yang sama.'
         );
     };
 
@@ -608,6 +764,7 @@ export default function SppdDalamKotaIndex({
             tanggal_berangkat: nextDate,
             tanggal_spt: lastBatch?.tanggal_spt || todayStr,
             tujuan: lastBatch?.tujuan || '',
+            nama_desa: lastBatch?.nama_desa || '',
             nama_kecamatan: lastBatch?.nama_kecamatan || defaultKecamatan,
         }));
 
@@ -617,6 +774,7 @@ export default function SppdDalamKotaIndex({
             tanggal_berangkat: nextDate,
             tanggal_spt: lastBatch?.tanggal_spt || todayStr,
             tujuan: lastBatch?.tujuan || '',
+            nama_desa: lastBatch?.nama_desa || '',
             nama_kecamatan: lastBatch?.nama_kecamatan || defaultKecamatan,
             kepala_dinas_id: lastBatch?.kepala_dinas_id || defaultKadinId,
             pptk_id: lastBatch?.pptk_id || defaultPptkId,
@@ -631,6 +789,7 @@ export default function SppdDalamKotaIndex({
                               tanggal_berangkat: nextDate,
                               tanggal_spt: todayStr,
                               tujuan: lastBatch?.tujuan || '',
+                              nama_desa: lastBatch?.nama_desa || '',
                               nama_kecamatan:
                                   lastBatch?.nama_kecamatan || defaultKecamatan,
                           },
@@ -684,6 +843,7 @@ export default function SppdDalamKotaIndex({
             tanggal_berangkat: lastB.tanggal_berangkat,
             tanggal_spt: lastB.tanggal_spt,
             tujuan: lastB.tujuan,
+            nama_desa: lastB.nama_desa,
             nama_kecamatan: lastB.nama_kecamatan,
             participantIds: lastB.participants.map((p) => p.pegawai_id),
         };
@@ -703,6 +863,7 @@ export default function SppdDalamKotaIndex({
                     tanggal_berangkat: b.tanggal_berangkat,
                     tanggal_spt: b.tanggal_spt,
                     tujuan: b.tujuan,
+                    nama_desa: b.nama_desa || null,
                     nama_kecamatan: b.nama_kecamatan,
                     kepala_dinas_id: b.kepala_dinas_id
                         ? Number(b.kepala_dinas_id)
@@ -714,6 +875,7 @@ export default function SppdDalamKotaIndex({
                         tanggal_berangkat: pt.tanggal_berangkat,
                         tanggal_spt: pt.tanggal_spt,
                         tujuan: pt.tujuan,
+                        nama_desa: pt.nama_desa || null,
                         nama_kecamatan: pt.nama_kecamatan,
                     })),
                 })),
@@ -756,6 +918,7 @@ export default function SppdDalamKotaIndex({
             nextDate,
             lastSavedReference?.tanggal_spt || todayStr,
             lastSavedReference?.tujuan || '',
+            lastSavedReference?.nama_desa || '',
             lastSavedReference?.nama_kecamatan || defaultKecamatan
         );
 
@@ -770,6 +933,7 @@ export default function SppdDalamKotaIndex({
                     tanggal_berangkat: nextDate,
                     tanggal_spt: lastSavedReference.tanggal_spt,
                     tujuan: lastSavedReference.tujuan,
+                    nama_desa: lastSavedReference.nama_desa,
                     nama_kecamatan: lastSavedReference.nama_kecamatan,
                 })
             );
@@ -811,6 +975,7 @@ export default function SppdDalamKotaIndex({
             nextDate,
             grp.last_tanggal_spt || todayStr,
             grp.primary_tujuan || '',
+            grp.primary_desa || '',
             grp.primary_kecamatan || defaultKecamatan
         );
 
@@ -821,6 +986,7 @@ export default function SppdDalamKotaIndex({
                 tanggal_berangkat: nextDate,
                 tanggal_spt: grp.last_tanggal_spt || todayStr,
                 tujuan: grp.primary_tujuan || '',
+                nama_desa: grp.primary_desa || '',
                 nama_kecamatan: grp.primary_kecamatan || defaultKecamatan,
             }));
         }
@@ -854,6 +1020,54 @@ export default function SppdDalamKotaIndex({
     ) => {
         if (e) e.stopPropagation();
         window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/c2-pdf`;
+    };
+
+    const handleDownloadBatchRincianPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rincian-pdf`;
+    };
+
+    const handleDownloadBatchKwitansiPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-pdf`;
+    };
+
+    const handleDownloadBatchKwitansi2Pdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-2-pdf`;
+    };
+
+    const handleDownloadBatchSppdPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sppd-pdf`;
+    };
+
+    const handleDownloadBatchRekapPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rekap-pdf`;
+    };
+
+    const handleDownloadBatchLhpdPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/lhpd-pdf`;
     };
 
     const handleDeleteBatch = (
@@ -2095,7 +2309,7 @@ export default function SppdDalamKotaIndex({
                                                             </div>
 
                                                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
-                                                                <div className="space-y-1 lg:col-span-3">
+                                                                <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
                                                                         1. Nama Pegawai *
                                                                     </Label>
@@ -2171,9 +2385,9 @@ export default function SppdDalamKotaIndex({
                                                                     />
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-3">
+                                                                <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
-                                                                        4. Tujuan (Tempat) *
+                                                                        4. Tujuan *
                                                                     </Label>
                                                                     <Input
                                                                         value={pt.tujuan}
@@ -2185,7 +2399,7 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        placeholder="Contoh: Pasar Daerah Bondan"
+                                                                        placeholder="Contoh: Monitoring Harga Pangan"
                                                                         className="h-9 text-xs"
                                                                         required
                                                                     />
@@ -2193,7 +2407,27 @@ export default function SppdDalamKotaIndex({
 
                                                                 <div className="space-y-1 lg:col-span-2">
                                                                     <Label className="text-xs font-bold">
-                                                                        5. Kecamatan *
+                                                                        5. Desa / Tempat *
+                                                                    </Label>
+                                                                    <Input
+                                                                        value={pt.nama_desa}
+                                                                        onChange={(e) =>
+                                                                            handleUpdateParticipantField(
+                                                                                batchIdx,
+                                                                                ptIdx,
+                                                                                'nama_desa',
+                                                                                e.target.value
+                                                                            )
+                                                                        }
+                                                                        placeholder="Contoh: Pasar Daerah Bondan / Desa Bondan"
+                                                                        className="h-9 text-xs"
+                                                                        required
+                                                                    />
+                                                                </div>
+
+                                                                <div className="space-y-1 lg:col-span-2">
+                                                                    <Label className="text-xs font-bold">
+                                                                        6. Kecamatan *
                                                                     </Label>
                                                                     <Select
                                                                         value={pt.nama_kecamatan}
@@ -2495,9 +2729,15 @@ export default function SppdDalamKotaIndex({
                                                                         </div>
                                                                     </td>
 
-                                                                    <td className="px-4 py-3.5 whitespace-nowrap">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="flex size-6 items-center justify-center rounded-md bg-[#006565]/10 text-[#006565]">
+                                                                    <td className="px-4 py-3 whitespace-nowrap align-middle">
+                                                                        <div className="flex items-center gap-2.5">
+                                                                            <span
+                                                                                className={`flex size-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                                                                                    isExpanded
+                                                                                        ? 'border-[#006565] bg-[#006565] text-white'
+                                                                                        : 'border-teal-200 bg-teal-50 text-[#006565]'
+                                                                                }`}
+                                                                            >
                                                                                 {isExpanded ? (
                                                                                     <ChevronDown className="size-4 stroke-[2.5]" />
                                                                                 ) : (
@@ -2505,214 +2745,330 @@ export default function SppdDalamKotaIndex({
                                                                                 )}
                                                                             </span>
                                                                             <div>
-                                                                                <div className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                                                    {
-                                                                                        grp.batch_code
-                                                                                    }
-                                                                                </div>
-                                                                                <div className="mt-1 flex items-center gap-1.5">
-                                                                                    <Badge className="bg-[#006565] text-white hover:bg-[#006565] text-[10px] font-extrabold">
-                                                                                        {
-                                                                                            grp.spt_count
-                                                                                        }{' '}
-                                                                                        Data SPPD
-                                                                                    </Badge>
-                                                                                    <span className="text-[10px] font-semibold text-[#006565] underline">
-                                                                                        {isExpanded
-                                                                                            ? 'Tutup Rincian'
-                                                                                            : 'Klik Lihat 3+ SPPD'}
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <span className="font-mono text-xs font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                                                        {grp.batch_code}
                                                                                     </span>
+                                                                                    <Badge className="bg-[#006565] text-white hover:bg-[#006565] px-1.5 py-0 text-[10px] font-extrabold">
+                                                                                        {grp.spt_count} SPPD
+                                                                                    </Badge>
+                                                                                </div>
+                                                                                <div className="mt-0.5 text-[10px] font-medium text-neutral-500">
+                                                                                    {grp.first_tanggal_berangkat_formatted &&
+                                                                                    grp.last_tanggal_berangkat_formatted &&
+                                                                                    grp.first_tanggal_berangkat_formatted !==
+                                                                                        grp.last_tanggal_berangkat_formatted
+                                                                                        ? `${grp.first_tanggal_berangkat_formatted} – ${grp.last_tanggal_berangkat_formatted}`
+                                                                                        : grp.first_tanggal_berangkat_formatted ||
+                                                                                          'Klik untuk rincian'}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
                                                                     </td>
 
-                                                                    <td className="px-4 py-3.5 max-w-[260px]">
+                                                                    <td className="px-4 py-3 max-w-[250px] align-middle">
                                                                         {grp.sub_kegiatan ? (
-                                                                            <div>
-                                                                                <div className="flex flex-wrap items-center gap-1">
-                                                                                    <span className="rounded bg-teal-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#006565]">
-                                                                                        {
-                                                                                            grp
-                                                                                                .sub_kegiatan
-                                                                                                .kode_sub_kegiatan
-                                                                                        }
-                                                                                    </span>
-                                                                                    <span className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[10px] text-neutral-600">
-                                                                                        Rek:{' '}
-                                                                                        {
-                                                                                            grp
-                                                                                                .sub_kegiatan
-                                                                                                .no_rekening
-                                                                                        }
-                                                                                    </span>
+                                                                            <div className="space-y-0.5">
+                                                                                <div className="font-bold text-neutral-900 dark:text-neutral-100 line-clamp-1" title={grp.sub_kegiatan.sub_kegiatan}>
+                                                                                    {grp.sub_kegiatan.sub_kegiatan}
                                                                                 </div>
-                                                                                <div className="mt-1 font-bold text-neutral-800 dark:text-neutral-200 line-clamp-2">
-                                                                                    {
-                                                                                        grp
-                                                                                            .sub_kegiatan
-                                                                                            .sub_kegiatan
-                                                                                    }
+                                                                                <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                                                                    <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0 font-mono font-bold text-[#006565]">
+                                                                                        {grp.sub_kegiatan.kode_sub_kegiatan}
+                                                                                    </span>
+                                                                                    <span className="rounded bg-neutral-100 px-1.5 py-0 font-mono text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                                                                                        Rek: {grp.sub_kegiatan.no_rekening}
+                                                                                    </span>
                                                                                 </div>
                                                                             </div>
                                                                         ) : (
-                                                                            <span className="text-neutral-400">
-                                                                                -
-                                                                            </span>
+                                                                            <span className="text-neutral-400">-</span>
                                                                         )}
                                                                         {grp.dpa && (
-                                                                            <div className="mt-1 font-mono text-[10px] text-neutral-500">
-                                                                                DPA:{' '}
-                                                                                {
-                                                                                    grp
-                                                                                        .dpa
-                                                                                        .nomor_dpa
-                                                                                }
+                                                                            <div className="mt-0.5 font-mono text-[10px] text-neutral-400 truncate" title={grp.dpa.nomor_dpa}>
+                                                                                DPA: {grp.dpa.nomor_dpa}
                                                                             </div>
                                                                         )}
                                                                     </td>
 
-                                                                    <td className="px-4 py-3.5 max-w-[230px]">
-                                                                        <div className="flex flex-wrap gap-1">
-                                                                            {grp.kecamatan_list.map(
-                                                                                (
-                                                                                    kec
-                                                                                ) => (
-                                                                                    <Badge
-                                                                                        key={
-                                                                                            kec
-                                                                                        }
-                                                                                        variant="outline"
-                                                                                        className="border-blue-300 bg-blue-50 text-blue-800 text-[10px] font-bold"
-                                                                                    >
-                                                                                        Kec.{' '}
-                                                                                        {
-                                                                                            kec
-                                                                                        }
-                                                                                    </Badge>
-                                                                                )
+                                                                    <td className="px-4 py-3 max-w-[210px] align-middle">
+                                                                        <div className="font-semibold text-neutral-800 dark:text-neutral-200 line-clamp-1" title={grp.tujuan_list.join(', ')}>
+                                                                            {grp.primary_tujuan}
+                                                                            {grp.tujuan_list.length > 1 && (
+                                                                                <span className="ml-1 text-[10px] font-bold text-[#006565]">
+                                                                                    (+{grp.tujuan_list.length - 1} tujuan)
+                                                                                </span>
                                                                             )}
                                                                         </div>
-                                                                        <div className="mt-1 text-neutral-600 dark:text-neutral-300 line-clamp-2">
-                                                                            {grp.tujuan_list.join(
-                                                                                ' • '
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-
-                                                                    <td className="px-4 py-3.5">
-                                                                        <div className="space-y-1">
-                                                                            {grp.employees.map(
-                                                                                (
-                                                                                    emp,
-                                                                                    eIdx
-                                                                                ) => (
-                                                                                    <div
-                                                                                        key={`${emp.nama}-${eIdx}`}
-                                                                                        className="flex items-center justify-between gap-2 rounded-lg bg-white/90 border border-neutral-200/70 px-2.5 py-1 dark:bg-neutral-900"
-                                                                                    >
-                                                                                        <span className="font-bold text-neutral-800 dark:text-neutral-200">
-                                                                                            {eIdx +
-                                                                                                1}
-
-                                                                                            .{' '}
-                                                                                            {
-                                                                                                emp.nama
-                                                                                            }
-                                                                                        </span>
-                                                                                        <span className="text-[10px] font-semibold text-[#006565]">
-                                                                                            {
-                                                                                                emp.golongan
-                                                                                            }
-                                                                                        </span>
-                                                                                    </div>
-                                                                                )
+                                                                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                                                                            {grp.kecamatan_list.slice(0, 2).map((kec) => (
+                                                                                <span
+                                                                                    key={kec}
+                                                                                    className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50/80 px-1.5 py-0 text-[10px] font-semibold text-blue-800"
+                                                                                >
+                                                                                    Kec. {kec}
+                                                                                </span>
+                                                                            ))}
+                                                                            {grp.kecamatan_list.length > 2 && (
+                                                                                <span className="rounded-md bg-neutral-100 px-1.5 py-0 text-[10px] font-bold text-neutral-600">
+                                                                                    +{grp.kecamatan_list.length - 2} kec
+                                                                                </span>
                                                                             )}
                                                                         </div>
                                                                     </td>
 
-                                                                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                                                                        <div className="font-mono text-sm font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                                            {formatRupiah(
-                                                                                grp.total_uang_saku
-                                                                            )}
+                                                                    <td className="px-4 py-3 align-middle">
+                                                                        <div className="flex flex-wrap gap-1 max-w-[230px]">
+                                                                            {grp.employees.map((emp, eIdx) => (
+                                                                                <span
+                                                                                    key={`${emp.nama}-${eIdx}`}
+                                                                                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-neutral-800 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
+                                                                                >
+                                                                                    <span className="text-[10px] font-bold text-neutral-400">
+                                                                                        {eIdx + 1}.
+                                                                                    </span>
+                                                                                    <span className="truncate max-w-[135px]">
+                                                                                        {emp.nama}
+                                                                                    </span>
+                                                                                    <span className="rounded bg-teal-50 px-1 text-[9px] font-extrabold text-[#006565]">
+                                                                                        {emp.golongan}
+                                                                                    </span>
+                                                                                </span>
+                                                                            ))}
                                                                         </div>
-                                                                        {grp.terbilang_uang_saku && (
-                                                                            <div className="text-[10px] italic text-neutral-500 max-w-[160px] truncate ml-auto">
-                                                                                {
-                                                                                    grp.terbilang_uang_saku
-                                                                                }
-                                                                            </div>
-                                                                        )}
+                                                                    </td>
+
+                                                                    <td className="px-4 py-3 text-right whitespace-nowrap align-middle">
+                                                                        <div className="font-mono text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
+                                                                            {formatRupiah(grp.total_uang_saku)}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-neutral-400">
+                                                                            {grp.items.reduce(
+                                                                                (acc, it) => acc + it.participants.length,
+                                                                                0
+                                                                            )}{' '}
+                                                                            Tanda Bukti
+                                                                        </div>
                                                                     </td>
 
                                                                     <td
-                                                                        className="px-4 py-3.5 text-right whitespace-nowrap"
-                                                                        onClick={(
-                                                                            e
-                                                                        ) =>
-                                                                            e.stopPropagation()
-                                                                        }
+                                                                        className="px-4 py-3 text-right whitespace-nowrap align-middle"
+                                                                        onClick={(e) => e.stopPropagation()}
                                                                     >
-                                                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
-                                                                            <Button
-                                                                                size="sm"
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) =>
-                                                                                    handleDownloadBatchPdf(
-                                                                                        grp.batch_code,
-                                                                                        e
-                                                                                    )
-                                                                                }
-                                                                                className="h-8 gap-1.5 px-2.5 text-xs bg-[#006565] text-white hover:bg-[#005252]"
-                                                                                title={`Download ${grp.spt_count} Surat Tugas (SPT) dalam 1 file PDF`}
-                                                                            >
-                                                                                <Download className="size-3.5" />
-                                                                                Cetak SPT (PDF)
-                                                                            </Button>
+                                                                        <div className="inline-flex items-center justify-end gap-1.5">
+                                                                            {/* DROPDOWN MENU DOWNLOAD PDF */}
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        className="h-8 gap-1.5 px-3 text-xs font-bold bg-[#006565] text-white hover:bg-[#005252] shadow-2xs"
+                                                                                    >
+                                                                                        <Download className="size-3.5" />
+                                                                                        <span>Download PDF</span>
+                                                                                        <ChevronDown className="size-3.5 opacity-80" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuContent
+                                                                                    align="end"
+                                                                                    className="w-60 rounded-xl p-1.5 shadow-lg"
+                                                                                >
+                                                                                    <DropdownMenuLabel className="px-2 py-1 text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">
+                                                                                        Dokumen PDF ({grp.batch_code})
+                                                                                    </DropdownMenuLabel>
+                                                                                    <DropdownMenuSeparator />
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileText className="mt-0.5 size-4 shrink-0 text-[#006565]" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                1. Cetak SPT (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Surat Tugas ({grp.spt_count} lembar dalam 1 file)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
 
-                                                                            <Button
-                                                                                size="sm"
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) =>
-                                                                                    handleDownloadBatchSptjbPdf(
-                                                                                        grp.batch_code,
-                                                                                        e
-                                                                                    )
-                                                                                }
-                                                                                className="h-8 gap-1.5 px-2.5 text-xs bg-indigo-700 text-white hover:bg-indigo-800"
-                                                                                title="Download Laporan Surat Pernyataan Tanggung Jawab Belanja (SPTJB) PDF"
-                                                                            >
-                                                                                <FileCheck2 className="size-3.5" />
-                                                                                SPTJB (PDF)
-                                                                            </Button>
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchSptjbPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileCheck2 className="mt-0.5 size-4 shrink-0 text-indigo-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                2. Laporan SPTJB (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Surat Pernyataan Tanggung Jawab Belanja
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchC2Pdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                3. Laporan C2 (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Perincian Pengeluaran Tanda Bukti
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchRincianPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileText className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                4. Laporan Rincian (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Rincian Biaya Perjalanan Dinas ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchKwitansiPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileCheck2 className="mt-0.5 size-4 shrink-0 text-purple-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                5. Laporan Kwitansi (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Tanda Terima Uang Harian ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchKwitansi2Pdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileCheck2 className="mt-0.5 size-4 shrink-0 text-rose-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                6. Kwitansi 2 (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Kuitansi Perjalanan Dinas ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchSppdPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileText className="mt-0.5 size-4 shrink-0 text-sky-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                7. SPPD (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Surat Perjalanan Dinas / SPD ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchRekapPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileSpreadsheet className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                8. Rekap (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Rekapitulasi Perjalanan Dinas Batch
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
+                                                                                            handleDownloadBatchLhpdPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileText className="mt-0.5 size-4 shrink-0 text-orange-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                9. LHPD (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Laporan Hasil Perjalanan Dinas ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+                                                                                </DropdownMenuContent>
+                                                                            </DropdownMenu>
 
                                                                             <Button
                                                                                 size="sm"
                                                                                 variant="outline"
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) =>
+                                                                                onClick={(e) =>
                                                                                     handleAppendDateToExistingBatch(
                                                                                         grp,
                                                                                         e
                                                                                     )
                                                                                 }
-                                                                                className="h-8 gap-1 px-2 text-xs border-amber-300 text-amber-800 hover:bg-amber-50"
+                                                                                className="h-8 gap-1 px-2.5 text-xs font-bold border-amber-300 text-amber-800 hover:bg-amber-50"
                                                                                 title="Tambah data SPPD tanggal baru ke dalam Batch ini"
                                                                             >
                                                                                 <CalendarPlus className="size-3.5" />
-                                                                                + SPPD
+                                                                                <span>+ SPPD</span>
                                                                             </Button>
 
                                                                             <Button
                                                                                 size="sm"
                                                                                 variant="outline"
-                                                                                onClick={(
-                                                                                    e
-                                                                                ) =>
+                                                                                onClick={(e) =>
                                                                                     handleDeleteBatch(
                                                                                         grp,
                                                                                         e
@@ -2757,36 +3113,123 @@ export default function SppdDalamKotaIndex({
                                                                                     </div>
 
                                                                                     <div className="flex items-center gap-2">
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            onClick={() =>
-                                                                                                handleDownloadBatchPdf(
-                                                                                                    grp.batch_code
-                                                                                                )
-                                                                                            }
-                                                                                            className="h-7 gap-1 text-[11px] border-teal-300 text-[#006565]"
-                                                                                        >
-                                                                                            <Download className="size-3" />
-                                                                                            Unduh{' '}
-                                                                                            {
-                                                                                                grp.spt_count
-                                                                                            }{' '}
-                                                                                            SPT (1 PDF)
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            onClick={() =>
-                                                                                                handleDownloadBatchSptjbPdf(
-                                                                                                    grp.batch_code
-                                                                                                )
-                                                                                            }
-                                                                                            className="h-7 gap-1 text-[11px] border-indigo-300 text-indigo-700"
-                                                                                        >
-                                                                                            <FileCheck2 className="size-3" />
-                                                                                            Unduh SPTJB (PDF)
-                                                                                        </Button>
+                                                                                        <DropdownMenu>
+                                                                                            <DropdownMenuTrigger asChild>
+                                                                                                <Button
+                                                                                                    size="sm"
+                                                                                                    variant="outline"
+                                                                                                    className="h-7 gap-1.5 text-[11px] font-bold border-teal-300 text-[#006565] hover:bg-teal-50"
+                                                                                                >
+                                                                                                    <Download className="size-3" />
+                                                                                                    <span>Pilih Download PDF</span>
+                                                                                                    <ChevronDown className="size-3" />
+                                                                                                </Button>
+                                                                                            </DropdownMenuTrigger>
+                                                                                            <DropdownMenuContent
+                                                                                                align="end"
+                                                                                                className="w-56 rounded-xl p-1"
+                                                                                            >
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileText className="size-3.5 text-[#006565]" />
+                                                                                                    <span>1. Cetak SPT ({grp.spt_count} Lembar PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchSptjbPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileCheck2 className="size-3.5 text-indigo-600" />
+                                                                                                    <span>2. Laporan SPTJB (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchC2Pdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileSpreadsheet className="size-3.5 text-emerald-600" />
+                                                                                                    <span>3. Laporan C2 (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchRincianPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileText className="size-3.5 text-amber-600" />
+                                                                                                    <span>4. Laporan Rincian (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchKwitansiPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileCheck2 className="size-3.5 text-purple-600" />
+                                                                                                    <span>5. Laporan Kwitansi (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchKwitansi2Pdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileCheck2 className="size-3.5 text-rose-600" />
+                                                                                                    <span>6. Kwitansi 2 (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchSppdPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileText className="size-3.5 text-sky-600" />
+                                                                                                    <span>7. SPPD (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchRekapPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileSpreadsheet className="size-3.5 text-teal-600" />
+                                                                                                    <span>8. Rekap (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchLhpdPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileText className="size-3.5 text-orange-600" />
+                                                                                                    <span>9. LHPD (PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                            </DropdownMenuContent>
+                                                                                        </DropdownMenu>
                                                                                     </div>
                                                                                 </div>
 
@@ -2853,23 +3296,17 @@ export default function SppdDalamKotaIndex({
                                                                                                         </td>
                                                                                                         <td className="px-3 py-2.5">
                                                                                                             <div className="font-bold text-neutral-800 dark:text-neutral-200">
-                                                                                                                {
-                                                                                                                    item.tujuan
-                                                                                                                }
+                                                                                                                {item.tujuan}
                                                                                                             </div>
                                                                                                             <div className="text-[11px] text-neutral-500">
+                                                                                                                {item.nama_desa && (
+                                                                                                                    <>
+                                                                                                                        <strong>{item.nama_desa}</strong>,{' '}
+                                                                                                                    </>
+                                                                                                                )}
                                                                                                                 Kecamatan{' '}
-                                                                                                                <strong>
-                                                                                                                    {
-                                                                                                                        item.nama_kecamatan
-                                                                                                                    }
-                                                                                                                </strong>{' '}
-                                                                                                                (
-                                                                                                                {
-                                                                                                                    item.zona
-                                                                                                                }
-
-                                                                                                                )
+                                                                                                                <strong>{item.nama_kecamatan}</strong>{' '}
+                                                                                                                ({item.zona})
                                                                                                             </div>
                                                                                                         </td>
                                                                                                         <td className="px-3 py-2.5">
@@ -2917,30 +3354,46 @@ export default function SppdDalamKotaIndex({
                                                                                                                 item.total_uang_saku
                                                                                                             )}
                                                                                                         </td>
-                                                                                                        <td className="px-3 py-2.5 text-right">
-                                                                                                            <Button
-                                                                                                                size="sm"
-                                                                                                                variant="outline"
-                                                                                                                onClick={() => {
-                                                                                                                    if (
-                                                                                                                        window.confirm(
-                                                                                                                            `Hapus SPPD #${itemIdx + 1} (${item.tanggal_berangkat_formatted}) dari Batch ini?`
+                                                                                                        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                                                                                            <div className="inline-flex items-center gap-1">
+                                                                                                                <Button
+                                                                                                                    size="sm"
+                                                                                                                    variant="outline"
+                                                                                                                    onClick={() =>
+                                                                                                                        handleOpenEditSppd(
+                                                                                                                            item,
+                                                                                                                            grp.batch_code
                                                                                                                         )
-                                                                                                                    ) {
-                                                                                                                        router.delete(
-                                                                                                                            `/sppd-dalam-kota/sppd/${item.id}`,
-                                                                                                                            {
-                                                                                                                                preserveScroll:
-                                                                                                                                    true,
-                                                                                                                            }
-                                                                                                                        );
                                                                                                                     }
-                                                                                                                }}
-                                                                                                                className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-50"
-                                                                                                                title="Hapus SPPD tanggal ini dari Batch"
-                                                                                                            >
-                                                                                                                <Trash2 className="size-3" />
-                                                                                                            </Button>
+                                                                                                                    className="h-7 px-2 text-[11px] text-[#006565] hover:bg-teal-50"
+                                                                                                                    title="Edit data SPPD ini"
+                                                                                                                >
+                                                                                                                    <Edit3 className="size-3" />
+                                                                                                                </Button>
+                                                                                                                <Button
+                                                                                                                    size="sm"
+                                                                                                                    variant="outline"
+                                                                                                                    onClick={() => {
+                                                                                                                        if (
+                                                                                                                            window.confirm(
+                                                                                                                                `Hapus SPPD #${itemIdx + 1} (${item.tanggal_berangkat_formatted}) dari Batch ini?`
+                                                                                                                            )
+                                                                                                                        ) {
+                                                                                                                            router.delete(
+                                                                                                                                `/sppd-dalam-kota/sppd/${item.id}`,
+                                                                                                                                {
+                                                                                                                                    preserveScroll:
+                                                                                                                                        true,
+                                                                                                                                }
+                                                                                                                            );
+                                                                                                                        }
+                                                                                                                    }}
+                                                                                                                    className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-50"
+                                                                                                                    title="Hapus SPPD tanggal ini dari Batch"
+                                                                                                                >
+                                                                                                                    <Trash2 className="size-3" />
+                                                                                                                </Button>
+                                                                                                            </div>
                                                                                                         </td>
                                                                                                     </tr>
                                                                                                 )
@@ -4077,6 +4530,347 @@ export default function SppdDalamKotaIndex({
                                     className="bg-[#006565] text-white hover:bg-[#005252]"
                                 >
                                     {isSavingPejabat ? 'Menyimpan...' : 'Simpan Data'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* ========================================================= */}
+                {/* DIALOG: EDIT KEBERANGKATAN SPPD DALAM BATCH               */}
+                {/* ========================================================= */}
+                <Dialog
+                    open={editSppdModalOpen}
+                    onOpenChange={setEditSppdModalOpen}
+                >
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-[#006565]">
+                                <Edit3 className="size-4" />
+                                Edit Keberangkatan SPPD dalam Batch
+                            </DialogTitle>
+                            <DialogDescription>
+                                Batch:{' '}
+                                <span className="font-mono font-bold text-neutral-700 dark:text-neutral-200">
+                                    {editingSppdBatchCode}
+                                </span>
+                                . Perubahan kecamatan atau pegawai akan otomatis menghitung ulang zona dan uang saku.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <form onSubmit={handleSaveEditSppd} className="space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Nomor SPT (Opsional)
+                                    </Label>
+                                    <Input
+                                        value={esNomorSpt}
+                                        onChange={(e) =>
+                                            setEsNomorSpt(e.target.value)
+                                        }
+                                        placeholder="Kosongkan untuk format default"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Tanggal Berangkat *
+                                    </Label>
+                                    <Input
+                                        type="date"
+                                        value={esTanggalBerangkat}
+                                        onChange={(e) =>
+                                            setEsTanggalBerangkat(
+                                                e.target.value
+                                            )
+                                        }
+                                        className="h-9 text-xs"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Tanggal SPT *
+                                    </Label>
+                                    <Input
+                                        type="date"
+                                        value={esTanggalSpt}
+                                        onChange={(e) =>
+                                            setEsTanggalSpt(e.target.value)
+                                        }
+                                        className="h-9 text-xs"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs">
+                                    Tujuan Perjalanan *
+                                </Label>
+                                <Input
+                                    value={esTujuan}
+                                    onChange={(e) =>
+                                        setEsTujuan(e.target.value)
+                                    }
+                                    placeholder="Contoh: Monitoring Harga Pangan di Pasar Daerah"
+                                    className="h-9 text-xs"
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Desa / Tempat
+                                    </Label>
+                                    <Input
+                                        value={esNamaDesa}
+                                        onChange={(e) =>
+                                            setEsNamaDesa(e.target.value)
+                                        }
+                                        placeholder="Contoh: Desa Bondan / Pasar Daerah"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Kecamatan Tujuan *
+                                    </Label>
+                                    <Select
+                                        value={esNamaKecamatan}
+                                        onValueChange={setEsNamaKecamatan}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue placeholder="Pilih kecamatan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {kecamatanOptions.map((k) => (
+                                                <SelectItem
+                                                    key={k.nama_kecamatan}
+                                                    value={k.nama_kecamatan}
+                                                >
+                                                    {k.nama_kecamatan} ({k.zona}
+                                                    )
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50/70 p-3 dark:border-neutral-800 dark:bg-neutral-900/40">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <Label className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                                            Daftar Pegawai yang Berangkat (
+                                            {esParticipantIds.length} Orang)
+                                        </Label>
+                                        <p className="text-[11px] text-neutral-500">
+                                            Uang saku otomatis mengikuti Master Zonasi kecamatan &amp; golongan pegawai.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleAddEditParticipant}
+                                        className="h-7 gap-1 border-[#006565]/30 text-[11px] font-semibold text-[#006565] hover:bg-teal-50"
+                                    >
+                                        <Plus className="size-3" />
+                                        Tambah Pegawai
+                                    </Button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {esParticipantIds.map((pegId, idx) => {
+                                        const info = getTarifInfo(
+                                            pegId,
+                                            esNamaKecamatan
+                                        );
+                                        return (
+                                            <div
+                                                key={`edit-pt-${idx}`}
+                                                className="flex flex-wrap items-center gap-2 rounded-md border border-neutral-200 bg-white p-2 dark:border-neutral-800 dark:bg-neutral-950"
+                                            >
+                                                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-teal-100 text-[10px] font-extrabold text-[#006565]">
+                                                    {idx + 1}
+                                                </span>
+                                                <div className="min-w-[220px] flex-1">
+                                                    <Select
+                                                        value={pegId}
+                                                        onValueChange={(val) =>
+                                                            handleChangeEditParticipant(
+                                                                idx,
+                                                                val
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs">
+                                                            <SelectValue placeholder="Pilih pegawai" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {pegawais.map(
+                                                                (p) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            p.id
+                                                                        }
+                                                                        value={String(
+                                                                            p.id
+                                                                        )}
+                                                                    >
+                                                                        {p.nama}{' '}
+                                                                        (
+                                                                        {
+                                                                            p.golongan
+                                                                        }
+                                                                        )
+                                                                    </SelectItem>
+                                                                )
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-amber-200 bg-amber-50 text-[10px] text-amber-800"
+                                                >
+                                                    {info.zona}
+                                                </Badge>
+                                                <span className="min-w-[92px] text-right font-mono text-xs font-bold text-emerald-700">
+                                                    {formatRupiah(
+                                                        info.uang_saku
+                                                    )}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    disabled={
+                                                        esParticipantIds.length <=
+                                                        1
+                                                    }
+                                                    onClick={() =>
+                                                        handleRemoveEditParticipant(
+                                                            idx
+                                                        )
+                                                    }
+                                                    className="h-7 w-7 p-0 text-rose-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-30"
+                                                    title="Hapus baris pegawai"
+                                                >
+                                                    <Trash2 className="size-3.5" />
+                                                </Button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="flex items-center justify-between border-t border-neutral-200 pt-2 text-xs dark:border-neutral-800">
+                                    <span className="font-semibold text-neutral-600 dark:text-neutral-400">
+                                        Estimasi Total Uang Saku SPPD ini:
+                                    </span>
+                                    <span className="font-mono text-sm font-extrabold text-[#006565]">
+                                        {formatRupiah(
+                                            esParticipantIds.reduce(
+                                                (sum, id) =>
+                                                    sum +
+                                                    getTarifInfo(
+                                                        id,
+                                                        esNamaKecamatan
+                                                    ).uang_saku,
+                                                0
+                                            )
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">
+                                        Kepala Dinas
+                                    </Label>
+                                    <Select
+                                        value={esKepalaDinasId}
+                                        onValueChange={setEsKepalaDinasId}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue placeholder="Pilih Kepala Dinas" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {kepalaDinasList.map((k) => (
+                                                <SelectItem
+                                                    key={k.id}
+                                                    value={String(k.id)}
+                                                >
+                                                    {k.nama}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">PPTK</Label>
+                                    <Select
+                                        value={esPptkId}
+                                        onValueChange={setEsPptkId}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue placeholder="Pilih PPTK" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {pptkList.map((p) => (
+                                                <SelectItem
+                                                    key={p.id}
+                                                    value={String(p.id)}
+                                                >
+                                                    {p.nama}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Bendahara</Label>
+                                    <Select
+                                        value={esBendaharaId}
+                                        onValueChange={setEsBendaharaId}
+                                    >
+                                        <SelectTrigger className="h-9 text-xs">
+                                            <SelectValue placeholder="Pilih Bendahara" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {bendaharaList.map((b) => (
+                                                <SelectItem
+                                                    key={b.id}
+                                                    value={String(b.id)}
+                                                >
+                                                    {b.nama}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setEditSppdModalOpen(false)}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingEditSppd}
+                                    className="bg-[#006565] text-white hover:bg-[#005252]"
+                                >
+                                    {isSavingEditSppd
+                                        ? 'Menyimpan...'
+                                        : 'Simpan Perubahan'}
                                 </Button>
                             </DialogFooter>
                         </form>

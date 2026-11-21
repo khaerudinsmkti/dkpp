@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'tanggal_berangkat',
     'tanggal_spt',
     'tujuan',
+    'nama_desa',
     'nama_kecamatan',
     'zona',
     'uang_saku',

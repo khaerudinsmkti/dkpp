@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tanggal_spt',
     'tanggal_berangkat',
     'tujuan',
+    'nama_desa',
     'nama_kecamatan',
     'zona',
     'kepala_dinas_id',

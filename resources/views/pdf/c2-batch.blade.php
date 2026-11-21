@@ -76,7 +76,7 @@
             vertical-align: top;
         }
         .c-nama {
-            width: 132px;
+            width: 162px;
             vertical-align: top;
         }
         .c-tanggal {
@@ -88,22 +88,26 @@
             vertical-align: top;
         }
         .c-uang {
-            width: 58px;
+            width: 55px;
             text-align: right;
             vertical-align: middle;
         }
         .c-transpot {
-            width: 56px;
+            width: 52px;
             text-align: right;
             vertical-align: middle;
         }
         .c-pengajuan {
-            width: 62px;
+            width: 58px;
             text-align: right;
             vertical-align: middle;
         }
         .nama-bold {
             font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .nip-nowrap {
+            white-space: nowrap;
             margin-bottom: 2px;
         }
         .sub-line {
@@ -131,7 +135,7 @@
             line-height: 1.25;
         }
         .ttd-space {
-            height: 48px;
+            height: 66px;
         }
         .ttd-nama {
             font-weight: bold;
@@ -194,8 +198,8 @@
         </tr>
         <tr>
             <td class="m-label" style="padding-top: 4px;">Jumlah Tanda Bukti</td>
-            <td class="m-colon" style="padding-top: 4px;"></td>
-            <td class="m-val" style="padding-top: 4px;"></td>
+            <td class="m-colon" style="padding-top: 4px;">:</td>
+            <td class="m-val" style="padding-top: 4px;">{{ $jumlahTandaBuktiDisplay }}</td>
         </tr>
     </table>
 
@@ -226,16 +230,13 @@
                     <td class="c-no">{{ $idx + 1 }}</td>
                     <td class="c-nama">
                         <div class="nama-bold">{{ $row['nama'] }}</div>
-                        <div class="sub-line">NIP. {{ $row['nip'] }}</div>
+                        <div class="nip-nowrap">NIP. {{ $row['nip'] }}</div>
                         <div>{{ $row['pangkat_gol'] }}</div>
                     </td>
                     <td class="c-tanggal">{{ $row['tanggal_berangkat_indo'] }}</td>
                     <td class="c-tujuan">
-                        <div class="tujuan-line">{{ $row['tujuan_ke'] }}</div>
-                        <div class="tujuan-line">Kec. {{ $row['nama_kecamatan'] }}</div>
-                        <div class="tujuan-line">Uang Harian Belanja Perjalanan Dinas Dalam Kota</div>
-                        <div class="tujuan-line">Dibayar (1 Hari x Rp. {{ $row['uang_saku_formatted'] }},- = Rp. {{ $row['uang_saku_formatted'] }},-)</div>
-                        <div>Melaksanakan Kegiatan {{ $namaSubKegiatan }} Tahun Anggaran {{ $tahunAnggaran }}.</div>
+                        <div class="tujuan-line">Uang Harian Belanja Perjalanan Dinas Dalam Kota Dibayar (1 Hari x Rp. {{ $row['uang_saku_formatted'] }},- = Rp. {{ $row['uang_saku_formatted'] }},-)</div>
+                        <div>Melaksanakan {{ $row['tujuan'] }} Kecamatan {{ $row['nama_kecamatan'] }} Tahun Anggaran {{ $tahunAnggaran }}</div>
                     </td>
                     <td class="c-uang">{{ $row['uang_saku_formatted'] }}</td>
                     <td class="c-transpot"></td>

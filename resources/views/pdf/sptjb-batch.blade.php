@@ -178,7 +178,7 @@
             margin-bottom: 10px;
         }
         .ttd-pa {
-            margin-bottom: 62px;
+            margin-bottom: 80px;
         }
         .ttd-nama {
             font-weight: bold;

@@ -178,7 +178,7 @@
             text-align: left;
         }
         .ttd-space-row td {
-            height: 54px;
+            height: 72px;
         }
         .ttd-nama {
             font-weight: bold;
@@ -276,13 +276,13 @@
                         <tr>
                             <td class="u-no">1.</td>
                             <td>
-                                Melaksanakan Kegiatan {{ $sppd['kegiatan_untuk'] }} Tahun Anggaran {{ $sppd['tahun_anggaran'] }}.
+                                Melaksanakan {{ $sppd['kegiatan_untuk'] }} Tahun Anggaran {{ $sppd['tahun_anggaran'] }}.
                             </td>
                         </tr>
                         <tr>
                             <td class="u-no">2.</td>
                             <td>
-                                Kegiatan dilaksanakan pada hari {{ $sppd['hari_berangkat'] }}, tanggal {{ $sppd['tanggal_berangkat_indo'] }}, bertempat di {{ $sppd['tujuan'] }}, Kecamatan {{ $sppd['nama_kecamatan'] }}.
+                                Kegiatan dilaksanakan pada hari {{ $sppd['hari_berangkat'] }}, tanggal {{ $sppd['tanggal_berangkat_indo'] }}, bertempat di {{ $sppd['tempat_desa'] }}, Kecamatan {{ $sppd['nama_kecamatan'] }}.
                             </td>
                         </tr>
                         <tr>
@@ -316,8 +316,8 @@
                                 </td>
                             </tr>
                             <tr class="ttd-space-row">
-                                <td></td>
-                                <td></td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                             </tr>
                             <tr>
                                 <td class="ttd-plt-col"></td>
