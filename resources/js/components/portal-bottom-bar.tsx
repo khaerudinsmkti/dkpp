@@ -2,7 +2,6 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
     Compass,
-    Home,
     Layers,
     LayoutGrid,
     MapPin,
@@ -33,30 +32,22 @@ export default function PortalBottomBar({ activePage }: PortalBottomBarProps) {
     const [sheetOpen, setSheetOpen] = useState(false);
 
     // Deteksi halaman aktif
-    const isBerandaActive = activePage === 'beranda';
     const isIkpActive = activePage === 'ikp';
     const isHargaKonsumenActive = activePage === 'harga-konsumen';
+    const isHargaProdusenActive = activePage === 'harga-produsen';
     const isNeracaActive = activePage === 'neraca-pangan';
 
     // Menu yang tidak muat di bilah bawah
-    const isHargaProdusenActive = activePage === 'harga-produsen';
     const isCppdActive = activePage === 'cppd';
     const isFsvaActive = activePage === 'fsva';
     const isSkpgActive = activePage === 'skpg';
     const isPphActive = activePage === 'pph';
 
     // Status apakah halaman saat ini merupakan salah satu menu di dalam "Lainnya"
-    const isOtherActive =
-        isHargaProdusenActive || isCppdActive || isFsvaActive || isSkpgActive || isPphActive;
+    const isOtherActive = isCppdActive || isFsvaActive || isSkpgActive || isPphActive;
 
     // 4 menu utama yang muat di bottom bar
     const primaryNavItems = [
-        {
-            name: 'Beranda',
-            href: '/',
-            icon: Home,
-            isActive: isBerandaActive,
-        },
         {
             name: 'IKP',
             href: '/ikp',
@@ -70,6 +61,12 @@ export default function PortalBottomBar({ activePage }: PortalBottomBarProps) {
             isActive: isHargaKonsumenActive,
         },
         {
+            name: 'Produsen',
+            href: '/harga-produsen',
+            icon: Wheat,
+            isActive: isHargaProdusenActive,
+        },
+        {
             name: 'Neraca',
             href: '/neraca-pangan',
             icon: Layers,
@@ -79,16 +76,6 @@ export default function PortalBottomBar({ activePage }: PortalBottomBarProps) {
 
     // Menu yang tidak muat di bilah bawah dan ditampilkan di sheet "Lainnya"
     const overflowNavItems = [
-        {
-            title: 'Harga Produsen',
-            fullTitle: 'Harga Pangan Tingkat Produsen / Petani',
-            desc: 'Pemantauan harga tingkat petani, peternak & HAP Bapanas',
-            href: '/harga-produsen',
-            icon: Wheat,
-            color: 'text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300',
-            borderActive: 'border-amber-500/30 bg-amber-50/80 dark:bg-amber-950/40',
-            isActive: isHargaProdusenActive,
-        },
         {
             title: 'CPPD',
             fullTitle: 'Cadangan Pangan Pemerintah Daerah',

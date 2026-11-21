@@ -3,7 +3,6 @@ import {
     ArrowRight,
     ChevronDown,
     Compass,
-    Home,
     Layers,
     LayoutGrid,
     MapPin,
@@ -19,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { dashboard, login } from '@/routes';
 import PortalBottomBar from './portal-bottom-bar';
 
-export type PortalActivePage = 'beranda' | 'ikp' | 'skpg' | 'fsva' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
+export type PortalActivePage = 'ikp' | 'skpg' | 'fsva' | 'cppd' | 'harga-konsumen' | 'harga-produsen' | 'neraca-pangan' | 'pph';
 
 interface PortalNavbarProps {
     activePage: PortalActivePage;
@@ -51,7 +50,6 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
         };
     }, []);
 
-    const isBerandaActive = activePage === 'beranda';
     const isIkpActive = activePage === 'ikp';
     const isSkpgActive = activePage === 'skpg';
     const isFsvaActive = activePage === 'fsva';
@@ -77,7 +75,7 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                 <div className="mx-auto flex h-18 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                     {/* Logo & Brand Identity */}
                     <Link
-                        href="/"
+                        href="/ikp"
                         className="group flex items-center gap-3 transition-transform"
                     >
                         <div className="relative flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105">
@@ -108,22 +106,6 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
 
                     {/* Desktop Navigation Links Island */}
                     <nav className="hidden items-center gap-1 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 backdrop-blur-md md:flex lg:gap-1.5 lg:p-1.5 dark:border-slate-800 dark:bg-slate-800/80">
-                        {/* 0. Menu Utama: Beranda */}
-                        <Link
-                            href="/"
-                            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all duration-200 cursor-pointer lg:px-3.5 ${
-                                isBerandaActive
-                                    ? 'bg-white text-[#006565] shadow-xs ring-1 ring-slate-200/80 dark:bg-slate-900 dark:text-emerald-400 dark:ring-slate-700'
-                                    : 'text-slate-700 hover:text-[#006565] hover:bg-white/70 dark:text-slate-300 dark:hover:bg-slate-900/60 dark:hover:text-white'
-                            }`}
-                        >
-                            <Home className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                            <span>Beranda</span>
-                            {isBerandaActive && (
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            )}
-                        </Link>
-
                         {/* 1. Menu Utama: IKP */}
                         <Link
                             href="/ikp"
@@ -552,27 +534,6 @@ export default function PortalNavbar({ activePage }: PortalNavbarProps) {
                             </div>
 
                             {/* Mobile Top-Level Menus */}
-                            {/* Menu 0: Beranda */}
-                            <Link
-                                href="/"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className={`flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold transition-all ${
-                                    isBerandaActive
-                                        ? 'text-[#006565] bg-emerald-50 border border-emerald-500/20 dark:bg-emerald-950/50 dark:text-emerald-300'
-                                        : 'text-slate-700 border border-slate-200/80 bg-slate-50/80 hover:bg-white hover:text-[#006565] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700'
-                                }`}
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <Home className="h-4 w-4 text-[#006565] dark:text-emerald-400" />
-                                    <span>Beranda (Ringkasan 8 Modul)</span>
-                                </div>
-                                {isBerandaActive && (
-                                    <span className="rounded-full bg-emerald-200/80 px-2 py-0.5 text-[10px] font-black text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">
-                                        Aktif
-                                    </span>
-                                )}
-                            </Link>
-
                             {/* Menu 1: IKP */}
                             <Link
                                 href="/ikp"

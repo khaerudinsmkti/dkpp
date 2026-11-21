@@ -52,7 +52,7 @@ export default function PortalFooter({
                     <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-12 lg:gap-10">
                         {/* Brand & Address Column */}
                         <div className="space-y-4 lg:col-span-5">
-                            <Link href="/" className="group inline-flex items-center gap-3">
+                            <Link href="/ikp" className="group inline-flex items-center gap-3">
                                 <div className="relative flex h-11 w-11 shrink-0 items-center justify-center transition-transform duration-300 group-hover:scale-105">
                                     <img
                                         src="/storage/indramayu_logo.png"
