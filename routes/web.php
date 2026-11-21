@@ -17,6 +17,8 @@ use App\Http\Controllers\ProducerCommodityController;
 use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
 use App\Http\Controllers\SkpgController;
+use App\Http\Controllers\SppdDalamKotaController;
+use App\Http\Controllers\UserRoleController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
 use App\Models\Market;
@@ -499,6 +501,35 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/pph-food-groups/{pphFoodGroup}', [PphFoodGroupController::class, 'update'])->name('pph-food-groups.update');
     Route::post('/pph-food-groups/{pphFoodGroup}/toggle', [PphFoodGroupController::class, 'toggleStatus'])->name('pph-food-groups.toggle');
     Route::delete('/pph-food-groups/{pphFoodGroup}', [PphFoodGroupController::class, 'destroy'])->name('pph-food-groups.destroy');
+
+    // Modul Kelola User, Role & Matriks Hak Akses
+    Route::get('/users-roles', [UserRoleController::class, 'index'])->name('users-roles.index');
+    Route::post('/users-roles/users', [UserRoleController::class, 'storeUser'])->name('users-roles.users.store');
+    Route::put('/users-roles/users/{user}', [UserRoleController::class, 'updateUser'])->name('users-roles.users.update');
+    Route::post('/users-roles/users/{user}/toggle', [UserRoleController::class, 'toggleUserStatus'])->name('users-roles.users.toggle');
+    Route::delete('/users-roles/users/{user}', [UserRoleController::class, 'destroyUser'])->name('users-roles.users.destroy');
+
+    Route::post('/users-roles/roles', [UserRoleController::class, 'storeRole'])->name('users-roles.roles.store');
+    Route::put('/users-roles/roles/{role}', [UserRoleController::class, 'updateRole'])->name('users-roles.roles.update');
+    Route::put('/users-roles/roles/{role}/matrix', [UserRoleController::class, 'updateMatrix'])->name('users-roles.roles.matrix');
+    Route::delete('/users-roles/roles/{role}', [UserRoleController::class, 'destroyRole'])->name('users-roles.roles.destroy');
+
+    // Modul SPPD Dalam Kota & 5 Master Data Perjalanan Dinas
+    Route::get('/sppd-dalam-kota', [SppdDalamKotaController::class, 'index'])->name('sppd-dalam-kota.index');
+    Route::post('/sppd-dalam-kota/sppd', [SppdDalamKotaController::class, 'storeSppd'])->name('sppd-dalam-kota.sppd.store');
+    Route::delete('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'destroySppd'])->name('sppd-dalam-kota.sppd.destroy');
+
+    Route::post('/sppd-dalam-kota/pegawai', [SppdDalamKotaController::class, 'storePegawai'])->name('sppd-dalam-kota.pegawai.store');
+    Route::put('/sppd-dalam-kota/pegawai/{pegawai}', [SppdDalamKotaController::class, 'updatePegawai'])->name('sppd-dalam-kota.pegawai.update');
+    Route::delete('/sppd-dalam-kota/pegawai/{pegawai}', [SppdDalamKotaController::class, 'destroyPegawai'])->name('sppd-dalam-kota.pegawai.destroy');
+
+    Route::post('/sppd-dalam-kota/pejabat', [SppdDalamKotaController::class, 'storePejabat'])->name('sppd-dalam-kota.pejabat.store');
+    Route::put('/sppd-dalam-kota/pejabat/{pejabat}', [SppdDalamKotaController::class, 'updatePejabat'])->name('sppd-dalam-kota.pejabat.update');
+    Route::delete('/sppd-dalam-kota/pejabat/{pejabat}', [SppdDalamKotaController::class, 'destroyPejabat'])->name('sppd-dalam-kota.pejabat.destroy');
+
+    Route::post('/sppd-dalam-kota/zonasi', [SppdDalamKotaController::class, 'storeZonasi'])->name('sppd-dalam-kota.zonasi.store');
+    Route::put('/sppd-dalam-kota/zonasi/{zonasi}', [SppdDalamKotaController::class, 'updateZonasi'])->name('sppd-dalam-kota.zonasi.update');
+    Route::delete('/sppd-dalam-kota/zonasi/{zonasi}', [SppdDalamKotaController::class, 'destroyZonasi'])->name('sppd-dalam-kota.zonasi.destroy');
 });
 
 require __DIR__.'/settings.php';

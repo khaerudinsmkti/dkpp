@@ -23,11 +23,15 @@ export function UserInfo({
                 <span className="truncate font-bold text-slate-800 dark:text-slate-200">
                     {user.name}
                 </span>
-                {showEmail && (
+                {showEmail ? (
                     <span className="truncate text-xs text-slate-500 dark:text-slate-400">
                         {user.email}
                     </span>
-                )}
+                ) : user.role_name ? (
+                    <span className="truncate text-[10px] font-semibold text-[#006565] dark:text-teal-400">
+                        {user.role_name}
+                    </span>
+                ) : null}
             </div>
         </>
     );

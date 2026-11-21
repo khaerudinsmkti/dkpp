@@ -1,7 +1,17 @@
 export type User = {
     id: number;
+    role_id?: number | null;
     name: string;
     email: string;
+    nip?: string | null;
+    jabatan?: string | null;
+    phone?: string | null;
+    is_active?: boolean;
+    role_name?: string;
+    role_slug?: string;
+    role_color?: string;
+    is_super_admin?: boolean;
+    permissions?: Record<string, Record<string, boolean>>;
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;

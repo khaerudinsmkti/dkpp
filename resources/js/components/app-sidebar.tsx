@@ -1,5 +1,22 @@
-import { Link } from '@inertiajs/react';
-import { Apple, Compass, FileSpreadsheet, LayoutGrid, Layers, MapPin, Package, PieChart, Scale, ShieldCheck, Store, TrendingUp, Wheat } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    Apple,
+    Briefcase,
+    Compass,
+    FileSpreadsheet,
+    LayoutGrid,
+    Layers,
+    MapPin,
+    Package,
+    PieChart,
+    Scale,
+    ShieldAlert,
+    ShieldCheck,
+    Store,
+    TrendingUp,
+    Wheat,
+} from 'lucide-react';
+import { useMemo } from 'react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -26,9 +43,18 @@ import { index as pphScoresIndex } from '@/routes/pph-scores';
 import { index as producerCommoditiesIndex } from '@/routes/producer-commodities';
 import { index as producerHapsIndex } from '@/routes/producer-haps';
 import { index as producerPricesIndex } from '@/routes/producer-prices';
-import type { NavGroup } from '@/types';
+import type { NavGroup, NavItem } from '@/types';
 
-const navGroups: NavGroup[] = [
+interface PermissionAwareNavItem extends NavItem {
+    moduleKey?: string;
+}
+
+interface PermissionAwareNavGroup {
+    title?: string;
+    items: PermissionAwareNavItem[];
+}
+
+const rawNavGroups: PermissionAwareNavGroup[] = [
     {
         title: 'Menu Utama',
         items: [
@@ -36,6 +62,7 @@ const navGroups: NavGroup[] = [
                 title: 'Dashboard',
                 href: dashboard(),
                 icon: LayoutGrid,
+                moduleKey: 'dashboard',
             },
         ],
     },
@@ -46,56 +73,67 @@ const navGroups: NavGroup[] = [
                 title: 'IKP',
                 href: '/ikp-scores',
                 icon: ShieldCheck,
+                moduleKey: 'ikp',
             },
             {
                 title: 'SKPG',
                 href: '/skpg-admin',
                 icon: MapPin,
+                moduleKey: 'skpg',
             },
             {
                 title: 'FSVA',
                 href: '/fsva-admin',
                 icon: Compass,
+                moduleKey: 'fsva',
             },
             {
                 title: 'CPPD',
                 href: cppdIndex(),
                 icon: Package,
+                moduleKey: 'cppd',
             },
             {
                 title: 'Harga Konsumen',
                 href: consumerPricesIndex(),
                 icon: TrendingUp,
+                moduleKey: 'consumer_prices',
             },
             {
                 title: 'Harga Produsen',
                 href: producerPricesIndex(),
                 icon: Wheat,
+                moduleKey: 'producer_prices',
             },
             {
                 title: 'Neraca Pangan',
                 href: foodBalancesIndex(),
                 icon: Layers,
+                moduleKey: 'food_balances',
             },
             {
                 title: 'Skor PPH',
                 href: pphScoresIndex(),
                 icon: PieChart,
+                moduleKey: 'pph_scores',
             },
             {
                 title: 'Detail Skor PPH',
                 href: pphScoreDetailsIndex(),
                 icon: FileSpreadsheet,
+                moduleKey: 'pph_scores',
             },
             {
                 title: 'Kelola HET Konsumen',
                 href: hetsIndex(),
                 icon: Scale,
+                moduleKey: 'hets_haps',
             },
             {
                 title: 'Kelola HAP Produsen',
                 href: producerHapsIndex(),
                 icon: Scale,
+                moduleKey: 'hets_haps',
             },
         ],
     },
@@ -106,26 +144,48 @@ const navGroups: NavGroup[] = [
                 title: 'Komoditas Konsumen',
                 href: commoditiesIndex(),
                 icon: Wheat,
+                moduleKey: 'commodities',
             },
             {
                 title: 'Komoditas Produsen',
                 href: producerCommoditiesIndex(),
                 icon: Wheat,
+                moduleKey: 'commodities',
             },
             {
                 title: 'Komoditas Neraca',
                 href: foodBalanceCommoditiesIndex(),
                 icon: Wheat,
+                moduleKey: 'commodities',
             },
             {
                 title: 'Kelompok Pangan PPH',
                 href: pphFoodGroupsIndex(),
                 icon: Apple,
+                moduleKey: 'pph_food_groups',
             },
             {
                 title: 'Kelola Pasar',
                 href: marketsIndex(),
                 icon: Store,
+                moduleKey: 'markets',
+            },
+        ],
+    },
+    {
+        title: 'Administrasi Sistem',
+        items: [
+            {
+                title: 'SPPD Dalam Kota',
+                href: '/sppd-dalam-kota',
+                icon: Briefcase,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'User, Role & Hak Akses',
+                href: '/users-roles',
+                icon: ShieldAlert,
+                moduleKey: 'users_roles',
             },
         ],
     },
@@ -136,6 +196,26 @@ function SidebarPromoCard() {
 }
 
 export function AppSidebar() {
+    const { auth } = usePage().props;
+    const user = auth?.user;
+
+    const filteredNavGroups: NavGroup[] = useMemo(() => {
+        const isSuper = user?.is_super_admin ?? true;
+        const perms = user?.permissions;
+
+        return rawNavGroups
+            .map((group) => ({
+                title: group.title,
+                items: group.items.filter((item) => {
+                    if (isSuper || !perms || !item.moduleKey) {
+                        return true;
+                    }
+                    return Boolean(perms[item.moduleKey]?.view);
+                }),
+            }))
+            .filter((group) => group.items.length > 0);
+    }, [user]);
+
     return (
         <Sidebar
             collapsible="icon"
@@ -155,7 +235,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent className="gap-0 py-2">
-                <NavMain groups={navGroups} />
+                <NavMain groups={filteredNavGroups} />
             </SidebarContent>
 
             <SidebarFooter className="mt-auto gap-3 p-3 border-t border-teal-200/50 dark:border-emerald-950/60">
