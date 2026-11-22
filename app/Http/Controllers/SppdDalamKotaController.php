@@ -408,7 +408,48 @@ class SppdDalamKotaController extends Controller
         string $baseFilename
     ): SymfonyResponse {
         if (strtolower((string) $request->query('format', 'pdf')) === 'word') {
-            $html = view($view, $data)->render();
+            $wordData = $data;
+
+            // Hitung ukuran proporsional logo & perkecil resolusi gambar untuk Word agar tidak membesar
+            $logoWidthPx = 68;
+            $logoHeightPx = 75;
+            $logoPath = public_path('indramayu_logo.png');
+            if (file_exists($logoPath)) {
+                $imgInfo = @getimagesize($logoPath);
+                if (is_array($imgInfo) && $imgInfo[0] > 0 && $imgInfo[1] > 0) {
+                    $logoHeightPx = (int) round(($imgInfo[1] / $imgInfo[0]) * $logoWidthPx);
+                }
+
+                // Perkecil resolusi PNG ke 2x ukuran cetak (136px) agar Word tidak merender ukuran asli ribuan piksel
+                if (function_exists('imagecreatefrompng') && function_exists('imagecreatetruecolor')) {
+                    $src = @imagecreatefrompng($logoPath);
+                    if ($src !== false) {
+                        $srcW = imagesx($src);
+                        $srcH = imagesy($src);
+                        $targetW = $logoWidthPx;
+                        $targetH = $logoHeightPx;
+                        $dst = imagecreatetruecolor($targetW, $targetH);
+                        imagealphablending($dst, false);
+                        imagesavealpha($dst, true);
+                        $transparent = imagecolorallocatealpha($dst, 255, 255, 255, 127);
+                        imagefilledrectangle($dst, 0, 0, $targetW, $targetH, $transparent);
+                        imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetW, $targetH, $srcW, $srcH);
+                        ob_start();
+                        imagepng($dst);
+                        $resizedPng = ob_get_clean();
+                        imagedestroy($src);
+                        imagedestroy($dst);
+                        if (is_string($resizedPng) && $resizedPng !== '') {
+                            $wordData['logoBase64'] = 'data:image/png;base64,'.base64_encode($resizedPng);
+                        }
+                    }
+                }
+            }
+
+            $logoWidthPt = round($logoWidthPx * 0.75, 1);
+            $logoHeightPt = round($logoHeightPx * 0.75, 1);
+
+            $html = view($view, $wordData)->render();
 
             $wordHeader = <<<'HTML'
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
@@ -417,7 +458,7 @@ class SppdDalamKotaController extends Controller
 HTML;
             $html = preg_replace('/<html[^>]*>/i', $wordHeader, $html, 1) ?? $html;
 
-            $wordXml = <<<'HTML'
+            $wordXml = <<<HTML
 <!--[if gte mso 9]>
 <xml>
   <w:WordDocument>
@@ -428,19 +469,106 @@ HTML;
 </xml>
 <![endif]-->
 <style>
-  @page WordSection1 { size: 21.0cm 29.7cm; margin: 1.2cm 1.4cm 1.4cm 1.4cm; }
-  div.WordSection1 { page: WordSection1; }
-  .lhpd-page { position: static !important; height: auto !important; }
-  .lhpd-page .ttd-wrapper { position: static !important; margin-top: 260pt !important; padding-left: 32pt !important; }
+  @page WordSection1 {
+    size: 21.0cm 29.7cm;
+    margin: 0.9cm 1.3cm 1.0cm 1.3cm;
+    mso-header-margin: 0.4cm;
+    mso-footer-margin: 0.4cm;
+  }
+  div.WordSection1 {
+    page: WordSection1;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  p, div {
+    margin-top: 0;
+    margin-bottom: 0;
+    mso-margin-top-alt: 0pt;
+    mso-margin-bottom-alt: 0pt;
+  }
+  table {
+    border-collapse: collapse;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }
+  img.kop-logo {
+    width: {$logoWidthPt}pt !important;
+    height: {$logoHeightPt}pt !important;
+  }
+  /* Kompak khusus halaman SPD (SPPD) di Word agar 1 lembar pas termasuk tanda tangan */
+  .meta-right-table {
+    margin-bottom: 4pt !important;
+    font-size: 9pt !important;
+  }
+  .meta-right-table td {
+    padding: 0 !important;
+    line-height: 1.15 !important;
+  }
+  .spd-table {
+    font-size: 9pt !important;
+    margin-bottom: 6pt !important;
+  }
+  .spd-table td {
+    padding: 2pt 5pt !important;
+    line-height: 1.15 !important;
+  }
+  .inner-list-table td {
+    padding: 0 !important;
+    line-height: 1.15 !important;
+  }
+  .footer-table {
+    font-size: 9pt !important;
+    margin-top: 4pt !important;
+  }
+  .footer-table td {
+    line-height: 1.18 !important;
+  }
+  .lhpd-page {
+    position: static !important;
+    height: auto !important;
+  }
+  .lhpd-page .ttd-wrapper {
+    position: static !important;
+    margin-top: 240pt !important;
+    padding-left: 32pt !important;
+  }
 </style>
 </head>
 HTML;
             $html = str_ireplace('</head>', $wordXml, $html);
-            $html = str_replace(
-                '<div class="page-break"></div>',
-                '<br clear="all" style="page-break-before:always;" />',
+
+            // Bungkus isi <body> di dalam <div class="WordSection1"> agar margin & ukuran kertas A4 terbaca Word
+            $html = preg_replace('/<body[^>]*>/i', '$0<div class="WordSection1">', $html, 1) ?? $html;
+            $html = str_ireplace('</body>', '</div></body>', $html);
+
+            // Paksa atribut width & height eksplisit pada tag <img> logo agar Word tidak membesarkan gambar
+            $html = preg_replace(
+                '/<img([^>]*class="kop-logo"[^>]*)>/i',
+                '<img$1 width="'.$logoWidthPx.'" height="'.$logoHeightPx.'" style="width:'.$logoWidthPt.'pt;height:'.$logoHeightPt.'pt;">',
                 $html
-            );
+            ) ?? $html;
+
+            // Pastikan tabel full-width punya atribut HTML width="100%" yang dipatuhi Word
+            $fullWidthClasses = 'kop-table|section-table|meta-table|belanja-table|c2-table|rincian-table|kwitansi-table|spd-table|rekap-table|ttd-table|ttd-3col|footer-table|header-row-table|content-table|info-table|meta-right-table';
+            $html = preg_replace(
+                '/<table([^>]*class="[^"]*(?:'.$fullWidthClasses.')[^"]*"[^>]*)>/i',
+                '<table width="100%"$1>',
+                $html
+            ) ?? $html;
+
+            // Garis kop surat pakai tabel agar tajam & rata penuh di Word
+            $kopLineWord = '<table width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin-top:4pt;margin-bottom:10pt;"><tr><td style="border-top:2.25pt solid #000000;font-size:1pt;line-height:1pt;height:2pt;">&nbsp;</td></tr></table>';
+            $html = str_replace('<div class="kop-line-thick"></div>', $kopLineWord, $html);
+
+            // Pastikan ruang tanda tangan tidak kolaps di Word
+            $html = str_replace('<div class="ttd-space"></div>', '<div class="ttd-space"><br><br><br></div>', $html);
+
+            // Hard Page Break resmi Microsoft Word (mso-special-character:line-break + page-break-before:always di dalam <p>)
+            $wordPageBreak = '<p style="margin:0;padding:0;line-height:1pt;font-size:1pt;page-break-after:always;"><span style="font-size:1pt;"><br clear="all" style="mso-special-character:line-break;page-break-before:always" /></span></p>';
+            $html = str_replace('<div class="page-break"></div>', $wordPageBreak, $html);
 
             return response("\xEF\xBB\xBF".$html, 200, [
                 'Content-Type' => 'application/msword; charset=UTF-8',

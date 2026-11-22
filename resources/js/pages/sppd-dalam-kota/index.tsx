@@ -1068,31 +1068,19 @@ export default function SppdDalamKotaIndex({
         );
         setStep2ManuallyHidden(false);
 
-        const nextDate = addDaysToDateStr(grp.last_tanggal_berangkat || todayStr, 1);
-        const newDraft = createInitialBatch(
-            nextDate,
-            grp.last_tanggal_spt || todayStr,
-            grp.primary_tujuan || '',
-            grp.primary_desa || '',
-            grp.primary_kecamatan || defaultKecamatan
+        const freshDraft = createInitialBatch(
+            todayStr,
+            todayStr,
+            '',
+            '',
+            defaultKecamatan
         );
+        freshDraft.participants[0].pegawai_id = '';
 
-        if (grp.employees.length > 0) {
-            newDraft.participants = grp.employees.map((emp, idx) => ({
-                uid: `pt-${Date.now()}-${idx + 1}`,
-                pegawai_id: String(emp.pegawai_id || pegawais[0]?.id || ''),
-                tanggal_berangkat: nextDate,
-                tanggal_spt: grp.last_tanggal_spt || todayStr,
-                tujuan: grp.primary_tujuan || '',
-                nama_desa: grp.primary_desa || '',
-                nama_kecamatan: grp.primary_kecamatan || defaultKecamatan,
-            }));
-        }
-
-        setBatches([newDraft]);
+        setBatches([freshDraft]);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         toast.info(
-            `Form siap menambahkan tanggal baru ke dalam Batch ${grp.batch_code}.`
+            `Langkah 1 terisi data Batch ${grp.batch_code}. Silakan input pegawai & tujuan baru pada Langkah 2.`
         );
     };
 
@@ -1619,6 +1607,8 @@ export default function SppdDalamKotaIndex({
     const [zonasiSearch, setZonasiSearch] = useState('');
     const [zonasiZonaFilter, setZonasiZonaFilter] = useState('all');
     const [zonasiGolFilter, setZonasiGolFilter] = useState('all');
+    const [zonasiPage, setZonasiPage] = useState(1);
+    const [zonasiPerPage, setZonasiPerPage] = useState(16);
     const [zonasiModalOpen, setZonasiModalOpen] = useState(false);
     const [editingZonasi, setEditingZonasi] = useState<ZonasiItem | null>(null);
     const [zKecamatan, setZKecamatan] = useState('');
@@ -1642,6 +1632,23 @@ export default function SppdDalamKotaIndex({
             return matchQ && matchZona && matchGol;
         });
     }, [zonasis, zonasiSearch, zonasiZonaFilter, zonasiGolFilter]);
+
+    useEffect(() => {
+        setZonasiPage(1);
+    }, [zonasiSearch, zonasiZonaFilter, zonasiGolFilter, zonasiPerPage]);
+
+    const zonasiTotalPages = Math.max(
+        1,
+        Math.ceil(filteredZonasis.length / zonasiPerPage)
+    );
+    const safeZonasiPage = Math.min(zonasiPage, zonasiTotalPages);
+    const zonasiStartIdx = (safeZonasiPage - 1) * zonasiPerPage;
+    const paginatedZonasis = useMemo(() => {
+        return filteredZonasis.slice(
+            zonasiStartIdx,
+            zonasiStartIdx + zonasiPerPage
+        );
+    }, [filteredZonasis, zonasiStartIdx, zonasiPerPage]);
 
     const handleOpenCreateZonasi = () => {
         setEditingZonasi(null);
@@ -2912,7 +2919,8 @@ export default function SppdDalamKotaIndex({
                                                                                 </DropdownMenuTrigger>
                                                                                 <DropdownMenuContent
                                                                                     align="end"
-                                                                                    className="w-60 rounded-xl p-1.5 shadow-lg"
+                                                                                    collisionPadding={12}
+                                                                                    className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto rounded-xl p-1.5 shadow-lg"
                                                                                 >
                                                                                     <DropdownMenuLabel className="px-2 py-1 text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">
                                                                                         Dokumen PDF ({grp.batch_code})
@@ -3107,7 +3115,8 @@ export default function SppdDalamKotaIndex({
                                                                                 </DropdownMenuTrigger>
                                                                                 <DropdownMenuContent
                                                                                     align="end"
-                                                                                    className="w-64 rounded-xl p-1.5 shadow-lg"
+                                                                                    collisionPadding={12}
+                                                                                    className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto rounded-xl p-1.5 shadow-lg"
                                                                                 >
                                                                                     <DropdownMenuLabel className="px-2 py-1 text-[10px] font-extrabold tracking-wider text-blue-600 uppercase">
                                                                                         Download Word (.doc) — Bisa Diedit
@@ -3226,7 +3235,8 @@ export default function SppdDalamKotaIndex({
                                                                                             </DropdownMenuTrigger>
                                                                                             <DropdownMenuContent
                                                                                                 align="end"
-                                                                                                className="w-56 rounded-xl p-1"
+                                                                                                collisionPadding={12}
+                                                                                                className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-56 overflow-y-auto rounded-xl p-1"
                                                                                             >
                                                                                                 <DropdownMenuItem
                                                                                                     onClick={() =>
@@ -3344,7 +3354,8 @@ export default function SppdDalamKotaIndex({
                                                                                             </DropdownMenuTrigger>
                                                                                             <DropdownMenuContent
                                                                                                 align="end"
-                                                                                                className="w-56 rounded-xl p-1"
+                                                                                                collisionPadding={12}
+                                                                                                className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-56 overflow-y-auto rounded-xl p-1"
                                                                                             >
                                                                                                 {[
                                                                                                     { slug: 'pdf' as const, label: '1. SPT (Word)' },
@@ -4076,9 +4087,9 @@ export default function SppdDalamKotaIndex({
                         </CardHeader>
 
                         <CardContent className="p-0">
-                            <div className="overflow-x-auto max-h-[540px]">
+                            <div className="overflow-x-auto">
                                 <table className="w-full border-collapse text-left text-xs">
-                                    <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-900">
+                                    <thead className="bg-neutral-100 dark:bg-neutral-900">
                                         <tr className="border-b border-neutral-200 text-[11px] font-bold tracking-wider text-neutral-500 uppercase">
                                             <th className="px-4 py-3 text-center w-12">No</th>
                                             <th className="px-4 py-3">Nama Kecamatan</th>
@@ -4091,13 +4102,23 @@ export default function SppdDalamKotaIndex({
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                                        {filteredZonasis.map((z, idx) => (
+                                        {paginatedZonasis.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-4 py-8 text-center text-neutral-400"
+                                                >
+                                                    Tidak ada data zonasi yang sesuai filter.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedZonasis.map((z, idx) => (
                                             <tr
                                                 key={z.id}
                                                 className="hover:bg-neutral-50/70 dark:hover:bg-neutral-900/40"
                                             >
                                                 <td className="px-4 py-2.5 text-center font-semibold text-neutral-400">
-                                                    {idx + 1}
+                                                    {zonasiStartIdx + idx + 1}
                                                 </td>
                                                 <td className="px-4 py-2.5 font-bold text-neutral-900 dark:text-neutral-100">
                                                     Kecamatan {z.nama_kecamatan}
@@ -4158,10 +4179,121 @@ export default function SppdDalamKotaIndex({
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
+
+                            {filteredZonasis.length > 0 && (
+                                <div className="flex flex-col gap-3 border-t border-neutral-200 bg-neutral-50/60 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800 dark:bg-neutral-900/40">
+                                    <div className="flex flex-wrap items-center gap-3 text-neutral-600 dark:text-neutral-400">
+                                        <span>
+                                            Menampilkan{' '}
+                                            <strong className="text-neutral-900 dark:text-neutral-100">
+                                                {zonasiStartIdx + 1}–
+                                                {Math.min(
+                                                    zonasiStartIdx + zonasiPerPage,
+                                                    filteredZonasis.length
+                                                )}
+                                            </strong>{' '}
+                                            dari{' '}
+                                            <strong className="text-neutral-900 dark:text-neutral-100">
+                                                {filteredZonasis.length}
+                                            </strong>{' '}
+                                            data zonasi
+                                        </span>
+                                        <Select
+                                            value={String(zonasiPerPage)}
+                                            onValueChange={(v) =>
+                                                setZonasiPerPage(Number(v))
+                                            }
+                                        >
+                                            <SelectTrigger className="h-7 w-28 bg-white text-xs dark:bg-neutral-900">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="16">
+                                                    16 / halaman
+                                                </SelectItem>
+                                                <SelectItem value="32">
+                                                    32 / halaman
+                                                </SelectItem>
+                                                <SelectItem value="64">
+                                                    64 / halaman
+                                                </SelectItem>
+                                                <SelectItem value="200">
+                                                    Semua
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={safeZonasiPage <= 1}
+                                            onClick={() =>
+                                                setZonasiPage((p) =>
+                                                    Math.max(1, p - 1)
+                                                )
+                                            }
+                                            className="h-7 px-2.5 text-xs"
+                                        >
+                                            Sebelumnya
+                                        </Button>
+
+                                        {Array.from(
+                                            { length: zonasiTotalPages },
+                                            (_, i) => i + 1
+                                        ).map((pageNum) => (
+                                            <Button
+                                                key={pageNum}
+                                                type="button"
+                                                size="sm"
+                                                variant={
+                                                    pageNum === safeZonasiPage
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
+                                                onClick={() =>
+                                                    setZonasiPage(pageNum)
+                                                }
+                                                className={
+                                                    pageNum === safeZonasiPage
+                                                        ? 'h-7 w-7 bg-[#006565] p-0 text-xs font-bold text-white hover:bg-[#005252]'
+                                                        : 'h-7 w-7 p-0 text-xs'
+                                                }
+                                            >
+                                                {pageNum}
+                                            </Button>
+                                        ))}
+
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={
+                                                safeZonasiPage >=
+                                                zonasiTotalPages
+                                            }
+                                            onClick={() =>
+                                                setZonasiPage((p) =>
+                                                    Math.min(
+                                                        zonasiTotalPages,
+                                                        p + 1
+                                                    )
+                                                )
+                                            }
+                                            className="h-7 px-2.5 text-xs"
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 )}

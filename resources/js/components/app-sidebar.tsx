@@ -52,6 +52,7 @@ import type { NavGroup, NavItem } from '@/types';
 
 interface PermissionAwareNavItem extends NavItem {
     moduleKey?: string;
+    items?: PermissionAwareNavItem[];
 }
 
 interface PermissionAwareNavGroup {
@@ -187,46 +188,54 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
                 moduleKey: 'sppd_dalam_kota',
             },
             {
-                title: 'Master Sub Kegiatan',
-                href: '/sppd-dalam-kota?tab=sub_kegiatan',
-                icon: FolderKanban,
+                title: 'Master Data SPPD',
+                href: '#',
+                icon: Layers,
                 moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master Nomor DPA',
-                href: '/sppd-dalam-kota?tab=dpa',
-                icon: FileSpreadsheet,
-                moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master Pegawai',
-                href: '/sppd-dalam-kota?tab=pegawai',
-                icon: Users,
-                moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master Kepala Dinas',
-                href: '/sppd-dalam-kota?tab=kepala_dinas',
-                icon: Award,
-                moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master PPTK',
-                href: '/sppd-dalam-kota?tab=pptk',
-                icon: UserCheck,
-                moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master Bendahara',
-                href: '/sppd-dalam-kota?tab=bendahara',
-                icon: Coins,
-                moduleKey: 'sppd_dalam_kota',
-            },
-            {
-                title: 'Master Zonasi',
-                href: '/sppd-dalam-kota?tab=zonasi',
-                icon: MapPin,
-                moduleKey: 'sppd_dalam_kota',
+                items: [
+                    {
+                        title: 'Sub Kegiatan',
+                        href: '/sppd-dalam-kota?tab=sub_kegiatan',
+                        icon: FolderKanban,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Nomor DPA',
+                        href: '/sppd-dalam-kota?tab=dpa',
+                        icon: FileSpreadsheet,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Data Pegawai',
+                        href: '/sppd-dalam-kota?tab=pegawai',
+                        icon: Users,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Kepala Dinas',
+                        href: '/sppd-dalam-kota?tab=kepala_dinas',
+                        icon: Award,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Data PPTK',
+                        href: '/sppd-dalam-kota?tab=pptk',
+                        icon: UserCheck,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Data Bendahara',
+                        href: '/sppd-dalam-kota?tab=bendahara',
+                        icon: Coins,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Zonasi & Tarif',
+                        href: '/sppd-dalam-kota?tab=zonasi',
+                        icon: MapPin,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                ],
             },
         ],
     },
@@ -267,6 +276,45 @@ export function AppSidebar() {
             // fallback
         }
 
+        const resolveSppdActive = (
+            item: PermissionAwareNavItem,
+        ): NavItem => {
+            const mappedChildren = item.items
+                ? item.items
+                      .filter((sub) => {
+                          if (isSuper || !perms || !sub.moduleKey) {
+                              return true;
+                          }
+                          return Boolean(perms[sub.moduleKey]?.view);
+                      })
+                      .map(resolveSppdActive)
+                : undefined;
+
+            if (
+                typeof item.href === 'string' &&
+                item.href.startsWith('/sppd-dalam-kota')
+            ) {
+                const itemUrl = new URL(item.href, 'http://localhost');
+                const itemTab = itemUrl.searchParams.get('tab');
+                const isMatch =
+                    currentPath === '/sppd-dalam-kota' &&
+                    (itemTab
+                        ? currentTab === itemTab
+                        : !currentTab || currentTab === 'sppd');
+
+                return {
+                    ...item,
+                    isActive: isMatch,
+                    items: mappedChildren,
+                };
+            }
+
+            return {
+                ...item,
+                items: mappedChildren,
+            };
+        };
+
         return rawNavGroups
             .map((group) => ({
                 title: group.title,
@@ -277,29 +325,7 @@ export function AppSidebar() {
                         }
                         return Boolean(perms[item.moduleKey]?.view);
                     })
-                    .map((item) => {
-                        if (
-                            typeof item.href === 'string' &&
-                            item.href.startsWith('/sppd-dalam-kota')
-                        ) {
-                            const itemUrl = new URL(
-                                item.href,
-                                'http://localhost',
-                            );
-                            const itemTab = itemUrl.searchParams.get('tab');
-                            const isMatch =
-                                currentPath === '/sppd-dalam-kota' &&
-                                (itemTab
-                                    ? currentTab === itemTab
-                                    : !currentTab || currentTab === 'sppd');
-
-                            return {
-                                ...item,
-                                isActive: isMatch,
-                            };
-                        }
-                        return item;
-                    }),
+                    .map(resolveSppdActive),
             }))
             .filter((group) => group.items.length > 0);
     }, [user, currentUrlStr]);
