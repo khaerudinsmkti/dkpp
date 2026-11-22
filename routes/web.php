@@ -18,6 +18,7 @@ use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
 use App\Http\Controllers\SkpgController;
 use App\Http\Controllers\SppdDalamKotaController;
+use App\Http\Controllers\SppdLuarKotaController;
 use App\Http\Controllers\UserRoleController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
@@ -550,6 +551,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/sppd-dalam-kota/dpa', [SppdDalamKotaController::class, 'storeDpa'])->name('sppd-dalam-kota.dpa.store');
     Route::put('/sppd-dalam-kota/dpa/{dpa}', [SppdDalamKotaController::class, 'updateDpa'])->name('sppd-dalam-kota.dpa.update');
     Route::delete('/sppd-dalam-kota/dpa/{dpa}', [SppdDalamKotaController::class, 'destroyDpa'])->name('sppd-dalam-kota.dpa.destroy');
+
+    // Modul SPPD Luar Kota
+    Route::get('/sppd-luar-kota', [SppdLuarKotaController::class, 'index'])->name('sppd-luar-kota.index');
+    Route::post('/sppd-luar-kota/sppd', [SppdLuarKotaController::class, 'store'])->name('sppd-luar-kota.sppd.store');
+    Route::get('/sppd-luar-kota/batch/{batchCode}/spt-pdf', [SppdLuarKotaController::class, 'downloadBatchSptPdf'])->name('sppd-luar-kota.batch.spt-pdf');
+    Route::get('/sppd-luar-kota/batch/{batchCode}/sptjb-pdf', [SppdLuarKotaController::class, 'downloadBatchSptjbPdf'])->name('sppd-luar-kota.batch.sptjb-pdf');
+    Route::get('/sppd-luar-kota/sppd/{sppdLuarKota}/spt-pdf', [SppdLuarKotaController::class, 'downloadItemSptPdf'])->name('sppd-luar-kota.sppd.spt-pdf');
+    Route::put('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'update'])->name('sppd-luar-kota.sppd.update');
+    Route::delete('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'destroy'])->name('sppd-luar-kota.sppd.destroy');
+    Route::delete('/sppd-luar-kota/batch/{batchCode}', [SppdLuarKotaController::class, 'destroyBatch'])->name('sppd-luar-kota.batch.destroy');
 });
 
 require __DIR__.'/settings.php';

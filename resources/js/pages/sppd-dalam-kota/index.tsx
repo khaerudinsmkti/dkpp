@@ -1,5 +1,7 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import {
+    ArrowLeft,
+    ArrowRight,
     Award,
     Briefcase,
     Calendar,
@@ -7,6 +9,7 @@ import {
     CheckCircle2,
     ChevronDown,
     ChevronRight,
+    ChevronUp,
     Coins,
     Download,
     Edit3,
@@ -459,19 +462,34 @@ export default function SppdDalamKotaIndex({
     );
 
     // =========================================================================
-    // STEP 1 FORM SPPD: PILIH SUB KEGIATAN, NOMOR DPA & TARGET BATCH
+    // STEP-BY-STEP WIZARD SPPD DALAM KOTA (LANGKAH 1 -> 2 -> 3) & MINIMIZE
     // =========================================================================
+    const WIZARD_STEPS = [
+        {
+            step: 1 as const,
+            title: 'Sub Kegiatan & Batch',
+            desc: 'Sub kegiatan, DPA & batch',
+        },
+        {
+            step: 2 as const,
+            title: 'Pegawai & Tujuan',
+            desc: 'Personil, jadwal & lokasi',
+        },
+        {
+            step: 3 as const,
+            title: 'Pejabat & Simpan',
+            desc: 'No. SPT, Kadin & ringkasan',
+        },
+    ];
+
+    const [isFormExpanded, setIsFormExpanded] = useState(false);
+    const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
     const [selectedSubKegiatanId, setSelectedSubKegiatanId] =
         useState<string>('');
     const [selectedDpaId, setSelectedDpaId] = useState<string>('');
     const [targetBatchSelection, setTargetBatchSelection] =
         useState<string>('NEW');
-    const [step2ManuallyHidden, setStep2ManuallyHidden] = useState(false);
-
-    const isStep1Complete = Boolean(
-        selectedSubKegiatanId && selectedDpaId && targetBatchSelection
-    );
-    const showStep2 = isStep1Complete && !step2ManuallyHidden;
 
     // State baris Batch yang sedang diklik/dibuka (expand) di tabel — default tersembunyi
     const [expandedBatches, setExpandedBatches] = useState<
@@ -1037,6 +1055,8 @@ export default function SppdDalamKotaIndex({
                 : sppdBatches[0]?.batch_code || 'NEW');
         setTargetBatchSelection(targetBatchCode);
         setBatches([nextBatch]);
+        setIsFormExpanded(true);
+        setCurrentStep(2);
         setAfterSavePromptOpen(false);
         toast.info(
             `Menambahkan tanggal baru (${nextDate}) ke dalam Batch ${targetBatchCode}.`
@@ -1048,8 +1068,74 @@ export default function SppdDalamKotaIndex({
         setSelectedSubKegiatanId('');
         setSelectedDpaId('');
         setTargetBatchSelection('NEW');
-        setStep2ManuallyHidden(false);
+        setCurrentStep(1);
+        setIsFormExpanded(false);
         setAfterSavePromptOpen(false);
+    };
+
+    const handleNextWizardStep = () => {
+        if (currentStep === 1) {
+            if (!selectedSubKegiatanId) {
+                toast.error('Silakan pilih Sub Kegiatan terlebih dahulu.');
+                return;
+            }
+            if (!selectedDpaId) {
+                toast.error('Silakan pilih Nomor DPA terlebih dahulu.');
+                return;
+            }
+            if (!targetBatchSelection) {
+                toast.error('Silakan pilih Kelompok Batch terlebih dahulu.');
+                return;
+            }
+            setCurrentStep(2);
+            return;
+        }
+
+        if (currentStep === 2) {
+            for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+                const b = batches[bIdx];
+                if (b.participants.length === 0) {
+                    toast.error(
+                        `SPT Tanggal #${bIdx + 1} minimal harus memiliki 1 pegawai.`
+                    );
+                    return;
+                }
+                for (let pIdx = 0; pIdx < b.participants.length; pIdx++) {
+                    const pt = b.participants[pIdx];
+                    if (!pt.pegawai_id) {
+                        toast.error(
+                            `Pegawai ke-${pIdx + 1} pada SPT Tanggal #${bIdx + 1} wajib dipilih.`
+                        );
+                        return;
+                    }
+                    if (!pt.tanggal_berangkat || !pt.tanggal_spt) {
+                        toast.error(
+                            `Tanggal berangkat & tanggal SPT pada SPT Tanggal #${bIdx + 1} wajib diisi.`
+                        );
+                        return;
+                    }
+                    if (!pt.tujuan.trim()) {
+                        toast.error(
+                            `Tujuan perjalanan pada SPT Tanggal #${bIdx + 1} wajib diisi.`
+                        );
+                        return;
+                    }
+                    if (!pt.nama_desa.trim()) {
+                        toast.error(
+                            `Desa / Tempat tujuan pada SPT Tanggal #${bIdx + 1} wajib diisi.`
+                        );
+                        return;
+                    }
+                    if (!pt.nama_kecamatan) {
+                        toast.error(
+                            `Kecamatan tujuan pada SPT Tanggal #${bIdx + 1} wajib dipilih.`
+                        );
+                        return;
+                    }
+                }
+            }
+            setCurrentStep(3);
+        }
     };
 
     const handleAppendDateToExistingBatch = (
@@ -1066,7 +1152,6 @@ export default function SppdDalamKotaIndex({
         setSelectedDpaId(
             grp.dpa_id ? String(grp.dpa_id) : defaultDpaId
         );
-        setStep2ManuallyHidden(false);
 
         const freshDraft = createInitialBatch(
             todayStr,
@@ -1078,6 +1163,8 @@ export default function SppdDalamKotaIndex({
         freshDraft.participants[0].pegawai_id = '';
 
         setBatches([freshDraft]);
+        setIsFormExpanded(true);
+        setCurrentStep(2);
         window.scrollTo({ top: 0, behavior: 'smooth' });
         toast.info(
             `Langkah 1 terisi data Batch ${grp.batch_code}. Silakan input pegawai & tujuan baru pada Langkah 2.`
@@ -2009,610 +2096,1102 @@ export default function SppdDalamKotaIndex({
                 {/* ========================================================= */}
                 {activeTab === 'sppd' && (
                     <div className="space-y-6">
-                        <form onSubmit={handleSubmitSppd} className="space-y-4">
-                            {/* ================================================= */}
-                            {/* LANGKAH 1: PILIH SUB KEGIATAN, DPA & TARGET BATCH */}
-                            {/* ================================================= */}
-                            <Card className="border-2 border-[#006565]/80 bg-gradient-to-r from-teal-50/90 via-white to-emerald-50/60 shadow-sm dark:border-teal-700 dark:from-teal-950/40 dark:via-neutral-900">
-                                <CardHeader className="pb-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2.5">
-                                            <span className="inline-flex items-center justify-center rounded-lg bg-[#006565] px-2.5 py-1 text-xs font-extrabold text-white">
-                                                Langkah 1
-                                            </span>
-                                            <div>
-                                                <CardTitle className="text-base font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                    Pilih Sub Kegiatan, Nomor DPA &amp; Kelompok Batch
-                                                </CardTitle>
-                                                <p className="text-xs text-neutral-500">
-                                                    SPPD yang diinput pada Batch yang sama akan tergabung dalam 1 baris Batch (cetak SPT &amp; SPTJB sekaligus).
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={handleOpenCreateSubKegiatan}
-                                                className="h-8 text-xs border-teal-300 text-[#006565]"
-                                            >
-                                                <Plus className="mr-1 size-3.5" />
-                                                Sub Kegiatan Baru
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={handleOpenCreateDpa}
-                                                className="h-8 text-xs border-teal-300 text-[#006565]"
-                                            >
-                                                <Plus className="mr-1 size-3.5" />
-                                                Nomor DPA Baru
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-
-                                <CardContent className="space-y-4 pt-1">
-                                    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
-                                        <div className="min-w-0 space-y-1.5 md:col-span-12">
-                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
-                                                1. Pilih Sub Kegiatan *
-                                            </Label>
-                                            <Select
-                                                value={selectedSubKegiatanId}
-                                                onValueChange={handleSubKegiatanChange}
-                                            >
-                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
-                                                    <SelectValue placeholder="-- Pilih Sub Kegiatan --" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {subKegiatans.map((sk) => (
-                                                        <SelectItem
-                                                            key={sk.id}
-                                                            value={String(sk.id)}
-                                                        >
-                                                            [{sk.kode_sub_kegiatan}]{' '}
-                                                            {sk.sub_kegiatan}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="min-w-0 space-y-1.5 md:col-span-6">
-                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
-                                                2. Pilih Nomor DPA *
-                                            </Label>
-                                            <Select
-                                                value={selectedDpaId}
-                                                onValueChange={setSelectedDpaId}
-                                            >
-                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
-                                                    <SelectValue placeholder="-- Pilih Nomor DPA --" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {dpas
-                                                        .filter((d) => d.is_active)
-                                                        .map((d) => (
-                                                            <SelectItem
-                                                                key={d.id}
-                                                                value={String(d.id)}
-                                                            >
-                                                                {d.nomor_dpa} (TA{' '}
-                                                                {d.tahun_anggaran})
-                                                            </SelectItem>
-                                                        ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div className="min-w-0 space-y-1.5 md:col-span-6">
-                                            <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
-                                                3. Masukkan ke Batch *
-                                            </Label>
-                                            <Select
-                                                value={targetBatchSelection}
-                                                onValueChange={setTargetBatchSelection}
-                                            >
-                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-bold [&>span]:truncate dark:bg-neutral-900">
-                                                    <SelectValue placeholder="-- Pilih Kelompok Batch --" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {sppdBatches.map((b) => (
-                                                        <SelectItem
-                                                            key={b.batch_code}
-                                                            value={b.batch_code}
-                                                        >
-                                                            Gabung ke: {b.batch_code} (
-                                                            {b.spt_count} SPPD)
-                                                        </SelectItem>
-                                                    ))}
-                                                    <SelectItem value="NEW">
-                                                        + Buat Batch Baru Terpisah
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    {activeSubKegiatanObj && (
-                                        <div className="grid gap-2.5 rounded-xl border border-teal-200/90 bg-white/90 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:border-teal-900 dark:bg-neutral-900">
-                                            <div>
-                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                                    Kode Sub Kegiatan
-                                                </span>
-                                                <div className="font-mono font-extrabold text-[#006565] dark:text-teal-300">
-                                                    {
-                                                        activeSubKegiatanObj.kode_sub_kegiatan
-                                                    }
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                                    Nomor Rekening
-                                                </span>
-                                                <div className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                    {activeSubKegiatanObj.no_rekening}
-                                                </div>
-                                            </div>
-                                            <div className="sm:col-span-2">
-                                                <span className="text-[10px] font-bold uppercase text-neutral-400">
-                                                    Nama Kegiatan &amp; Sub Kegiatan
-                                                </span>
-                                                <div className="font-bold text-neutral-800 dark:text-neutral-200">
-                                                    {activeSubKegiatanObj.sub_kegiatan}
-                                                </div>
-                                                <div className="text-[11px] text-neutral-500">
-                                                    Kegiatan:{' '}
-                                                    {activeSubKegiatanObj.nama_kegiatan}
-                                                    {activeDpaObj && (
-                                                        <>
-                                                            {' '}
-                                                            &bull; DPA:{' '}
-                                                            <strong className="font-mono">
-                                                                {activeDpaObj.nomor_dpa}
-                                                            </strong>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {!showStep2 && (
-                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-teal-300/80 bg-white/70 px-3.5 py-2.5 text-xs text-teal-800 dark:border-teal-800 dark:bg-neutral-900/60 dark:text-teal-300">
-                                            <span>
-                                                Lengkapi <strong>Sub Kegiatan</strong>, <strong>Nomor DPA</strong>, dan <strong>Kelompok Batch</strong> di atas untuk membuka <strong>Langkah 2 (Input Pegawai &amp; Tujuan SPPD)</strong>.
-                                            </span>
-                                            {isStep1Complete && (
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setStep2ManuallyHidden(false)
-                                                    }
-                                                    className="h-7 bg-[#006565] px-3 text-xs font-bold text-white hover:bg-[#005252]"
-                                                >
-                                                    Buka Langkah 2
-                                                </Button>
+                        {/* ================================================= */}
+                        {/* FORM INPUT STEP-BY-STEP WIZARD (COLLAPSIBLE)      */}
+                        {/* ================================================= */}
+                        <Card className="border-2 border-[#006565]/70 bg-gradient-to-br from-teal-50/50 via-white to-emerald-50/30 shadow-sm dark:border-teal-800 dark:from-teal-950/30 dark:via-neutral-900">
+                            <CardHeader
+                                className={`${
+                                    isFormExpanded
+                                        ? 'border-b border-teal-100 pb-4 dark:border-teal-900/60'
+                                        : 'py-3.5'
+                                }`}
+                            >
+                                <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() =>
+                                        setIsFormExpanded((v) => !v)
+                                    }
+                                    onKeyDown={(e) => {
+                                        if (
+                                            e.key === 'Enter' ||
+                                            e.key === ' '
+                                        ) {
+                                            e.preventDefault();
+                                            setIsFormExpanded((v) => !v);
+                                        }
+                                    }}
+                                    className="flex cursor-pointer flex-wrap items-center justify-between gap-3 select-none"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#006565] text-white shadow-xs">
+                                            {isFormExpanded ? (
+                                                <FileText className="size-4" />
+                                            ) : (
+                                                <Plus className="size-4" />
                                             )}
                                         </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <CardTitle className="text-sm font-extrabold text-[#006565] dark:text-teal-300">
+                                                    Form Input SPPD Dalam Kota
+                                                </CardTitle>
+                                                <Badge className="bg-teal-100 text-[10px] font-bold text-[#006565] dark:bg-teal-900/60 dark:text-teal-200">
+                                                    Langkah {currentStep} / 3
+                                                </Badge>
+                                            </div>
+                                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                                {isFormExpanded
+                                                    ? 'Lengkapi data perjalanan dinas dalam kota secara bertahap (Langkah 1 s/d 3).'
+                                                    : 'Form sedang disembunyikan agar tampilan rapi. Klik untuk membuka form input SPPD Dalam Kota.'}
+                                            </p>
+                                        </div>
+                                    </div>
 
-                            {/* ================================================= */}
-                            {/* LANGKAH 2: INPUT DETAIL PERJALANAN & PEGAWAI      */}
-                            {/* ================================================= */}
-                            {showStep2 && (
-                                <>
-                                    {batches.map((batch, batchIdx) => {
-                                const batchTotalUangSaku = batch.participants.reduce(
-                                    (acc, pt) =>
-                                        acc +
-                                        getTarifInfo(
-                                            pt.pegawai_id,
-                                            pt.nama_kecamatan
-                                        ).uang_saku,
-                                    0
-                                );
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={
+                                                isFormExpanded
+                                                    ? 'outline'
+                                                    : 'default'
+                                            }
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsFormExpanded((v) => !v);
+                                            }}
+                                            className={
+                                                isFormExpanded
+                                                    ? 'h-8 gap-1.5 border-teal-300 text-xs font-bold text-[#006565] hover:bg-teal-50'
+                                                    : 'h-8 gap-1.5 bg-[#006565] text-xs font-bold text-white hover:bg-[#005252]'
+                                            }
+                                        >
+                                            {isFormExpanded ? (
+                                                <>
+                                                    <ChevronUp className="size-3.5" />
+                                                    <span>Minimize Form</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <ChevronDown className="size-3.5" />
+                                                    <span>Buka Form Input</span>
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
 
-                                return (
-                                    <Card
-                                        key={batch.uid}
-                                        className="border-2 border-teal-200/90 shadow-xs dark:border-teal-900/70"
-                                    >
-                                        <CardHeader className="border-b border-teal-100 bg-gradient-to-r from-teal-50/60 via-white to-emerald-50/30 pb-3.5 dark:border-teal-900/50 dark:from-teal-950/30 dark:via-neutral-900">
-                                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2.5">
-                                                    <span className="inline-flex items-center justify-center rounded-lg bg-[#006565] px-2.5 py-1 text-xs font-extrabold text-white">
-                                                        Langkah 2 &bull; SPT Tanggal #
-                                                        {batchIdx + 1}
+                                {/* STEPPER INDICATOR (HANYA TAMPIL SAAT EXPANDED) */}
+                                {isFormExpanded && (
+                                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        {WIZARD_STEPS.map((st) => {
+                                            const isActive =
+                                                currentStep === st.step;
+                                            const isDone =
+                                                currentStep > st.step;
+                                            return (
+                                                <button
+                                                    key={st.step}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (
+                                                            st.step <
+                                                            currentStep
+                                                        ) {
+                                                            setCurrentStep(
+                                                                st.step
+                                                            );
+                                                        }
+                                                    }}
+                                                    className={`flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all ${
+                                                        isActive
+                                                            ? 'border-[#006565] bg-[#006565] text-white shadow-xs'
+                                                            : isDone
+                                                              ? 'cursor-pointer border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                                                              : 'border-neutral-200 bg-white/80 text-neutral-400 dark:border-neutral-800 dark:bg-neutral-900'
+                                                    }`}
+                                                >
+                                                    <span
+                                                        className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-extrabold ${
+                                                            isActive
+                                                                ? 'bg-white text-[#006565]'
+                                                                : isDone
+                                                                  ? 'bg-emerald-600 text-white'
+                                                                  : 'bg-neutral-200 text-neutral-500 dark:bg-neutral-800'
+                                                        }`}
+                                                    >
+                                                        {isDone ? (
+                                                            <CheckCircle2 className="size-3.5" />
+                                                        ) : (
+                                                            st.step
+                                                        )}
                                                     </span>
-                                                    <div>
-                                                        <CardTitle className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">
-                                                            Input Pegawai &amp; Tujuan SPPD Dalam Kota (
-                                                            {batch.participants.length} Orang)
-                                                        </CardTitle>
-                                                        <p className="text-[11px] text-neutral-500">
-                                                            Klik{' '}
-                                                            <strong>
-                                                                &ldquo;+ Tambah Orang Kedua&rdquo;
-                                                            </strong>{' '}
-                                                            untuk menambah personil dengan tanggal berangkat, tanggal SPT, tujuan &amp; kecamatan yang sama.
-                                                        </p>
+                                                    <div className="min-w-0">
+                                                        <div className="truncate text-xs font-extrabold">
+                                                            Langkah {st.step}:{' '}
+                                                            {st.title}
+                                                        </div>
+                                                        <div
+                                                            className={`truncate text-[10px] ${
+                                                                isActive
+                                                                    ? 'text-teal-100'
+                                                                    : 'opacity-75'
+                                                            }`}
+                                                        >
+                                                            {st.desc}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </CardHeader>
+
+                            {isFormExpanded && (
+                                <CardContent className="pt-5">
+                                    <form
+                                        onSubmit={handleSubmitSppd}
+                                        className="space-y-5"
+                                    >
+                                        {/* ======================================= */}
+                                        {/* LANGKAH 1: SUB KEGIATAN, DPA & BATCH    */}
+                                        {/* ======================================= */}
+                                        {currentStep === 1 && (
+                                            <div className="space-y-4">
+                                                <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
+                                                    <div className="min-w-0 space-y-1.5 md:col-span-12">
+                                                        <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                            1. Pilih Sub Kegiatan *
+                                                        </Label>
+                                                        <Select
+                                                            value={
+                                                                selectedSubKegiatanId
+                                                            }
+                                                            onValueChange={
+                                                                handleSubKegiatanChange
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
+                                                                <SelectValue placeholder="-- Pilih Sub Kegiatan --" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {subKegiatans.map(
+                                                                    (sk) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                sk.id
+                                                                            }
+                                                                            value={String(
+                                                                                sk.id
+                                                                            )}
+                                                                        >
+                                                                            [
+                                                                            {
+                                                                                sk.kode_sub_kegiatan
+                                                                            }
+                                                                            ]{' '}
+                                                                            {
+                                                                                sk.sub_kegiatan
+                                                                            }
+                                                                        </SelectItem>
+                                                                    )
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div className="min-w-0 space-y-1.5 md:col-span-6">
+                                                        <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                            2. Pilih Nomor DPA *
+                                                        </Label>
+                                                        <Select
+                                                            value={
+                                                                selectedDpaId
+                                                            }
+                                                            onValueChange={
+                                                                setSelectedDpaId
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
+                                                                <SelectValue placeholder="-- Pilih Nomor DPA --" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {dpas
+                                                                    .filter(
+                                                                        (d) =>
+                                                                            d.is_active
+                                                                    )
+                                                                    .map(
+                                                                        (d) => (
+                                                                            <SelectItem
+                                                                                key={
+                                                                                    d.id
+                                                                                }
+                                                                                value={String(
+                                                                                    d.id
+                                                                                )}
+                                                                            >
+                                                                                {
+                                                                                    d.nomor_dpa
+                                                                                }{' '}
+                                                                                (TA{' '}
+                                                                                {
+                                                                                    d.tahun_anggaran
+                                                                                }
+                                                                                )
+                                                                            </SelectItem>
+                                                                        )
+                                                                    )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <div className="min-w-0 space-y-1.5 md:col-span-6">
+                                                        <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                            3. Masukkan ke Batch *
+                                                        </Label>
+                                                        <Select
+                                                            value={
+                                                                targetBatchSelection
+                                                            }
+                                                            onValueChange={
+                                                                setTargetBatchSelection
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-bold [&>span]:truncate dark:bg-neutral-900">
+                                                                <SelectValue placeholder="-- Pilih Kelompok Batch --" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="NEW">
+                                                                    + Buat Batch
+                                                                    Baru
+                                                                    Terpisah
+                                                                </SelectItem>
+                                                                {sppdBatches.map(
+                                                                    (b) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                b.batch_code
+                                                                            }
+                                                                            value={
+                                                                                b.batch_code
+                                                                            }
+                                                                        >
+                                                                            Gabung
+                                                                            ke:{' '}
+                                                                            {
+                                                                                b.batch_code
+                                                                            }{' '}
+                                                                            (
+                                                                            {
+                                                                                b.spt_count
+                                                                            }{' '}
+                                                                            SPPD)
+                                                                        </SelectItem>
+                                                                    )
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-2">
-                                                    <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 text-xs font-extrabold">
-                                                        Uang Saku Tanggal Ini:{' '}
-                                                        {formatRupiah(batchTotalUangSaku)}
-                                                    </Badge>
-                                                    {batches.length > 1 && (
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() =>
-                                                                handleRemoveBatch(batchIdx)
-                                                            }
-                                                            className="h-8 gap-1 text-xs text-rose-600 hover:bg-rose-50"
-                                                        >
-                                                            <Trash2 className="size-3.5" />
-                                                            Hapus Tanggal #{batchIdx + 1}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </CardHeader>
-
-                                        <CardContent className="space-y-4 pt-4">
-                                            <div className="space-y-3">
-                                                {batch.participants.map((pt, ptIdx) => {
-                                                    const tarifInfo = getTarifInfo(
-                                                        pt.pegawai_id,
-                                                        pt.nama_kecamatan
-                                                    );
-                                                    const peg = tarifInfo.pegawai;
-
-                                                    return (
-                                                        <div
-                                                            key={pt.uid}
-                                                            className={`rounded-xl border p-3.5 transition-all ${
-                                                                ptIdx === 0
-                                                                    ? 'border-teal-300/90 bg-white dark:border-teal-800 dark:bg-neutral-900'
-                                                                    : 'border-amber-300/90 bg-amber-50/30 dark:border-amber-800/70 dark:bg-amber-950/10'
-                                                            }`}
-                                                        >
-                                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2 dark:border-neutral-800">
-                                                                <div className="flex flex-wrap items-center gap-2">
-                                                                    <span
-                                                                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-extrabold ${
-                                                                            ptIdx === 0
-                                                                                ? 'bg-teal-100 text-[#006565]'
-                                                                                : 'bg-amber-100 text-amber-900'
-                                                                        }`}
-                                                                    >
-                                                                        Orang ke-{ptIdx + 1}
-                                                                        {ptIdx > 0 &&
-                                                                            ' (Isian Mengikuti Orang ke-1)'}
-                                                                    </span>
-
-                                                                    {peg && (
-                                                                        <span className="text-[11px] text-neutral-500">
-                                                                            NIP:{' '}
-                                                                            <strong className="font-mono text-neutral-700 dark:text-neutral-300">
-                                                                                {peg.nip || '-'}
-                                                                            </strong>{' '}
-                                                                            &bull; Golongan:{' '}
-                                                                            <strong className="text-[#006565]">
-                                                                                {peg.golongan} (
-                                                                                {peg.pangkat})
-                                                                            </strong>{' '}
-                                                                            &bull; Jabatan:{' '}
-                                                                            <strong>
-                                                                                {peg.jabatan}
-                                                                            </strong>
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-extrabold text-emerald-800">
-                                                                        <span>
-                                                                            {tarifInfo.zona}
-                                                                        </span>
-                                                                        <span>&bull;</span>
-                                                                        <span>
-                                                                            Uang Saku:{' '}
-                                                                            {formatRupiah(
-                                                                                tarifInfo.uang_saku
-                                                                            )}
-                                                                        </span>
-                                                                    </span>
-
-                                                                    {batch.participants.length >
-                                                                        1 && (
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            onClick={() =>
-                                                                                handleRemoveParticipant(
-                                                                                    batchIdx,
-                                                                                    ptIdx
-                                                                                )
-                                                                            }
-                                                                            className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
-                                                                            title="Hapus baris orang ini"
-                                                                        >
-                                                                            <Trash2 className="size-3.5" />
-                                                                        </Button>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[2.2fr_1.45fr_1.45fr_2fr_1.7fr_1.7fr]">
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        1. Nama Pegawai *
-                                                                    </Label>
-                                                                    <Select
-                                                                        value={pt.pegawai_id}
-                                                                        onValueChange={(v) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'pegawai_id',
-                                                                                v
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
-                                                                            <SelectValue placeholder="Pilih Pegawai" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {sortedPegawais.map((p) => (
-                                                                                <SelectItem
-                                                                                    key={p.id}
-                                                                                    value={String(
-                                                                                        p.id
-                                                                                    )}
-                                                                                >
-                                                                                    {p.nama} (
-                                                                                    {p.golongan})
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
-
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        2. Tgl Berangkat *
-                                                                    </Label>
-                                                                    <Input
-                                                                        type="date"
-                                                                        value={
-                                                                            pt.tanggal_berangkat
-                                                                        }
-                                                                        onChange={(e) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'tanggal_berangkat',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                        className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
-                                                                        required
-                                                                    />
-                                                                </div>
-
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        3. Tanggal SPT *
-                                                                    </Label>
-                                                                    <Input
-                                                                        type="date"
-                                                                        value={pt.tanggal_spt}
-                                                                        onChange={(e) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'tanggal_spt',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                        className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
-                                                                        required
-                                                                    />
-                                                                </div>
-
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        4. Tujuan *
-                                                                    </Label>
-                                                                    <Input
-                                                                        value={pt.tujuan}
-                                                                        onChange={(e) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'tujuan',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                        placeholder="Monitoring Harga Pangan"
-                                                                        className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
-                                                                        required
-                                                                    />
-                                                                </div>
-
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        5. Desa / Tempat *
-                                                                    </Label>
-                                                                    <Input
-                                                                        value={pt.nama_desa}
-                                                                        onChange={(e) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'nama_desa',
-                                                                                e.target.value
-                                                                            )
-                                                                        }
-                                                                        placeholder="Pasar / Desa..."
-                                                                        className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
-                                                                        required
-                                                                    />
-                                                                </div>
-
-                                                                <div className="min-w-0 space-y-1">
-                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
-                                                                        6. Kecamatan *
-                                                                    </Label>
-                                                                    <Select
-                                                                        value={pt.nama_kecamatan}
-                                                                        onValueChange={(v) =>
-                                                                            handleUpdateParticipantField(
-                                                                                batchIdx,
-                                                                                ptIdx,
-                                                                                'nama_kecamatan',
-                                                                                v
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
-                                                                            <SelectValue placeholder="Pilih Kecamatan" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {kecamatanOptions.map(
-                                                                                (k) => (
-                                                                                    <SelectItem
-                                                                                        key={
-                                                                                            k.nama_kecamatan
-                                                                                        }
-                                                                                        value={
-                                                                                            k.nama_kecamatan
-                                                                                        }
-                                                                                    >
-                                                                                        {
-                                                                                            k.nama_kecamatan
-                                                                                        }{' '}
-                                                                                        ({k.zona})
-                                                                                    </SelectItem>
-                                                                                )
-                                                                            )}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </div>
+                                                {activeSubKegiatanObj && (
+                                                    <div className="grid gap-2.5 rounded-xl border border-teal-200/90 bg-white/90 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:border-teal-900 dark:bg-neutral-900">
+                                                        <div>
+                                                            <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                                Kode Sub Kegiatan
+                                                            </span>
+                                                            <div className="font-mono font-extrabold text-[#006565] dark:text-teal-300">
+                                                                {
+                                                                    activeSubKegiatanObj.kode_sub_kegiatan
+                                                                }
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
+                                                        <div>
+                                                            <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                                Nomor Rekening
+                                                            </span>
+                                                            <div className="font-mono font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                                {
+                                                                    activeSubKegiatanObj.no_rekening
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                        <div className="sm:col-span-2">
+                                                            <span className="text-[10px] font-bold uppercase text-neutral-400">
+                                                                Nama Kegiatan
+                                                                &amp; Sub
+                                                                Kegiatan
+                                                            </span>
+                                                            <div className="font-bold text-neutral-800 dark:text-neutral-200">
+                                                                {
+                                                                    activeSubKegiatanObj.sub_kegiatan
+                                                                }
+                                                            </div>
+                                                            <div className="text-[11px] text-neutral-500">
+                                                                Kegiatan:{' '}
+                                                                {
+                                                                    activeSubKegiatanObj.nama_kegiatan
+                                                                }
+                                                                {activeDpaObj && (
+                                                                    <>
+                                                                        {' '}
+                                                                        &bull;
+                                                                        DPA:{' '}
+                                                                        <strong className="font-mono">
+                                                                            {
+                                                                                activeDpaObj.nomor_dpa
+                                                                            }
+                                                                        </strong>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
+                                        )}
 
-                                            <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:bg-neutral-900">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() =>
-                                                        handleAddSameTripPerson(batchIdx)
+                                        {/* ======================================= */}
+                                        {/* LANGKAH 2: PEGAWAI & TUJUAN SPPD        */}
+                                        {/* ======================================= */}
+                                        {currentStep === 2 && (
+                                            <div className="space-y-4">
+                                                {batches.map(
+                                                    (batch, batchIdx) => {
+                                                        const batchTotalUangSaku =
+                                                            batch.participants.reduce(
+                                                                (acc, pt) =>
+                                                                    acc +
+                                                                    getTarifInfo(
+                                                                        pt.pegawai_id,
+                                                                        pt.nama_kecamatan
+                                                                    ).uang_saku,
+                                                                0
+                                                            );
+
+                                                        return (
+                                                            <div
+                                                                key={batch.uid}
+                                                                className="rounded-xl border border-teal-200 bg-white p-3.5 shadow-2xs dark:border-teal-900/70 dark:bg-neutral-950"
+                                                            >
+                                                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 pb-2.5 dark:border-teal-900/50">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge className="bg-[#006565] text-white text-[11px]">
+                                                                            SPT
+                                                                            Tanggal
+                                                                            #
+                                                                            {batchIdx +
+                                                                                1}
+                                                                        </Badge>
+                                                                        <span className="text-xs font-extrabold text-neutral-900 dark:text-neutral-100">
+                                                                            Input
+                                                                            Pegawai
+                                                                            &amp;
+                                                                            Tujuan
+                                                                            (
+                                                                            {
+                                                                                batch
+                                                                                    .participants
+                                                                                    .length
+                                                                            }{' '}
+                                                                            Orang)
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge className="border-emerald-300 bg-emerald-100 text-xs font-extrabold text-emerald-900">
+                                                                            Uang
+                                                                            Saku:{' '}
+                                                                            {formatRupiah(
+                                                                                batchTotalUangSaku
+                                                                            )}
+                                                                        </Badge>
+                                                                        {batches.length >
+                                                                            1 && (
+                                                                            <Button
+                                                                                type="button"
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                onClick={() =>
+                                                                                    handleRemoveBatch(
+                                                                                        batchIdx
+                                                                                    )
+                                                                                }
+                                                                                className="h-7 gap-1 text-xs text-rose-600 hover:bg-rose-50"
+                                                                            >
+                                                                                <Trash2 className="size-3.5" />
+                                                                                Hapus
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="space-y-3">
+                                                                    {batch.participants.map(
+                                                                        (
+                                                                            pt,
+                                                                            ptIdx
+                                                                        ) => {
+                                                                            const tarifInfo =
+                                                                                getTarifInfo(
+                                                                                    pt.pegawai_id,
+                                                                                    pt.nama_kecamatan
+                                                                                );
+                                                                            const peg =
+                                                                                tarifInfo.pegawai;
+
+                                                                            return (
+                                                                                <div
+                                                                                    key={
+                                                                                        pt.uid
+                                                                                    }
+                                                                                    className={`rounded-xl border p-3 transition-all ${
+                                                                                        ptIdx ===
+                                                                                        0
+                                                                                            ? 'border-teal-300/90 bg-white dark:border-teal-800 dark:bg-neutral-900'
+                                                                                            : 'border-amber-300/90 bg-amber-50/30 dark:border-amber-800/70 dark:bg-amber-950/10'
+                                                                                    }`}
+                                                                                >
+                                                                                    <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2 dark:border-neutral-800">
+                                                                                        <div className="flex flex-wrap items-center gap-2">
+                                                                                            <span
+                                                                                                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-extrabold ${
+                                                                                                    ptIdx ===
+                                                                                                    0
+                                                                                                        ? 'bg-teal-100 text-[#006565]'
+                                                                                                        : 'bg-amber-100 text-amber-900'
+                                                                                                }`}
+                                                                                            >
+                                                                                                Orang
+                                                                                                ke-
+                                                                                                {ptIdx +
+                                                                                                    1}
+                                                                                                {ptIdx >
+                                                                                                    0 &&
+                                                                                                    ' (Isian Mengikuti Orang ke-1)'}
+                                                                                            </span>
+
+                                                                                            {peg && (
+                                                                                                <span className="text-[11px] text-neutral-500">
+                                                                                                    NIP:{' '}
+                                                                                                    <strong className="font-mono text-neutral-700 dark:text-neutral-300">
+                                                                                                        {peg.nip ||
+                                                                                                            '-'}
+                                                                                                    </strong>{' '}
+                                                                                                    &bull;
+                                                                                                    Gol:{' '}
+                                                                                                    <strong className="text-[#006565]">
+                                                                                                        {
+                                                                                                            peg.golongan
+                                                                                                        }
+                                                                                                    </strong>
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-extrabold text-emerald-800">
+                                                                                                <span>
+                                                                                                    {
+                                                                                                        tarifInfo.zona
+                                                                                                    }
+                                                                                                </span>
+                                                                                                <span>
+                                                                                                    &bull;
+                                                                                                </span>
+                                                                                                <span>
+                                                                                                    {formatRupiah(
+                                                                                                        tarifInfo.uang_saku
+                                                                                                    )}
+                                                                                                </span>
+                                                                                            </span>
+
+                                                                                            {batch
+                                                                                                .participants
+                                                                                                .length >
+                                                                                                1 && (
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    size="sm"
+                                                                                                    variant="outline"
+                                                                                                    onClick={() =>
+                                                                                                        handleRemoveParticipant(
+                                                                                                            batchIdx,
+                                                                                                            ptIdx
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="h-7 px-2 text-xs text-rose-600 hover:bg-rose-50"
+                                                                                                    title="Hapus baris orang ini"
+                                                                                                >
+                                                                                                    <Trash2 className="size-3.5" />
+                                                                                                </Button>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[2.2fr_1.45fr_1.45fr_2fr_1.7fr_1.7fr]">
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                1.
+                                                                                                Nama
+                                                                                                Pegawai
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Select
+                                                                                                value={
+                                                                                                    pt.pegawai_id
+                                                                                                }
+                                                                                                onValueChange={(
+                                                                                                    v
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'pegawai_id',
+                                                                                                        v
+                                                                                                    )
+                                                                                                }
+                                                                                            >
+                                                                                                <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
+                                                                                                    <SelectValue placeholder="Pilih Pegawai" />
+                                                                                                </SelectTrigger>
+                                                                                                <SelectContent>
+                                                                                                    {sortedPegawais.map(
+                                                                                                        (
+                                                                                                            p
+                                                                                                        ) => (
+                                                                                                            <SelectItem
+                                                                                                                key={
+                                                                                                                    p.id
+                                                                                                                }
+                                                                                                                value={String(
+                                                                                                                    p.id
+                                                                                                                )}
+                                                                                                            >
+                                                                                                                {
+                                                                                                                    p.nama
+                                                                                                                }{' '}
+                                                                                                                (
+                                                                                                                {
+                                                                                                                    p.golongan
+                                                                                                                }
+                                                                                                                )
+                                                                                                            </SelectItem>
+                                                                                                        )
+                                                                                                    )}
+                                                                                                </SelectContent>
+                                                                                            </Select>
+                                                                                        </div>
+
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                2.
+                                                                                                Tgl
+                                                                                                Berangkat
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Input
+                                                                                                type="date"
+                                                                                                value={
+                                                                                                    pt.tanggal_berangkat
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'tanggal_berangkat',
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value
+                                                                                                    )
+                                                                                                }
+                                                                                                className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
+                                                                                                required
+                                                                                            />
+                                                                                        </div>
+
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                3.
+                                                                                                Tanggal
+                                                                                                SPT
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Input
+                                                                                                type="date"
+                                                                                                value={
+                                                                                                    pt.tanggal_spt
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'tanggal_spt',
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value
+                                                                                                    )
+                                                                                                }
+                                                                                                className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
+                                                                                                required
+                                                                                            />
+                                                                                        </div>
+
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                4.
+                                                                                                Tujuan
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Input
+                                                                                                value={
+                                                                                                    pt.tujuan
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'tujuan',
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value
+                                                                                                    )
+                                                                                                }
+                                                                                                placeholder="Monitoring Harga Pangan"
+                                                                                                className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
+                                                                                                required
+                                                                                            />
+                                                                                        </div>
+
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                5.
+                                                                                                Desa
+                                                                                                /
+                                                                                                Tempat
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Input
+                                                                                                value={
+                                                                                                    pt.nama_desa
+                                                                                                }
+                                                                                                onChange={(
+                                                                                                    e
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'nama_desa',
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value
+                                                                                                    )
+                                                                                                }
+                                                                                                placeholder="Pasar / Desa..."
+                                                                                                className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
+                                                                                                required
+                                                                                            />
+                                                                                        </div>
+
+                                                                                        <div className="min-w-0 space-y-1">
+                                                                                            <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                                                6.
+                                                                                                Kecamatan
+                                                                                                *
+                                                                                            </Label>
+                                                                                            <Select
+                                                                                                value={
+                                                                                                    pt.nama_kecamatan
+                                                                                                }
+                                                                                                onValueChange={(
+                                                                                                    v
+                                                                                                ) =>
+                                                                                                    handleUpdateParticipantField(
+                                                                                                        batchIdx,
+                                                                                                        ptIdx,
+                                                                                                        'nama_kecamatan',
+                                                                                                        v
+                                                                                                    )
+                                                                                                }
+                                                                                            >
+                                                                                                <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
+                                                                                                    <SelectValue placeholder="Pilih Kecamatan" />
+                                                                                                </SelectTrigger>
+                                                                                                <SelectContent>
+                                                                                                    {kecamatanOptions.map(
+                                                                                                        (
+                                                                                                            k
+                                                                                                        ) => (
+                                                                                                            <SelectItem
+                                                                                                                key={
+                                                                                                                    k.nama_kecamatan
+                                                                                                                }
+                                                                                                                value={
+                                                                                                                    k.nama_kecamatan
+                                                                                                                }
+                                                                                                            >
+                                                                                                                {
+                                                                                                                    k.nama_kecamatan
+                                                                                                                }{' '}
+                                                                                                                (
+                                                                                                                {
+                                                                                                                    k.zona
+                                                                                                                }
+                                                                                                                )
+                                                                                                            </SelectItem>
+                                                                                                        )
+                                                                                                    )}
+                                                                                                </SelectContent>
+                                                                                            </Select>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() =>
+                                                                            handleAddSameTripPerson(
+                                                                                batchIdx
+                                                                            )
+                                                                        }
+                                                                        className="h-8 gap-1.5 border-[#006565] bg-teal-50/70 text-xs font-extrabold text-[#006565] hover:bg-teal-100/80"
+                                                                    >
+                                                                        <UserPlus className="size-3.5" />
+                                                                        + Tambah
+                                                                        Orang
+                                                                        ke-
+                                                                        {batch
+                                                                            .participants
+                                                                            .length +
+                                                                            1}{' '}
+                                                                        dengan
+                                                                        Isian
+                                                                        yang
+                                                                        Sama
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        );
                                                     }
-                                                    className="gap-2 border-[#006565] bg-teal-50/70 font-extrabold text-[#006565] hover:bg-teal-100/80"
-                                                >
-                                                    <UserPlus className="size-4" />
-                                                    + Tambah Orang ke-
-                                                    {batch.participants.length + 1} dengan Isian yang Sama
-                                                </Button>
+                                                )}
 
-                                                <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                    <Input
-                                                        value={batch.nomor_spt}
-                                                        onChange={(e) =>
-                                                            handleUpdatePrimaryTripField(
-                                                                batchIdx,
-                                                                'nomor_spt',
-                                                                e.target.value
-                                                            )
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={
+                                                            handleAddDifferentDateBatch
                                                         }
-                                                        placeholder="No. SPT (Default: 800.1.11.1/   /KDP)"
-                                                        className="h-8 w-56 text-xs bg-white"
-                                                    />
-
-                                                    <Select
-                                                        value={batch.kepala_dinas_id}
-                                                        onValueChange={(v) =>
-                                                            handleUpdatePrimaryTripField(
-                                                                batchIdx,
-                                                                'kepala_dinas_id',
-                                                                v
-                                                            )
-                                                        }
+                                                        className="h-8 gap-1.5 border-amber-400 bg-amber-50 text-xs font-extrabold text-amber-900 hover:bg-amber-100"
                                                     >
-                                                        <SelectTrigger className="h-8 w-48 text-xs bg-white">
-                                                            <SelectValue placeholder="Kepala Dinas" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {kepalaDinasList.map((k) => (
-                                                                <SelectItem
-                                                                    key={k.id}
-                                                                    value={String(k.id)}
-                                                                >
-                                                                    Kadin: {k.nama}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                                        <CalendarPlus className="size-3.5" />
+                                                        + Tambah SPPD Lagi di
+                                                        Tanggal yang Berbeda
+                                                    </Button>
+                                                    <span className="text-xs text-neutral-500">
+                                                        Total:{' '}
+                                                        <strong>
+                                                            {batches.length} SPT
+                                                        </strong>{' '}
+                                                        siap dikonfirmasi di
+                                                        Langkah 3.
+                                                    </span>
                                                 </div>
                                             </div>
-                                        </CardContent>
-                                    </Card>
-                                );
-                            })}
+                                        )}
 
-                            {/* Action Footer: Tambah SPPD Lagi di Tanggal Berbeda & Simpan ke Batch */}
-                            <div className="flex flex-col gap-3 rounded-2xl border border-teal-200 bg-teal-50/50 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-teal-900 dark:bg-teal-950/20">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleAddDifferentDateBatch}
-                                        className="gap-2 border-amber-400 bg-amber-50 font-extrabold text-amber-900 hover:bg-amber-100"
-                                    >
-                                        <CalendarPlus className="size-4" />
-                                        + Tambah SPPD Lagi di Tanggal yang Berbeda
-                                    </Button>
-                                    <span className="text-xs text-neutral-500">
-                                        Akan disimpan ke dalam{' '}
-                                        <strong>
-                                            {targetBatchSelection === 'NEW'
-                                                ? 'Batch Baru'
-                                                : `Batch ${targetBatchSelection}`}
-                                        </strong>
-                                        .
-                                    </span>
-                                </div>
+                                        {/* ======================================= */}
+                                        {/* LANGKAH 3: NO. SPT, PEJABAT & SIMPAN    */}
+                                        {/* ======================================= */}
+                                        {currentStep === 3 && (
+                                            <div className="space-y-4">
+                                                {batches.map(
+                                                    (batch, batchIdx) => {
+                                                        const batchTotalUangSaku =
+                                                            batch.participants.reduce(
+                                                                (acc, pt) =>
+                                                                    acc +
+                                                                    getTarifInfo(
+                                                                        pt.pegawai_id,
+                                                                        pt.nama_kecamatan
+                                                                    ).uang_saku,
+                                                                0
+                                                            );
+                                                        const primary =
+                                                            batch
+                                                                .participants[0];
 
-                                <Button
-                                    type="submit"
-                                    disabled={isSubmittingSppd}
-                                    className="gap-2 bg-[#006565] px-6 font-extrabold text-white shadow-sm hover:bg-[#005252]"
-                                >
-                                    <Save className="size-4" />
-                                    {isSubmittingSppd
-                                        ? 'Menyimpan SPPD...'
-                                        : `Simpan ke Batch (${batches.length} SPPD)`}
-                                </Button>
-                            </div>
-                                </>
+                                                        return (
+                                                            <div
+                                                                key={batch.uid}
+                                                                className="rounded-xl border border-teal-200 bg-white p-3.5 shadow-2xs dark:border-teal-900 dark:bg-neutral-950"
+                                                            >
+                                                                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 pb-2 dark:border-neutral-800">
+                                                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                                        <Badge className="bg-[#006565] text-white">
+                                                                            SPT
+                                                                            #
+                                                                            {batchIdx +
+                                                                                1}
+                                                                        </Badge>
+                                                                        <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                                                                            {primary?.tujuan ||
+                                                                                '-'}
+                                                                        </span>
+                                                                        <span className="text-neutral-500">
+                                                                            &bull;{' '}
+                                                                            {
+                                                                                primary?.nama_desa
+                                                                            }
+                                                                            ,
+                                                                            Kec.{' '}
+                                                                            {
+                                                                                primary?.nama_kecamatan
+                                                                            }{' '}
+                                                                            (
+                                                                            {
+                                                                                primary?.tanggal_berangkat
+                                                                            }
+                                                                            )
+                                                                        </span>
+                                                                    </div>
+                                                                    <Badge className="border-emerald-300 bg-emerald-100 font-mono text-xs font-extrabold text-emerald-900">
+                                                                        {formatRupiah(
+                                                                            batchTotalUangSaku
+                                                                        )}
+                                                                    </Badge>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-xs font-bold">
+                                                                            Nomor
+                                                                            SPT
+                                                                            (Opsional)
+                                                                        </Label>
+                                                                        <Input
+                                                                            value={
+                                                                                batch.nomor_spt
+                                                                            }
+                                                                            onChange={(
+                                                                                e
+                                                                            ) =>
+                                                                                handleUpdatePrimaryTripField(
+                                                                                    batchIdx,
+                                                                                    'nomor_spt',
+                                                                                    e
+                                                                                        .target
+                                                                                        .value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Kosongkan untuk default: 800.1.11.1/      /KDP"
+                                                                            className="h-9 bg-white text-xs dark:bg-neutral-900"
+                                                                        />
+                                                                    </div>
+
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-xs font-bold">
+                                                                            Penandatangan
+                                                                            (Kepala
+                                                                            Dinas)
+                                                                        </Label>
+                                                                        <Select
+                                                                            value={
+                                                                                batch.kepala_dinas_id
+                                                                            }
+                                                                            onValueChange={(
+                                                                                v
+                                                                            ) =>
+                                                                                handleUpdatePrimaryTripField(
+                                                                                    batchIdx,
+                                                                                    'kepala_dinas_id',
+                                                                                    v
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <SelectTrigger className="h-9 bg-white text-xs dark:bg-neutral-900">
+                                                                                <SelectValue placeholder="Pilih Kepala Dinas" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {kepalaDinasList.map(
+                                                                                    (
+                                                                                        k
+                                                                                    ) => (
+                                                                                        <SelectItem
+                                                                                            key={
+                                                                                                k.id
+                                                                                            }
+                                                                                            value={String(
+                                                                                                k.id
+                                                                                            )}
+                                                                                        >
+                                                                                            {
+                                                                                                k.nama
+                                                                                            }
+                                                                                        </SelectItem>
+                                                                                    )
+                                                                                )}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                                                                    {batch.participants.map(
+                                                                        (
+                                                                            pt,
+                                                                            i
+                                                                        ) => {
+                                                                            const info =
+                                                                                getTarifInfo(
+                                                                                    pt.pegawai_id,
+                                                                                    pt.nama_kecamatan
+                                                                                );
+                                                                            return (
+                                                                                <span
+                                                                                    key={
+                                                                                        pt.uid
+                                                                                    }
+                                                                                    className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-[11px] font-semibold dark:border-neutral-800 dark:bg-neutral-900"
+                                                                                >
+                                                                                    {i +
+                                                                                        1}
+                                                                                    .{' '}
+                                                                                    {info
+                                                                                        .pegawai
+                                                                                        ?.nama ||
+                                                                                        '-'}{' '}
+                                                                                    <span className="font-mono text-emerald-700">
+                                                                                        (
+                                                                                        {formatRupiah(
+                                                                                            info.uang_saku
+                                                                                        )}
+                                                                                        )
+                                                                                    </span>
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                )}
+
+                                                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50/60 px-4 py-3 text-xs dark:border-teal-900 dark:bg-teal-950/30">
+                                                    <span>
+                                                        Akan disimpan ke dalam{' '}
+                                                        <strong className="text-[#006565]">
+                                                            {targetBatchSelection ===
+                                                            'NEW'
+                                                                ? 'Batch Baru'
+                                                                : `Batch ${targetBatchSelection}`}
+                                                        </strong>{' '}
+                                                        ({batches.length} data
+                                                        SPPD).
+                                                    </span>
+                                                    <span className="font-mono text-sm font-extrabold text-[#006565]">
+                                                        Total:{' '}
+                                                        {formatRupiah(
+                                                            batches.reduce(
+                                                                (sum, b) =>
+                                                                    sum +
+                                                                    b.participants.reduce(
+                                                                        (
+                                                                            acc,
+                                                                            pt
+                                                                        ) =>
+                                                                            acc +
+                                                                            getTarifInfo(
+                                                                                pt.pegawai_id,
+                                                                                pt.nama_kecamatan
+                                                                            )
+                                                                                .uang_saku,
+                                                                        0
+                                                                    ),
+                                                                0
+                                                            )
+                                                        )}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* WIZARD NAVIGATION FOOTER */}
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-teal-100 pt-4 dark:border-teal-900/50">
+                                            <div>
+                                                {currentStep > 1 && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            setCurrentStep(
+                                                                (s) =>
+                                                                    (s - 1) as
+                                                                        | 1
+                                                                        | 2
+                                                                        | 3
+                                                            )
+                                                        }
+                                                        className="gap-1.5 text-xs font-bold"
+                                                    >
+                                                        <ArrowLeft className="size-3.5" />
+                                                        Langkah Sebelumnya
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                {currentStep < 3 ? (
+                                                    <Button
+                                                        type="button"
+                                                        onClick={
+                                                            handleNextWizardStep
+                                                        }
+                                                        className="gap-1.5 bg-[#006565] px-5 text-xs font-extrabold text-white hover:bg-[#005252]"
+                                                    >
+                                                        Lanjut ke Langkah{' '}
+                                                        {currentStep + 1}
+                                                        <ArrowRight className="size-3.5" />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={
+                                                            isSubmittingSppd
+                                                        }
+                                                        className="gap-2 bg-[#006565] px-6 text-xs font-extrabold text-white shadow-sm hover:bg-[#005252]"
+                                                    >
+                                                        <Save className="size-4" />
+                                                        {isSubmittingSppd
+                                                            ? 'Menyimpan SPPD...'
+                                                            : `Simpan ke Batch (${batches.length} SPPD)`}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </form>
+                                </CardContent>
                             )}
-                        </form>
+                        </Card>
 
                         {/* ================================================= */}
                         {/* TABEL DAFTAR SPPD DALAM KOTA TERSIMPAN (PER BATCH)*/}

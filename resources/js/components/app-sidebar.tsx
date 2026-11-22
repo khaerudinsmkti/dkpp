@@ -179,12 +179,18 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
         ],
     },
     {
-        title: 'SPPD Dalam Kota',
+        title: 'SPPD & Perjalanan Dinas',
         items: [
             {
-                title: 'Input & Batch SPPD',
+                title: 'SPPD Dalam Kota',
                 href: '/sppd-dalam-kota',
                 icon: Briefcase,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'SPPD Luar Kota',
+                href: '/sppd-luar-kota',
+                icon: Compass,
                 moduleKey: 'sppd_dalam_kota',
             },
             {
