@@ -1,9 +1,12 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Apple,
+    Award,
     Briefcase,
+    Coins,
     Compass,
     FileSpreadsheet,
+    FolderKanban,
     LayoutGrid,
     Layers,
     MapPin,
@@ -14,6 +17,8 @@ import {
     ShieldCheck,
     Store,
     TrendingUp,
+    UserCheck,
+    Users,
     Wheat,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -173,14 +178,61 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
         ],
     },
     {
-        title: 'Administrasi Sistem',
+        title: 'SPPD Dalam Kota',
         items: [
             {
-                title: 'SPPD Dalam Kota',
+                title: 'Input & Batch SPPD',
                 href: '/sppd-dalam-kota',
                 icon: Briefcase,
                 moduleKey: 'sppd_dalam_kota',
             },
+            {
+                title: 'Master Sub Kegiatan',
+                href: '/sppd-dalam-kota?tab=sub_kegiatan',
+                icon: FolderKanban,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master Nomor DPA',
+                href: '/sppd-dalam-kota?tab=dpa',
+                icon: FileSpreadsheet,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master Pegawai',
+                href: '/sppd-dalam-kota?tab=pegawai',
+                icon: Users,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master Kepala Dinas',
+                href: '/sppd-dalam-kota?tab=kepala_dinas',
+                icon: Award,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master PPTK',
+                href: '/sppd-dalam-kota?tab=pptk',
+                icon: UserCheck,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master Bendahara',
+                href: '/sppd-dalam-kota?tab=bendahara',
+                icon: Coins,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Master Zonasi',
+                href: '/sppd-dalam-kota?tab=zonasi',
+                icon: MapPin,
+                moduleKey: 'sppd_dalam_kota',
+            },
+        ],
+    },
+    {
+        title: 'Administrasi Sistem',
+        items: [
             {
                 title: 'User, Role & Hak Akses',
                 href: '/users-roles',
@@ -196,25 +248,61 @@ function SidebarPromoCard() {
 }
 
 export function AppSidebar() {
-    const { auth } = usePage().props;
+    const page = usePage();
+    const { auth } = page.props;
     const user = auth?.user;
+    const currentUrlStr = page.url;
 
     const filteredNavGroups: NavGroup[] = useMemo(() => {
         const isSuper = user?.is_super_admin ?? true;
         const perms = user?.permissions;
 
+        let currentPath = '/dashboard';
+        let currentTab: string | null = null;
+        try {
+            const parsed = new URL(currentUrlStr, 'http://localhost');
+            currentPath = parsed.pathname;
+            currentTab = parsed.searchParams.get('tab');
+        } catch {
+            // fallback
+        }
+
         return rawNavGroups
             .map((group) => ({
                 title: group.title,
-                items: group.items.filter((item) => {
-                    if (isSuper || !perms || !item.moduleKey) {
-                        return true;
-                    }
-                    return Boolean(perms[item.moduleKey]?.view);
-                }),
+                items: group.items
+                    .filter((item) => {
+                        if (isSuper || !perms || !item.moduleKey) {
+                            return true;
+                        }
+                        return Boolean(perms[item.moduleKey]?.view);
+                    })
+                    .map((item) => {
+                        if (
+                            typeof item.href === 'string' &&
+                            item.href.startsWith('/sppd-dalam-kota')
+                        ) {
+                            const itemUrl = new URL(
+                                item.href,
+                                'http://localhost',
+                            );
+                            const itemTab = itemUrl.searchParams.get('tab');
+                            const isMatch =
+                                currentPath === '/sppd-dalam-kota' &&
+                                (itemTab
+                                    ? currentTab === itemTab
+                                    : !currentTab || currentTab === 'sppd');
+
+                            return {
+                                ...item,
+                                isActive: isMatch,
+                            };
+                        }
+                        return item;
+                    }),
             }))
             .filter((group) => group.items.length > 0);
-    }, [user]);
+    }, [user, currentUrlStr]);
 
     return (
         <Sidebar

@@ -152,7 +152,13 @@ class SppdDalamKotaController extends Controller
      */
     public function index(Request $request): Response
     {
-        $pegawais = SppdPegawai::orderBy('nama')->get()->map(function (SppdPegawai $p): array {
+        $pegawais = SppdPegawai::orderBy('nama')
+            ->get()
+            ->sortBy([
+                [fn (SppdPegawai $p) => SppdPegawai::golonganRank($p->golongan, $p->pangkat), 'desc'],
+                ['nama', 'asc'],
+            ])
+            ->map(function (SppdPegawai $p): array {
             $birthDate = $p->tanggal_lahir
                 ? Carbon::parse($p->tanggal_lahir)->format('Y-m-d')
                 : SppdPegawai::extractBirthDateFromNip($p->nip);
@@ -391,9 +397,67 @@ class SppdDalamKotaController extends Controller
     }
 
     /**
-     * Download PDF Surat Tugas (SPT) menggunakan DomPDF untuk 1 Batch.
+     * Render dokumen laporan SPPD sebagai PDF (default) atau Microsoft Word (.doc) jika ?format=word.
+     *
+     * @param  array<string, mixed>  $data
      */
-    public function downloadBatchPdf(string $batchCode): SymfonyResponse
+    private function renderDocumentResponse(
+        Request $request,
+        string $view,
+        array $data,
+        string $baseFilename
+    ): SymfonyResponse {
+        if (strtolower((string) $request->query('format', 'pdf')) === 'word') {
+            $html = view($view, $data)->render();
+
+            $wordHeader = <<<'HTML'
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+HTML;
+            $html = preg_replace('/<html[^>]*>/i', $wordHeader, $html, 1) ?? $html;
+
+            $wordXml = <<<'HTML'
+<!--[if gte mso 9]>
+<xml>
+  <w:WordDocument>
+    <w:View>Print</w:View>
+    <w:Zoom>100</w:Zoom>
+    <w:DoNotOptimizeForBrowser/>
+  </w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  @page WordSection1 { size: 21.0cm 29.7cm; margin: 1.2cm 1.4cm 1.4cm 1.4cm; }
+  div.WordSection1 { page: WordSection1; }
+  .lhpd-page { position: static !important; height: auto !important; }
+  .lhpd-page .ttd-wrapper { position: static !important; margin-top: 260pt !important; padding-left: 32pt !important; }
+</style>
+</head>
+HTML;
+            $html = str_ireplace('</head>', $wordXml, $html);
+            $html = str_replace(
+                '<div class="page-break"></div>',
+                '<br clear="all" style="page-break-before:always;" />',
+                $html
+            );
+
+            return response("\xEF\xBB\xBF".$html, 200, [
+                'Content-Type' => 'application/msword; charset=UTF-8',
+                'Content-Disposition' => "attachment; filename=\"{$baseFilename}.doc\"",
+                'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            ]);
+        }
+
+        $pdf = Pdf::loadView($view, $data)->setPaper('a4', 'portrait');
+
+        return $pdf->download("{$baseFilename}.pdf");
+    }
+
+    /**
+     * Download PDF / Word Surat Tugas (SPT) untuk 1 Batch.
+     */
+    public function downloadBatchPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas'])
             ->where('batch_code', $batchCode)
@@ -483,21 +547,19 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.spt-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.spt-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("Surat_Tugas_SPT_{$safeBatch}.pdf");
+        ], "Surat_Tugas_SPT_{$safeBatch}");
     }
 
     /**
-     * Download PDF Surat Pernyataan Tanggung Jawab Belanja (SPTJB) menggunakan DomPDF untuk 1 Batch.
+     * Download PDF / Word Surat Pernyataan Tanggung Jawab Belanja (SPTJB) untuk 1 Batch.
      */
-    public function downloadBatchSptjbPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchSptjbPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas'])
             ->where('batch_code', $batchCode)
@@ -549,7 +611,9 @@ class SppdDalamKotaController extends Controller
         $kadinNama = $kadin?->nama ?? 'RORY FIRMANSYAH.S.STP.M.Si';
         $kadinNip = preg_replace('/\D/', '', (string) ($kadin?->nip ?? '')) ?: ($kadin?->nip ?? '197801011997031003');
 
-        $pdf = Pdf::loadView('pdf.sptjb-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.sptjb-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'tanggalDanNomorDpa' => $tanggalDanNomorDpa,
@@ -562,17 +626,13 @@ class SppdDalamKotaController extends Controller
             'tahunAnggaran' => $tahunAnggaran,
             'kadinNama' => $kadinNama,
             'kadinNip' => $kadinNip,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("SPTJB_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "SPTJB_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF Laporan C2 (Perincian Pengeluaran Menurut Tanda Bukti Terlampir) menggunakan DomPDF.
+     * Download PDF / Word Laporan C2 (Perincian Pengeluaran Menurut Tanda Bukti Terlampir).
      */
-    public function downloadBatchC2Pdf(string $batchCode): SymfonyResponse
+    public function downloadBatchC2Pdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'pptk'])
             ->where('batch_code', $batchCode)
@@ -638,7 +698,9 @@ class SppdDalamKotaController extends Controller
         $pptkNama = strtoupper($pptk?->nama ?? 'DEDEH SUMIATI, S.IP');
         $pptkNip = self::formatNipSpaced($pptk?->nip ?? '197009192007012009');
 
-        $pdf = Pdf::loadView('pdf.c2-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.c2-batch', [
             'batchCode' => $batchCode,
             'namaKegiatan' => $namaKegiatan,
             'namaSubKegiatan' => $namaSubKegiatan,
@@ -651,17 +713,13 @@ class SppdDalamKotaController extends Controller
             'rows' => $rows,
             'pptkNama' => $pptkNama,
             'pptkNip' => $pptkNip,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("C2_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "C2_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF Rincian Biaya Perjalanan Dinas untuk 1 Batch (1 halaman per SPPD).
+     * Download PDF / Word Rincian Biaya Perjalanan Dinas untuk 1 Batch (1 halaman per SPPD).
      */
-    public function downloadBatchRincianPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchRincianPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['participants', 'bendahara'])
             ->where('batch_code', $batchCode)
@@ -753,21 +811,19 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.rincian-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.rincian-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("Rincian_Biaya_SPPD_{$safeBatch}.pdf");
+        ], "Rincian_Biaya_SPPD_{$safeBatch}");
     }
 
     /**
-     * Download PDF Kwitansi (Tanda Terima Uang Harian Perjalanan Dinas Dalam Kota) untuk 1 Batch (1 halaman per SPPD).
+     * Download PDF / Word Kwitansi (Tanda Terima Uang Harian Perjalanan Dinas Dalam Kota) untuk 1 Batch.
      */
-    public function downloadBatchKwitansiPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchKwitansiPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas', 'pptk', 'bendahara'])
             ->where('batch_code', $batchCode)
@@ -841,24 +897,22 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.kwitansi-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.kwitansi-batch', [
             'batchCode' => $batchCode,
             'kodeSubKegiatan' => $kodeSubKegiatan,
             'noRekening' => $noRekening,
             'namaSubKegiatan' => $namaSubKegiatan,
             'tahunAnggaran' => $tahunAnggaran,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("Kwitansi_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "Kwitansi_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF Kwitansi 2 untuk 1 Batch (1 halaman per SPPD).
+     * Download PDF / Word Kwitansi 2 untuk 1 Batch (1 halaman per SPPD).
      */
-    public function downloadBatchKwitansi2Pdf(string $batchCode): SymfonyResponse
+    public function downloadBatchKwitansi2Pdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas', 'bendahara'])
             ->where('batch_code', $batchCode)
@@ -931,23 +985,21 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.kwitansi2-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.kwitansi2-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'namaSubKegiatan' => $namaSubKegiatan,
             'tahunAnggaran' => $tahunAnggaran,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("Kwitansi_2_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "Kwitansi_2_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF SPPD (Surat Perjalanan Dinas / SPD) untuk 1 Batch (1 halaman per SPPD).
+     * Download PDF / Word SPPD (Surat Perjalanan Dinas / SPD) untuk 1 Batch (1 halaman per SPPD).
      */
-    public function downloadBatchSppdPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchSppdPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants.pegawai', 'kepalaDinas'])
             ->where('batch_code', $batchCode)
@@ -1036,24 +1088,22 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.sppd-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.sppd-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'namaSubKegiatan' => $namaSubKegiatan,
             'noRekening' => $noRekening,
             'tahunAnggaran' => $tahunAnggaran,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF Rekapitulasi Perjalanan Dinas untuk 1 Batch.
+     * Download PDF / Word Rekapitulasi Perjalanan Dinas untuk 1 Batch.
      */
-    public function downloadBatchRekapPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchRekapPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas'])
             ->where('batch_code', $batchCode)
@@ -1111,7 +1161,9 @@ class SppdDalamKotaController extends Controller
         $kadinNama = strtoupper($kadin?->nama ?? 'RORY FIRMANSYAH.S.STP.M.Si');
         $kadinNip = preg_replace('/\D/', '', (string) ($kadin?->nip ?? '')) ?: ($kadin?->nip ?? '197801011997031003');
 
-        $pdf = Pdf::loadView('pdf.rekap-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.rekap-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'noRekening' => $noRekening,
@@ -1120,17 +1172,13 @@ class SppdDalamKotaController extends Controller
             'terbilangText' => $terbilangText,
             'kadinNama' => $kadinNama,
             'kadinNip' => $kadinNip,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("Rekap_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "Rekap_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**
-     * Download PDF LHPD (Laporan Hasil Perjalanan Dinas) untuk 1 Batch (1 halaman per SPPD).
+     * Download PDF / Word LHPD (Laporan Hasil Perjalanan Dinas) untuk 1 Batch (1 halaman per SPPD).
      */
-    public function downloadBatchLhpdPdf(string $batchCode): SymfonyResponse
+    public function downloadBatchLhpdPdf(Request $request, string $batchCode): SymfonyResponse
     {
         $records = SppdDalamKota::with(['dpa', 'participants'])
             ->where('batch_code', $batchCode)
@@ -1177,15 +1225,13 @@ class SppdDalamKotaController extends Controller
             ];
         })->values()->all();
 
-        $pdf = Pdf::loadView('pdf.lhpd-batch', [
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        return $this->renderDocumentResponse($request, 'pdf.lhpd-batch', [
             'batchCode' => $batchCode,
             'tahunAnggaran' => $tahunAnggaran,
             'sppdList' => $sppdList,
-        ])->setPaper('a4', 'portrait');
-
-        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
-
-        return $pdf->download("LHPD_SPPD_Dalam_Kota_{$safeBatch}.pdf");
+        ], "LHPD_SPPD_Dalam_Kota_{$safeBatch}");
     }
 
     /**

@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     Award,
     Briefcase,
@@ -255,6 +255,10 @@ const GOLONGAN_OPTIONS = [
     { golongan: 'I/c', pangkat: 'Juru' },
     { golongan: 'I/b', pangkat: 'Juru Muda Tingkat I' },
     { golongan: 'I/a', pangkat: 'Juru Muda' },
+    { golongan: 'PPPK', pangkat: 'PPPK (Setara Gol. I & II)' },
+    { golongan: 'PPPK Gol. IX', pangkat: 'PPPK Ahli Pertama' },
+    { golongan: 'PPPK Gol. VII', pangkat: 'PPPK Terampil' },
+    { golongan: 'PPPK Gol. V', pangkat: 'PPPK Pemula' },
 ];
 
 const ZONA_OPTIONS = ['Zona I', 'Zona II', 'Zona III'];
@@ -292,11 +296,67 @@ function extractBirthDateFromNip(nip: string): string | null {
 function normalizeGolonganToZonasiGroup(golongan?: string | null): string {
     if (!golongan) return 'Golongan III';
     const up = golongan.toUpperCase();
+    if (up.includes('PPPK') || up.includes('P3K')) return 'Golongan II';
     if (up.includes('IV')) return 'Golongan IV';
     if (up.includes('III')) return 'Golongan III';
     if (up.includes('II')) return 'Golongan II';
     if (up.includes('I')) return 'Golongan I';
     return golongan;
+}
+
+function getGolonganRank(
+    golongan?: string | null,
+    pangkat?: string | null
+): number {
+    const raw = (golongan || '').trim().toUpperCase();
+    const pangkatUp = (pangkat || '').trim().toUpperCase();
+    if (!raw && !pangkatUp) return 0;
+
+    if (
+        raw.includes('PPPK') ||
+        raw.includes('P3K') ||
+        pangkatUp.includes('PPPK') ||
+        pangkatUp.includes('P3K') ||
+        /^(IX|VIII|VII|VI|V|X|XI|XII)$/.test(raw)
+    ) {
+        if (/\bXI\b/.test(raw)) return 9;
+        if (/\bX\b/.test(raw)) return 8;
+        if (/\bIX\b/.test(raw)) return 7;
+        if (/\bVII\b/.test(raw)) return 5;
+        if (/\bV\b/.test(raw)) return 3;
+        return 1;
+    }
+
+    const compact = raw.replace(/\s+/g, '').replace(/\./g, '/');
+    const rankMap: Record<string, number> = {
+        'IV/E': 27,
+        'IV/D': 26,
+        'IV/C': 25,
+        'IV/B': 24,
+        'IV/A': 23,
+        'III/D': 22,
+        'III/C': 21,
+        'III/B': 20,
+        'III/A': 19,
+        'II/D': 18,
+        'II/C': 17,
+        'II/B': 16,
+        'II/A': 15,
+        'I/D': 14,
+        'I/C': 13,
+        'I/B': 12,
+        'I/A': 11,
+    };
+
+    if (rankMap[compact] !== undefined) return rankMap[compact];
+    for (const [k, v] of Object.entries(rankMap)) {
+        if (compact.includes(k)) return v;
+    }
+    if (compact.includes('IV')) return 23;
+    if (compact.includes('III')) return 19;
+    if (compact.includes('II')) return 15;
+    if (compact.includes('I')) return 11;
+    return 0;
 }
 
 function formatRupiah(amount: number): string {
@@ -328,7 +388,8 @@ export default function SppdDalamKotaIndex({
     dpas = [],
     statistics,
 }: PageProps) {
-    const [activeTab, setActiveTab] = useState<
+    const page = usePage();
+    type SppdTabKey =
         | 'sppd'
         | 'sub_kegiatan'
         | 'dpa'
@@ -336,8 +397,48 @@ export default function SppdDalamKotaIndex({
         | 'kepala_dinas'
         | 'pptk'
         | 'bendahara'
-        | 'zonasi'
-    >('sppd');
+        | 'zonasi';
+
+    const VALID_TABS: SppdTabKey[] = [
+        'sppd',
+        'sub_kegiatan',
+        'dpa',
+        'pegawai',
+        'kepala_dinas',
+        'pptk',
+        'bendahara',
+        'zonasi',
+    ];
+
+    const resolveTabFromUrl = (urlStr: string): SppdTabKey => {
+        try {
+            const parsed = new URL(urlStr, 'http://localhost');
+            const tabParam = parsed.searchParams.get('tab') as SppdTabKey | null;
+            if (tabParam && VALID_TABS.includes(tabParam)) {
+                return tabParam;
+            }
+        } catch {
+            // fallback
+        }
+        return 'sppd';
+    };
+
+    const [activeTab, setActiveTabState] = useState<SppdTabKey>(() =>
+        resolveTabFromUrl(page.url)
+    );
+
+    useEffect(() => {
+        setActiveTabState(resolveTabFromUrl(page.url));
+    }, [page.url]);
+
+    const setActiveTab = (tab: SppdTabKey) => {
+        setActiveTabState(tab);
+        router.get(
+            '/sppd-dalam-kota',
+            tab === 'sppd' ? {} : { tab },
+            { preserveState: true, preserveScroll: true, replace: true }
+        );
+    };
 
     const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
     const defaultKecamatan = kecamatanOptions[0]?.nama_kecamatan || 'Indramayu';
@@ -361,25 +462,21 @@ export default function SppdDalamKotaIndex({
     // STEP 1 FORM SPPD: PILIH SUB KEGIATAN, NOMOR DPA & TARGET BATCH
     // =========================================================================
     const [selectedSubKegiatanId, setSelectedSubKegiatanId] =
-        useState<string>(defaultSubKegiatanId);
-    const [selectedDpaId, setSelectedDpaId] = useState<string>(defaultDpaId);
+        useState<string>('');
+    const [selectedDpaId, setSelectedDpaId] = useState<string>('');
+    const [targetBatchSelection, setTargetBatchSelection] =
+        useState<string>('NEW');
+    const [step2ManuallyHidden, setStep2ManuallyHidden] = useState(false);
 
-    // Default target batch: jika sudah ada batch untuk sub kegiatan tersebut, otomatis pilih batch itu supaya tergabung rapi!
-    const [targetBatchSelection, setTargetBatchSelection] = useState<string>(() => {
-        if (lastBatchCode) return lastBatchCode;
-        if (sppdBatches.length > 0) return sppdBatches[0].batch_code;
-        return 'NEW';
-    });
+    const isStep1Complete = Boolean(
+        selectedSubKegiatanId && selectedDpaId && targetBatchSelection
+    );
+    const showStep2 = isStep1Complete && !step2ManuallyHidden;
 
-    // State baris Batch yang sedang diklik/dibuka (expand) di tabel
+    // State baris Batch yang sedang diklik/dibuka (expand) di tabel — default tersembunyi
     const [expandedBatches, setExpandedBatches] = useState<
         Record<string, boolean>
-    >(() => {
-        if (sppdBatches.length > 0) {
-            return { [sppdBatches[0].batch_code]: true };
-        }
-        return {};
-    });
+    >({});
 
     // State checkbox untuk menggabungkan beberapa batch menjadi 1 batch
     const [selectedBatchCodesToMerge, setSelectedBatchCodesToMerge] = useState<
@@ -405,15 +502,8 @@ export default function SppdDalamKotaIndex({
         return dpas.find((d) => String(d.id) === String(selectedDpaId)) || null;
     }, [dpas, selectedDpaId]);
 
-    // Ketika Sub Kegiatan diganti, jika ada Batch dengan Sub Kegiatan tersebut, tawarkan/arahkan ke Batch tersebut
     const handleSubKegiatanChange = (newSubId: string) => {
         setSelectedSubKegiatanId(newSubId);
-        const matchingBatch = sppdBatches.find(
-            (b) => String(b.sub_kegiatan_id) === String(newSubId)
-        );
-        if (matchingBatch) {
-            setTargetBatchSelection(matchingBatch.batch_code);
-        }
     };
 
     // =========================================================================
@@ -599,6 +689,7 @@ export default function SppdDalamKotaIndex({
 
     useEffect(() => {
         if (
+            targetBatchSelection !== '' &&
             targetBatchSelection !== 'NEW' &&
             sppdBatches.length > 0 &&
             !sppdBatches.some((b) => b.batch_code === targetBatchSelection)
@@ -954,6 +1045,10 @@ export default function SppdDalamKotaIndex({
 
     const handleResetFreshFormAfterSave = () => {
         setBatches([createInitialBatch()]);
+        setSelectedSubKegiatanId('');
+        setSelectedDpaId('');
+        setTargetBatchSelection('NEW');
+        setStep2ManuallyHidden(false);
         setAfterSavePromptOpen(false);
     };
 
@@ -963,12 +1058,15 @@ export default function SppdDalamKotaIndex({
     ) => {
         if (e) e.stopPropagation();
         setTargetBatchSelection(grp.batch_code);
-        if (grp.sub_kegiatan_id) {
-            setSelectedSubKegiatanId(String(grp.sub_kegiatan_id));
-        }
-        if (grp.dpa_id) {
-            setSelectedDpaId(String(grp.dpa_id));
-        }
+        setSelectedSubKegiatanId(
+            grp.sub_kegiatan_id
+                ? String(grp.sub_kegiatan_id)
+                : defaultSubKegiatanId
+        );
+        setSelectedDpaId(
+            grp.dpa_id ? String(grp.dpa_id) : defaultDpaId
+        );
+        setStep2ManuallyHidden(false);
 
         const nextDate = addDaysToDateStr(grp.last_tanggal_berangkat || todayStr, 1);
         const newDraft = createInitialBatch(
@@ -1068,6 +1166,24 @@ export default function SppdDalamKotaIndex({
     ) => {
         if (e) e.stopPropagation();
         window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/lhpd-pdf`;
+    };
+
+    const handleDownloadBatchWord = (
+        batchCode: string,
+        slug:
+            | 'pdf'
+            | 'sptjb-pdf'
+            | 'c2-pdf'
+            | 'rincian-pdf'
+            | 'kwitansi-pdf'
+            | 'kwitansi-2-pdf'
+            | 'sppd-pdf'
+            | 'rekap-pdf'
+            | 'lhpd-pdf',
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/${slug}?format=word`;
     };
 
     const handleDeleteBatch = (
@@ -1585,17 +1701,27 @@ export default function SppdDalamKotaIndex({
         }
     };
 
+    const sortedPegawais = useMemo(() => {
+        return [...pegawais].sort((a, b) => {
+            const rankDiff =
+                getGolonganRank(b.golongan, b.pangkat) -
+                getGolonganRank(a.golongan, a.pangkat);
+            if (rankDiff !== 0) return rankDiff;
+            return a.nama.localeCompare(b.nama, 'id');
+        });
+    }, [pegawais]);
+
     const filteredPegawais = useMemo(() => {
         const q = pegawaiSearch.trim().toLowerCase();
-        if (!q) return pegawais;
-        return pegawais.filter(
+        if (!q) return sortedPegawais;
+        return sortedPegawais.filter(
             (p) =>
                 p.nama.toLowerCase().includes(q) ||
                 (p.nip && p.nip.toLowerCase().includes(q)) ||
                 (p.jabatan && p.jabatan.toLowerCase().includes(q)) ||
                 (p.golongan && p.golongan.toLowerCase().includes(q))
         );
-    }, [pegawais, pegawaiSearch]);
+    }, [sortedPegawais, pegawaiSearch]);
 
     const filteredSppdBatches = useMemo(() => {
         const q = sppdSearch.trim().toLowerCase();
@@ -1767,217 +1893,108 @@ export default function SppdDalamKotaIndex({
                             </p>
                         </div>
                     </div>
+                </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={handleOpenCreateSubKegiatan}
-                            className="gap-1.5 border-teal-300 text-teal-800 hover:bg-teal-50"
-                        >
-                            <FolderKanban className="size-4" />
-                            Tambah Sub Kegiatan
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={handleOpenCreateDpa}
-                            className="gap-1.5 border-teal-300 text-teal-800 hover:bg-teal-50"
-                        >
-                            <FileSpreadsheet className="size-4" />
-                            Tambah Nomor DPA
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                setActiveTab('sppd');
-                                handleAddDifferentDateBatch();
-                            }}
-                            className="gap-1.5 bg-[#006565] text-white hover:bg-[#005252]"
-                        >
-                            <CalendarPlus className="size-4" />
-                            Tambah Tanggal SPT di Form
-                        </Button>
+                {/* ========================================================= */}
+                {/* KPI SUMMARY CARDS (COMPACT & MODERN)                      */}
+                {/* ========================================================= */}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="group relative overflow-hidden rounded-2xl border border-teal-200/70 bg-gradient-to-br from-white via-teal-50/30 to-emerald-50/40 px-4 py-3 shadow-2xs transition-all hover:border-teal-300 hover:shadow-sm dark:border-teal-900/60 dark:from-neutral-900 dark:via-teal-950/20 dark:to-neutral-900">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#006565] to-teal-600 text-white shadow-xs">
+                                <FileCheck2 className="size-4.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[10.5px] font-bold tracking-wider text-teal-700/80 uppercase dark:text-teal-400">
+                                    Total Batch &amp; SPPD
+                                </div>
+                                <div className="mt-0.5 flex items-baseline gap-1.5">
+                                    <span className="text-lg font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
+                                        {statistics.total_batches} Batch
+                                    </span>
+                                    <span className="rounded-md bg-teal-100/80 px-1.5 py-0.5 text-[10px] font-bold text-[#006565] dark:bg-teal-900/50 dark:text-teal-300">
+                                        {statistics.total_sppd} SPPD
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    {statistics.total_personil_berangkat} keberangkatan personil
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* ========================================================= */}
-                {/* KPI SUMMARY CARDS                                         */}
-                {/* ========================================================= */}
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Card className="border-sidebar-border/70">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-neutral-500">
-                                Total Batch &amp; Data SPPD
-                            </CardTitle>
-                            <FileCheck2 className="size-4 text-[#006565]" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">
-                                {statistics.total_batches} Batch ({statistics.total_sppd} SPPD)
-                            </div>
-                            <p className="mt-1 text-xs text-neutral-500">
-                                {statistics.total_personil_berangkat} total keberangkatan personil
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-teal-200 bg-teal-50/40 dark:border-teal-950/60 dark:bg-teal-950/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-teal-700">
-                                Sub Kegiatan &amp; DPA
-                            </CardTitle>
-                            <FolderKanban className="size-4 text-teal-700" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-teal-800 dark:text-teal-300">
-                                {subKegiatans.length} Sub Kegiatan
-                            </div>
-                            <p className="mt-1 text-xs text-teal-700/80">
-                                {dpas.length} Nomor DPA terdaftar
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-blue-200 bg-blue-50/40 dark:border-blue-950/60 dark:bg-blue-950/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-blue-600">
-                                Pegawai &amp; Zonasi
-                            </CardTitle>
-                            <Users className="size-4 text-blue-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                                {statistics.total_pegawai} Pegawai
-                            </div>
-                            <p className="mt-1 text-xs text-blue-600/80">
-                                {statistics.total_kecamatan_zonasi} Kecamatan Zonasi
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-amber-200 bg-amber-50/40 dark:border-amber-950/60 dark:bg-amber-950/10">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-xs font-medium text-amber-700">
-                                Total Uang Saku (SPTJB)
-                            </CardTitle>
-                            <Wallet className="size-4 text-amber-700" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-amber-800 dark:text-amber-300">
-                                {formatRupiah(statistics.total_anggaran_uang_saku)}
-                            </div>
-                            <p className="mt-1 text-xs text-amber-700/80">
-                                Siap diunduh ke dalam PDF SPT &amp; SPTJB
-                            </p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* ========================================================= */}
-                {/* TAB NAVIGATION BAR (FORM SPPD + 7 MASTER DATA)            */}
-                {/* ========================================================= */}
-                <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-neutral-100 p-1.5 dark:bg-neutral-900">
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('sppd')}
-                        className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-extrabold transition-all cursor-pointer ${
-                            activeTab === 'sppd'
-                                ? 'bg-[#006565] text-white shadow-xs'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <FileText className="size-4" />
-                        <span>Form Input &amp; Batch SPPD</span>
-                    </button>
-
-                    <button
-                        type="button"
+                    <div
                         onClick={() => setActiveTab('sub_kegiatan')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'sub_kegiatan'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
+                        className="group relative cursor-pointer overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 px-4 py-3 shadow-2xs transition-all hover:border-emerald-300 hover:shadow-sm dark:border-emerald-900/60 dark:from-neutral-900 dark:via-emerald-950/20 dark:to-neutral-900"
                     >
-                        <FolderKanban className="size-3.5" />
-                        <span>Master Sub Kegiatan ({subKegiatans.length})</span>
-                    </button>
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-500 text-white shadow-xs">
+                                <FolderKanban className="size-4.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[10.5px] font-bold tracking-wider text-emerald-700/80 uppercase dark:text-emerald-400">
+                                    Sub Kegiatan &amp; DPA
+                                </div>
+                                <div className="mt-0.5 flex items-baseline gap-1.5">
+                                    <span className="text-lg font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
+                                        {subKegiatans.length} Sub Keg
+                                    </span>
+                                    <span className="rounded-md bg-emerald-100/80 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                        {dpas.length} DPA
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    Master anggaran terdaftar
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('dpa')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'dpa'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <FileSpreadsheet className="size-3.5" />
-                        <span>Master Nomor DPA ({dpas.length})</span>
-                    </button>
-
-                    <button
-                        type="button"
+                    <div
                         onClick={() => setActiveTab('pegawai')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'pegawai'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
+                        className="group relative cursor-pointer overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-white via-sky-50/30 to-blue-50/30 px-4 py-3 shadow-2xs transition-all hover:border-sky-300 hover:shadow-sm dark:border-sky-900/60 dark:from-neutral-900 dark:via-sky-950/20 dark:to-neutral-900"
                     >
-                        <Users className="size-3.5" />
-                        <span>Master Pegawai ({pegawais.length})</span>
-                    </button>
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-600 text-white shadow-xs">
+                                <Users className="size-4.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[10.5px] font-bold tracking-wider text-sky-700/80 uppercase dark:text-sky-400">
+                                    Pegawai &amp; Zonasi
+                                </div>
+                                <div className="mt-0.5 flex items-baseline gap-1.5">
+                                    <span className="text-lg font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
+                                        {statistics.total_pegawai} Pegawai
+                                    </span>
+                                    <span className="rounded-md bg-sky-100/80 px-1.5 py-0.5 text-[10px] font-bold text-sky-800 dark:bg-sky-900/50 dark:text-sky-300">
+                                        {statistics.total_kecamatan_zonasi} Kec
+                                    </span>
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    Master personil &amp; tarif zonasi
+                                </p>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('kepala_dinas')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'kepala_dinas'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <Award className="size-3.5" />
-                        <span>Master Kepala Dinas ({kepalaDinasList.length})</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('pptk')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'pptk'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <UserCheck className="size-3.5" />
-                        <span>Master PPTK ({pptkList.length})</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('bendahara')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'bendahara'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <Coins className="size-3.5" />
-                        <span>Master Bendahara ({bendaharaList.length})</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setActiveTab('zonasi')}
-                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer ${
-                            activeTab === 'zonasi'
-                                ? 'bg-white text-[#006565] shadow-xs ring-1 ring-neutral-200 dark:bg-neutral-800 dark:text-teal-300'
-                                : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400'
-                        }`}
-                    >
-                        <MapPin className="size-3.5" />
-                        <span>Master Zonasi ({zonasis.length})</span>
-                    </button>
+                    <div className="group relative overflow-hidden rounded-2xl border border-amber-200/70 bg-gradient-to-br from-white via-amber-50/30 to-orange-50/30 px-4 py-3 shadow-2xs transition-all hover:border-amber-300 hover:shadow-sm dark:border-amber-900/60 dark:from-neutral-900 dark:via-amber-950/20 dark:to-neutral-900">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-xs">
+                                <Wallet className="size-4.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[10.5px] font-bold tracking-wider text-amber-700/80 uppercase dark:text-amber-400">
+                                    Total Uang Saku
+                                </div>
+                                <div className="mt-0.5 truncate font-mono text-lg font-extrabold tracking-tight text-amber-800 dark:text-amber-300">
+                                    {formatRupiah(statistics.total_anggaran_uang_saku)}
+                                </div>
+                                <p className="mt-0.5 truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                                    Siap cetak 9 format PDF batch
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* ========================================================= */}
@@ -2031,9 +2048,9 @@ export default function SppdDalamKotaIndex({
                                     </div>
                                 </CardHeader>
 
-                                <CardContent className="space-y-3 pt-0">
-                                    <div className="grid gap-3 md:grid-cols-12">
-                                        <div className="space-y-1.5 md:col-span-5">
+                                <CardContent className="space-y-4 pt-1">
+                                    <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-12">
                                             <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
                                                 1. Pilih Sub Kegiatan *
                                             </Label>
@@ -2041,7 +2058,7 @@ export default function SppdDalamKotaIndex({
                                                 value={selectedSubKegiatanId}
                                                 onValueChange={handleSubKegiatanChange}
                                             >
-                                                <SelectTrigger className="h-10 bg-white font-semibold text-xs border-teal-300">
+                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
                                                     <SelectValue placeholder="-- Pilih Sub Kegiatan --" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -2058,7 +2075,7 @@ export default function SppdDalamKotaIndex({
                                             </Select>
                                         </div>
 
-                                        <div className="space-y-1.5 md:col-span-4">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-6">
                                             <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
                                                 2. Pilih Nomor DPA *
                                             </Label>
@@ -2066,24 +2083,26 @@ export default function SppdDalamKotaIndex({
                                                 value={selectedDpaId}
                                                 onValueChange={setSelectedDpaId}
                                             >
-                                                <SelectTrigger className="h-10 bg-white font-semibold text-xs border-teal-300">
+                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-semibold [&>span]:truncate dark:bg-neutral-900">
                                                     <SelectValue placeholder="-- Pilih Nomor DPA --" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {dpas.map((d) => (
-                                                        <SelectItem
-                                                            key={d.id}
-                                                            value={String(d.id)}
-                                                        >
-                                                            {d.nomor_dpa} (TA{' '}
-                                                            {d.tahun_anggaran})
-                                                        </SelectItem>
-                                                    ))}
+                                                    {dpas
+                                                        .filter((d) => d.is_active)
+                                                        .map((d) => (
+                                                            <SelectItem
+                                                                key={d.id}
+                                                                value={String(d.id)}
+                                                            >
+                                                                {d.nomor_dpa} (TA{' '}
+                                                                {d.tahun_anggaran})
+                                                            </SelectItem>
+                                                        ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
 
-                                        <div className="space-y-1.5 md:col-span-3">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-6">
                                             <Label className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
                                                 3. Masukkan ke Batch *
                                             </Label>
@@ -2091,8 +2110,8 @@ export default function SppdDalamKotaIndex({
                                                 value={targetBatchSelection}
                                                 onValueChange={setTargetBatchSelection}
                                             >
-                                                <SelectTrigger className="h-10 bg-white font-bold text-xs border-teal-300">
-                                                    <SelectValue placeholder="Pilih Batch" />
+                                                <SelectTrigger className="h-10 w-full min-w-0 overflow-hidden border-teal-300 bg-white text-xs font-bold [&>span]:truncate dark:bg-neutral-900">
+                                                    <SelectValue placeholder="-- Pilih Kelompok Batch --" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {sppdBatches.map((b) => (
@@ -2155,13 +2174,34 @@ export default function SppdDalamKotaIndex({
                                             </div>
                                         </div>
                                     )}
+                                    {!showStep2 && (
+                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed border-teal-300/80 bg-white/70 px-3.5 py-2.5 text-xs text-teal-800 dark:border-teal-800 dark:bg-neutral-900/60 dark:text-teal-300">
+                                            <span>
+                                                Lengkapi <strong>Sub Kegiatan</strong>, <strong>Nomor DPA</strong>, dan <strong>Kelompok Batch</strong> di atas untuk membuka <strong>Langkah 2 (Input Pegawai &amp; Tujuan SPPD)</strong>.
+                                            </span>
+                                            {isStep1Complete && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setStep2ManuallyHidden(false)
+                                                    }
+                                                    className="h-7 bg-[#006565] px-3 text-xs font-bold text-white hover:bg-[#005252]"
+                                                >
+                                                    Buka Langkah 2
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
                             {/* ================================================= */}
                             {/* LANGKAH 2: INPUT DETAIL PERJALANAN & PEGAWAI      */}
                             {/* ================================================= */}
-                            {batches.map((batch, batchIdx) => {
+                            {showStep2 && (
+                                <>
+                                    {batches.map((batch, batchIdx) => {
                                 const batchTotalUangSaku = batch.participants.reduce(
                                     (acc, pt) =>
                                         acc +
@@ -2308,9 +2348,9 @@ export default function SppdDalamKotaIndex({
                                                                 </div>
                                                             </div>
 
-                                                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12">
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
+                                                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-[2.2fr_1.45fr_1.45fr_2fr_1.7fr_1.7fr]">
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                                                                         1. Nama Pegawai *
                                                                     </Label>
                                                                     <Select
@@ -2324,11 +2364,11 @@ export default function SppdDalamKotaIndex({
                                                                             )
                                                                         }
                                                                     >
-                                                                        <SelectTrigger className="h-9 text-xs">
+                                                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
                                                                             <SelectValue placeholder="Pilih Pegawai" />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
-                                                                            {pegawais.map((p) => (
+                                                                            {sortedPegawais.map((p) => (
                                                                                 <SelectItem
                                                                                     key={p.id}
                                                                                     value={String(
@@ -2343,9 +2383,9 @@ export default function SppdDalamKotaIndex({
                                                                     </Select>
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
-                                                                        2. Tanggal Berangkat *
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
+                                                                        2. Tgl Berangkat *
                                                                     </Label>
                                                                     <Input
                                                                         type="date"
@@ -2360,13 +2400,13 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        className="h-9 text-xs"
+                                                                        className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
                                                                         required
                                                                     />
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                                                                         3. Tanggal SPT *
                                                                     </Label>
                                                                     <Input
@@ -2380,13 +2420,13 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        className="h-9 text-xs"
+                                                                        className="h-9 w-full min-w-0 bg-white px-2 text-xs dark:bg-neutral-900"
                                                                         required
                                                                     />
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                                                                         4. Tujuan *
                                                                     </Label>
                                                                     <Input
@@ -2399,14 +2439,14 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        placeholder="Contoh: Monitoring Harga Pangan"
-                                                                        className="h-9 text-xs"
+                                                                        placeholder="Monitoring Harga Pangan"
+                                                                        className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
                                                                         required
                                                                     />
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                                                                         5. Desa / Tempat *
                                                                     </Label>
                                                                     <Input
@@ -2419,14 +2459,14 @@ export default function SppdDalamKotaIndex({
                                                                                 e.target.value
                                                                             )
                                                                         }
-                                                                        placeholder="Contoh: Pasar Daerah Bondan / Desa Bondan"
-                                                                        className="h-9 text-xs"
+                                                                        placeholder="Pasar / Desa..."
+                                                                        className="h-9 w-full min-w-0 bg-white text-xs dark:bg-neutral-900"
                                                                         required
                                                                     />
                                                                 </div>
 
-                                                                <div className="space-y-1 lg:col-span-2">
-                                                                    <Label className="text-xs font-bold">
+                                                                <div className="min-w-0 space-y-1">
+                                                                    <Label className="block truncate text-[11px] font-bold text-neutral-700 dark:text-neutral-200">
                                                                         6. Kecamatan *
                                                                     </Label>
                                                                     <Select
@@ -2440,7 +2480,7 @@ export default function SppdDalamKotaIndex({
                                                                             )
                                                                         }
                                                                     >
-                                                                        <SelectTrigger className="h-9 text-xs">
+                                                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs font-medium [&>span]:truncate dark:bg-neutral-900">
                                                                             <SelectValue placeholder="Pilih Kecamatan" />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
@@ -2563,6 +2603,8 @@ export default function SppdDalamKotaIndex({
                                         : `Simpan ke Batch (${batches.length} SPPD)`}
                                 </Button>
                             </div>
+                                </>
+                            )}
                         </form>
 
                         {/* ================================================= */}
@@ -3049,6 +3091,63 @@ export default function SppdDalamKotaIndex({
                                                                                 </DropdownMenuContent>
                                                                             </DropdownMenu>
 
+                                                                            {/* DROPDOWN MENU DOWNLOAD WORD (.DOC) */}
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button
+                                                                                        size="sm"
+                                                                                        variant="outline"
+                                                                                        className="h-8 gap-1 px-2.5 text-xs font-bold border-blue-300 bg-blue-50/70 text-blue-800 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300"
+                                                                                        title="Download dokumen Microsoft Word (.doc) agar bisa diedit"
+                                                                                    >
+                                                                                        <FileText className="size-3.5" />
+                                                                                        <span>Word</span>
+                                                                                        <ChevronDown className="size-3.5 opacity-80" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuContent
+                                                                                    align="end"
+                                                                                    className="w-64 rounded-xl p-1.5 shadow-lg"
+                                                                                >
+                                                                                    <DropdownMenuLabel className="px-2 py-1 text-[10px] font-extrabold tracking-wider text-blue-600 uppercase">
+                                                                                        Download Word (.doc) — Bisa Diedit
+                                                                                    </DropdownMenuLabel>
+                                                                                    <DropdownMenuSeparator />
+                                                                                    {[
+                                                                                        { slug: 'pdf' as const, label: '1. SPT (Word)', sub: `Surat Tugas (${grp.spt_count} lembar)` },
+                                                                                        { slug: 'sptjb-pdf' as const, label: '2. Laporan SPTJB (Word)', sub: 'Surat Pernyataan Tanggung Jawab Belanja' },
+                                                                                        { slug: 'c2-pdf' as const, label: '3. Laporan C2 (Word)', sub: 'Perincian Pengeluaran Tanda Bukti' },
+                                                                                        { slug: 'rincian-pdf' as const, label: '4. Laporan Rincian (Word)', sub: `Rincian Biaya Perjalanan (${grp.spt_count} lembar)` },
+                                                                                        { slug: 'kwitansi-pdf' as const, label: '5. Laporan Kwitansi (Word)', sub: `Tanda Terima Uang Harian (${grp.spt_count} lembar)` },
+                                                                                        { slug: 'kwitansi-2-pdf' as const, label: '6. Kwitansi 2 (Word)', sub: `Kuitansi Perjalanan Dinas (${grp.spt_count} lembar)` },
+                                                                                        { slug: 'sppd-pdf' as const, label: '7. SPPD (Word)', sub: `Surat Perjalanan Dinas / SPD (${grp.spt_count} lembar)` },
+                                                                                        { slug: 'rekap-pdf' as const, label: '8. Rekap (Word)', sub: 'Rekapitulasi Perjalanan Dinas Batch' },
+                                                                                        { slug: 'lhpd-pdf' as const, label: '9. LHPD (Word)', sub: `Laporan Hasil Perjalanan Dinas (${grp.spt_count} lembar)` },
+                                                                                    ].map((docItem) => (
+                                                                                        <DropdownMenuItem
+                                                                                            key={docItem.slug}
+                                                                                            onClick={() =>
+                                                                                                handleDownloadBatchWord(
+                                                                                                    grp.batch_code,
+                                                                                                    docItem.slug
+                                                                                                )
+                                                                                            }
+                                                                                            className="flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 cursor-pointer"
+                                                                                        >
+                                                                                            <FileText className="mt-0.5 size-3.5 shrink-0 text-blue-700" />
+                                                                                            <div>
+                                                                                                <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                    {docItem.label}
+                                                                                                </div>
+                                                                                                <div className="text-[10px] text-neutral-500">
+                                                                                                    {docItem.sub}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </DropdownMenuItem>
+                                                                                    ))}
+                                                                                </DropdownMenuContent>
+                                                                            </DropdownMenu>
+
                                                                             <Button
                                                                                 size="sm"
                                                                                 variant="outline"
@@ -3228,6 +3327,50 @@ export default function SppdDalamKotaIndex({
                                                                                                     <FileText className="size-3.5 text-orange-600" />
                                                                                                     <span>9. LHPD (PDF)</span>
                                                                                                 </DropdownMenuItem>
+                                                                                            </DropdownMenuContent>
+                                                                                        </DropdownMenu>
+
+                                                                                        <DropdownMenu>
+                                                                                            <DropdownMenuTrigger asChild>
+                                                                                                <Button
+                                                                                                    size="sm"
+                                                                                                    variant="outline"
+                                                                                                    className="h-7 gap-1.5 text-[11px] font-bold border-blue-300 text-blue-700 hover:bg-blue-50"
+                                                                                                >
+                                                                                                    <FileText className="size-3" />
+                                                                                                    <span>Download Word</span>
+                                                                                                    <ChevronDown className="size-3" />
+                                                                                                </Button>
+                                                                                            </DropdownMenuTrigger>
+                                                                                            <DropdownMenuContent
+                                                                                                align="end"
+                                                                                                className="w-56 rounded-xl p-1"
+                                                                                            >
+                                                                                                {[
+                                                                                                    { slug: 'pdf' as const, label: '1. SPT (Word)' },
+                                                                                                    { slug: 'sptjb-pdf' as const, label: '2. Laporan SPTJB (Word)' },
+                                                                                                    { slug: 'c2-pdf' as const, label: '3. Laporan C2 (Word)' },
+                                                                                                    { slug: 'rincian-pdf' as const, label: '4. Laporan Rincian (Word)' },
+                                                                                                    { slug: 'kwitansi-pdf' as const, label: '5. Laporan Kwitansi (Word)' },
+                                                                                                    { slug: 'kwitansi-2-pdf' as const, label: '6. Kwitansi 2 (Word)' },
+                                                                                                    { slug: 'sppd-pdf' as const, label: '7. SPPD (Word)' },
+                                                                                                    { slug: 'rekap-pdf' as const, label: '8. Rekap (Word)' },
+                                                                                                    { slug: 'lhpd-pdf' as const, label: '9. LHPD (Word)' },
+                                                                                                ].map((docItem) => (
+                                                                                                    <DropdownMenuItem
+                                                                                                        key={docItem.slug}
+                                                                                                        onClick={() =>
+                                                                                                            handleDownloadBatchWord(
+                                                                                                                grp.batch_code,
+                                                                                                                docItem.slug
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                    >
+                                                                                                        <FileText className="size-3.5 text-blue-700" />
+                                                                                                        <span>{docItem.label}</span>
+                                                                                                    </DropdownMenuItem>
+                                                                                                ))}
                                                                                             </DropdownMenuContent>
                                                                                         </DropdownMenu>
                                                                                     </div>
@@ -4711,7 +4854,7 @@ export default function SppdDalamKotaIndex({
                                                             <SelectValue placeholder="Pilih pegawai" />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            {pegawais.map(
+                                                            {sortedPegawais.map(
                                                                 (p) => (
                                                                     <SelectItem
                                                                         key={
