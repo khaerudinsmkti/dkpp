@@ -271,7 +271,7 @@ Route::get('/harga-produsen', function (Request $request) {
             ];
         })->toArray();
     } else {
-        $commoditiesConfig = ProducerPrice::COMMODITIES;
+        $commoditiesConfig = [];
     }
 
     $producerCommodities = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {
@@ -557,6 +557,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/sppd-luar-kota/sppd', [SppdLuarKotaController::class, 'store'])->name('sppd-luar-kota.sppd.store');
     Route::get('/sppd-luar-kota/batch/{batchCode}/spt-pdf', [SppdLuarKotaController::class, 'downloadBatchSptPdf'])->name('sppd-luar-kota.batch.spt-pdf');
     Route::get('/sppd-luar-kota/batch/{batchCode}/sptjb-pdf', [SppdLuarKotaController::class, 'downloadBatchSptjbPdf'])->name('sppd-luar-kota.batch.sptjb-pdf');
+    Route::get('/sppd-luar-kota/batch/{batchCode}/c2-pdf', [SppdLuarKotaController::class, 'downloadBatchC2Pdf'])->name('sppd-luar-kota.batch.c2-pdf');
     Route::get('/sppd-luar-kota/sppd/{sppdLuarKota}/spt-pdf', [SppdLuarKotaController::class, 'downloadItemSptPdf'])->name('sppd-luar-kota.sppd.spt-pdf');
     Route::put('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'update'])->name('sppd-luar-kota.sppd.update');
     Route::delete('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'destroy'])->name('sppd-luar-kota.sppd.destroy');

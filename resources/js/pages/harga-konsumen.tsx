@@ -672,37 +672,16 @@ export default function HargaKonsumen({
         }
     };
 
-    // 25 komoditas list from DB, local browser cache, or fallback
+    // Daftar komoditas dari database (kosong jika belum diisi manual)
     const commoditiesList = useMemo(() => {
-        if (consumerCommodities && consumerCommodities.length > 0) {
+        if (typeof window !== 'undefined') {
             try {
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem(
-                        CONSUMER_DATA_CACHE_KEY,
-                        JSON.stringify(consumerCommodities),
-                    );
-                }
+                localStorage.removeItem(CONSUMER_DATA_CACHE_KEY);
             } catch {
-                // Ignore localStorage quota
+                // Ignore localStorage error
             }
-            return consumerCommodities;
         }
-
-        try {
-            if (typeof window !== 'undefined') {
-                const cached = localStorage.getItem(CONSUMER_DATA_CACHE_KEY);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        return parsed;
-                    }
-                }
-            }
-        } catch {
-            // Ignore error
-        }
-
-        return DEFAULT_CONSUMER_COMMODITIES;
+        return consumerCommodities ?? [];
     }, [consumerCommodities]);
 
     // Preload & store all commodity images into browser local cache (RAM & localStorage)
@@ -721,7 +700,10 @@ export default function HargaKonsumen({
     const [isSliderHovered, setIsSliderHovered] = useState(false);
     const CONSUMER_ITEMS_PER_SLIDE = 12;
 
-    const totalConsumerSlides = Math.ceil(commoditiesList.length / CONSUMER_ITEMS_PER_SLIDE);
+    const totalConsumerSlides = Math.max(
+        1,
+        Math.ceil(commoditiesList.length / CONSUMER_ITEMS_PER_SLIDE),
+    );
 
     // Auto slider timer (5 seconds)
     useEffect(() => {

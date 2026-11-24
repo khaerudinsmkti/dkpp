@@ -21,6 +21,7 @@ return new class extends Migration
             $table->unsignedInteger('lama_hari')->default(1);
             $table->string('tujuan', 255);
             $table->text('alamat_lengkap');
+            $table->string('kab_kota', 150)->nullable();
             $table->text('perihal');
             $table->foreignId('kepala_dinas_id')->nullable()->constrained('sppd_pejabats')->nullOnDelete();
             $table->foreignId('pptk_id')->nullable()->constrained('sppd_pejabats')->nullOnDelete();

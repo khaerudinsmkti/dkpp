@@ -33,7 +33,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(true)->after('phone');
         });
 
-        // Seed default roles immediately so existing users get Super Administrator
+        // Seed default system roles so administrator can log in and manage modules manually
         $now = now();
         foreach (Role::defaultRoles() as $roleData) {
             DB::table('roles')->updateOrInsert(

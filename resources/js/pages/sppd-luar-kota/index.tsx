@@ -110,6 +110,7 @@ interface SppdLuarKotaParticipantItem {
 
 interface SppdLuarKotaChildItem {
     id: number;
+    tanpa_surat?: boolean;
     pengirim_surat: string;
     nomor_surat: string | null;
     tanggal_surat: string;
@@ -123,6 +124,7 @@ interface SppdLuarKotaChildItem {
     lama_hari: number;
     tujuan: string;
     alamat_lengkap: string;
+    kab_kota?: string | null;
     perihal: string;
     kepala_dinas_id: number | null;
     pptk_id: number | null;
@@ -206,6 +208,19 @@ function calcLamaHari(berangkat: string, kembali: string): number {
     return diff > 0 ? diff : 1;
 }
 
+const DEFAULT_DASAR_TANPA_SURAT =
+    '1. Undang-Undang Nomor 18 Tahun 2012 tentang Pangan; 2. PP No.17 Tahun 2015 tentang Ketahanan Pangan dan Gizi.';
+
+function isTanpaSuratValue(text?: string | null): boolean {
+    const clean = (text || '').trim();
+    if (!clean) return false;
+    return (
+        /^1\.\s+/.test(clean) ||
+        clean.toLowerCase().includes('undang-undang') ||
+        clean.toLowerCase().includes('pp no')
+    );
+}
+
 const WIZARD_STEPS = [
     { step: 1, title: 'Sub Kegiatan & Batch', desc: 'Anggaran & kelompok batch' },
     { step: 2, title: 'Surat Dasar & Jadwal', desc: 'Pengirim, nomor & tanggal' },
@@ -248,6 +263,7 @@ export default function SppdLuarKotaIndex({
     const [targetBatchSelection, setTargetBatchSelection] = useState('NEW');
 
     // Langkah 2: Surat Dasar & Jadwal
+    const [tanpaSurat, setTanpaSurat] = useState(false);
     const [pengirimSurat, setPengirimSurat] = useState('');
     const [nomorSurat, setNomorSurat] = useState('');
     const [tanggalSurat, setTanggalSurat] = useState(todayStr);
@@ -255,9 +271,10 @@ export default function SppdLuarKotaIndex({
     const [tanggalBerangkat, setTanggalBerangkat] = useState(todayStr);
     const [tanggalKembali, setTanggalKembali] = useState(todayStr);
 
-    // Langkah 3: Tujuan, Alamat Lengkap, Perihal & Pejabat
+    // Langkah 3: Tujuan, Alamat Lengkap, Kab/Kota, Perihal & Pejabat
     const [tujuan, setTujuan] = useState('');
     const [alamatLengkap, setAlamatLengkap] = useState('');
+    const [kabKota, setKabKota] = useState('');
     const [perihal, setPerihal] = useState('');
     const [kepalaDinasId, setKepalaDinasId] = useState(defaultKadinId);
     const [pptkId, setPptkId] = useState(defaultPptkId);
@@ -285,6 +302,7 @@ export default function SppdLuarKotaIndex({
     const [editingItem, setEditingItem] =
         useState<SppdLuarKotaChildItem | null>(null);
     const [editingBatchCode, setEditingBatchCode] = useState('');
+    const [eTanpaSurat, setETanpaSurat] = useState(false);
     const [ePengirim, setEPengirim] = useState('');
     const [eNomorSurat, setENomorSurat] = useState('');
     const [eTanggalSurat, setETanggalSurat] = useState('');
@@ -293,6 +311,7 @@ export default function SppdLuarKotaIndex({
     const [eTanggalKembali, setETanggalKembali] = useState('');
     const [eTujuan, setETujuan] = useState('');
     const [eAlamat, setEAlamat] = useState('');
+    const [eKabKota, setEKabKota] = useState('');
     const [ePerihal, setEPerihal] = useState('');
     const [eKadinId, setEKadinId] = useState('');
     const [ePptkId, setEPptkId] = useState('');
@@ -372,10 +391,19 @@ export default function SppdLuarKotaIndex({
 
         if (currentStep === 2) {
             if (!pengirimSurat.trim()) {
-                toast.error('Pengirim surat wajib diisi.');
+                toast.error(
+                    tanpaSurat
+                        ? 'Dasar surat SPT wajib diisi.'
+                        : 'Pengirim surat wajib diisi.'
+                );
                 return;
             }
-            if (!tanggalSurat || !tanggalSpt || !tanggalBerangkat || !tanggalKembali) {
+            if (
+                (!tanpaSurat && !tanggalSurat) ||
+                !tanggalSpt ||
+                !tanggalBerangkat ||
+                !tanggalKembali
+            ) {
                 toast.error(
                     'Tanggal surat, tanggal SPT, berangkat, dan kembali wajib diisi.'
                 );
@@ -398,6 +426,10 @@ export default function SppdLuarKotaIndex({
             }
             if (!alamatLengkap.trim()) {
                 toast.error('Alamat lengkap wajib diisi.');
+                return;
+            }
+            if (!kabKota.trim()) {
+                toast.error('Kab/Kota wajib diisi.');
                 return;
             }
             if (!perihal.trim()) {
@@ -437,11 +469,32 @@ export default function SppdLuarKotaIndex({
         );
     };
 
+    const handleToggleTanpaSurat = (checked: boolean) => {
+        setTanpaSurat(checked);
+        if (checked) {
+            setPengirimSurat(DEFAULT_DASAR_TANPA_SURAT);
+            setNomorSurat('');
+        } else if (pengirimSurat.trim() === DEFAULT_DASAR_TANPA_SURAT) {
+            setPengirimSurat('');
+        }
+    };
+
+    const handleToggleEditTanpaSurat = (checked: boolean) => {
+        setETanpaSurat(checked);
+        if (checked) {
+            setEPengirim(DEFAULT_DASAR_TANPA_SURAT);
+            setENomorSurat('');
+        } else if (ePengirim.trim() === DEFAULT_DASAR_TANPA_SURAT) {
+            setEPengirim('');
+        }
+    };
+
     const resetWizardForm = () => {
         setCurrentStep(1);
         setSelectedSubKegiatanId('');
         setSelectedDpaId('');
         setTargetBatchSelection('NEW');
+        setTanpaSurat(false);
         setPengirimSurat('');
         setNomorSurat('');
         setTanggalSurat(todayStr);
@@ -450,6 +503,7 @@ export default function SppdLuarKotaIndex({
         setTanggalKembali(todayStr);
         setTujuan('');
         setAlamatLengkap('');
+        setKabKota('');
         setPerihal('');
         setParticipants([
             {
@@ -475,14 +529,21 @@ export default function SppdLuarKotaIndex({
                 batch_code: targetBatchSelection,
                 sub_kegiatan_id: Number(selectedSubKegiatanId),
                 dpa_id: Number(selectedDpaId),
-                pengirim_surat: pengirimSurat.trim(),
-                nomor_surat: nomorSurat.trim() || null,
-                tanggal_surat: tanggalSurat,
+                tanpa_surat: tanpaSurat,
+                pengirim_surat:
+                    tanpaSurat && !pengirimSurat.trim()
+                        ? DEFAULT_DASAR_TANPA_SURAT
+                        : pengirimSurat.trim(),
+                nomor_surat: tanpaSurat ? null : nomorSurat.trim() || null,
+                tanggal_surat: tanpaSurat
+                    ? tanggalSpt || todayStr
+                    : tanggalSurat,
                 tanggal_spt: tanggalSpt,
                 tanggal_berangkat: tanggalBerangkat,
                 tanggal_kembali: tanggalKembali,
                 tujuan: tujuan.trim(),
                 alamat_lengkap: alamatLengkap.trim(),
+                kab_kota: kabKota.trim(),
                 perihal: perihal.trim(),
                 kepala_dinas_id: kepalaDinasId ? Number(kepalaDinasId) : null,
                 pptk_id: pptkId ? Number(pptkId) : null,
@@ -522,6 +583,7 @@ export default function SppdLuarKotaIndex({
         );
         setSelectedDpaId(grp.dpa_id ? String(grp.dpa_id) : '');
         setTargetBatchSelection(grp.batch_code);
+        setTanpaSurat(false);
         setPengirimSurat('');
         setNomorSurat('');
         setTanggalSurat(todayStr);
@@ -530,6 +592,7 @@ export default function SppdLuarKotaIndex({
         setTanggalKembali(todayStr);
         setTujuan('');
         setAlamatLengkap('');
+        setKabKota('');
         setPerihal('');
         setParticipants([
             {
@@ -551,16 +614,20 @@ export default function SppdLuarKotaIndex({
         item: SppdLuarKotaChildItem,
         batchCode: string
     ) => {
+        const isNoLetter =
+            Boolean(item.tanpa_surat) || isTanpaSuratValue(item.pengirim_surat);
         setEditingItem(item);
         setEditingBatchCode(batchCode);
+        setETanpaSurat(isNoLetter);
         setEPengirim(item.pengirim_surat);
-        setENomorSurat(item.nomor_surat || '');
+        setENomorSurat(isNoLetter ? '' : item.nomor_surat || '');
         setETanggalSurat(item.tanggal_surat);
         setETanggalSpt(item.tanggal_spt || item.tanggal_berangkat);
         setETanggalBerangkat(item.tanggal_berangkat);
         setETanggalKembali(item.tanggal_kembali);
         setETujuan(item.tujuan);
         setEAlamat(item.alamat_lengkap);
+        setEKabKota(item.kab_kota || '');
         setEPerihal(item.perihal);
         setEKadinId(
             item.kepala_dinas_id ? String(item.kepala_dinas_id) : defaultKadinId
@@ -592,14 +659,21 @@ export default function SppdLuarKotaIndex({
         router.put(
             `/sppd-luar-kota/sppd/${editingItem.id}`,
             {
-                pengirim_surat: ePengirim.trim(),
-                nomor_surat: eNomorSurat.trim() || null,
-                tanggal_surat: eTanggalSurat,
+                tanpa_surat: eTanpaSurat,
+                pengirim_surat:
+                    eTanpaSurat && !ePengirim.trim()
+                        ? DEFAULT_DASAR_TANPA_SURAT
+                        : ePengirim.trim(),
+                nomor_surat: eTanpaSurat ? null : eNomorSurat.trim() || null,
+                tanggal_surat: eTanpaSurat
+                    ? eTanggalSpt || todayStr
+                    : eTanggalSurat,
                 tanggal_spt: eTanggalSpt,
                 tanggal_berangkat: eTanggalBerangkat,
                 tanggal_kembali: eTanggalKembali,
                 tujuan: eTujuan.trim(),
                 alamat_lengkap: eAlamat.trim(),
+                kab_kota: eKabKota.trim(),
                 perihal: ePerihal.trim(),
                 kepala_dinas_id: eKadinId ? Number(eKadinId) : null,
                 pptk_id: ePptkId ? Number(ePptkId) : null,
@@ -1018,10 +1092,83 @@ export default function SppdLuarKotaIndex({
                             {/* LANGKAH 2: SURAT DASAR & JADWAL */}
                             {currentStep === 2 && (
                                 <div className="space-y-4">
+                                    {/* OPTION TANPA SURAT SEBELUM FIELD PENGIRIM SURAT */}
+                                    <div className="rounded-xl border border-teal-200/80 bg-white/90 p-3.5 shadow-2xs dark:border-teal-900/60 dark:bg-neutral-900">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <label className="flex cursor-pointer items-start gap-2.5 select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={tanpaSurat}
+                                                    onChange={(e) =>
+                                                        handleToggleTanpaSurat(
+                                                            e.target.checked
+                                                        )
+                                                    }
+                                                    className="mt-0.5 size-4 rounded border-teal-300 text-[#006565] focus:ring-[#006565]"
+                                                />
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-extrabold text-[#006565] dark:text-teal-300">
+                                                            Tanpa Surat (Gunakan Dasar Regulasi Default di SPT)
+                                                        </span>
+                                                        {tanpaSurat && (
+                                                            <Badge className="bg-teal-100 text-[10px] font-bold text-[#006565]">
+                                                                Aktif
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                                                        Jika dicentang, Dasar Surat di SPT otomatis terisi:{' '}
+                                                        <strong className="text-neutral-700 dark:text-neutral-200">
+                                                            {
+                                                                DEFAULT_DASAR_TANPA_SURAT
+                                                            }
+                                                        </strong>
+                                                    </p>
+                                                </div>
+                                            </label>
+
+                                            <div className="inline-flex shrink-0 rounded-lg border border-neutral-200 bg-neutral-100 p-0.5 dark:border-neutral-800 dark:bg-neutral-800">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleToggleTanpaSurat(
+                                                            false
+                                                        )
+                                                    }
+                                                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-all ${
+                                                        !tanpaSurat
+                                                            ? 'bg-white text-[#006565] shadow-2xs dark:bg-neutral-900 dark:text-teal-300'
+                                                            : 'text-neutral-500 hover:text-neutral-800'
+                                                    }`}
+                                                >
+                                                    Dengan Surat
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleToggleTanpaSurat(
+                                                            true
+                                                        )
+                                                    }
+                                                    className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-all ${
+                                                        tanpaSurat
+                                                            ? 'bg-[#006565] text-white shadow-2xs'
+                                                            : 'text-neutral-500 hover:text-neutral-800'
+                                                    }`}
+                                                >
+                                                    Tanpa Surat
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
                                         <div className="min-w-0 space-y-1.5 md:col-span-7">
                                             <Label className="text-xs font-bold">
-                                                Pengirim Surat *
+                                                {tanpaSurat
+                                                    ? 'Dasar Surat di SPT (Tanpa Surat) *'
+                                                    : 'Pengirim Surat *'}
                                             </Label>
                                             <Input
                                                 value={pengirimSurat}
@@ -1030,7 +1177,11 @@ export default function SppdLuarKotaIndex({
                                                         e.target.value
                                                     )
                                                 }
-                                                placeholder="Contoh: Dinas Ketahanan Pangan dan Peternakan Provinsi Jawa Barat"
+                                                placeholder={
+                                                    tanpaSurat
+                                                        ? DEFAULT_DASAR_TANPA_SURAT
+                                                        : 'Contoh: Dinas Ketahanan Pangan dan Peternakan Provinsi Jawa Barat'
+                                                }
                                                 className="h-10 bg-white text-xs dark:bg-neutral-900"
                                                 required
                                             />
@@ -1047,14 +1198,19 @@ export default function SppdLuarKotaIndex({
                                                         e.target.value
                                                     )
                                                 }
-                                                placeholder="Contoh: 005/1234/DKPP-Jabar"
-                                                className="h-10 bg-white text-xs dark:bg-neutral-900"
+                                                disabled={tanpaSurat}
+                                                placeholder={
+                                                    tanpaSurat
+                                                        ? '- (Tanpa Nomor Surat)'
+                                                        : 'Contoh: 005/1234/DKPP-Jabar'
+                                                }
+                                                className="h-10 bg-white text-xs disabled:bg-neutral-100 disabled:text-neutral-400 dark:bg-neutral-900"
                                             />
                                         </div>
 
                                         <div className="min-w-0 space-y-1.5 md:col-span-3">
                                             <Label className="text-xs font-bold">
-                                                Tanggal Surat *
+                                                Tanggal Surat {!tanpaSurat && '*'}
                                             </Label>
                                             <Input
                                                 type="date"
@@ -1064,8 +1220,9 @@ export default function SppdLuarKotaIndex({
                                                         e.target.value
                                                     )
                                                 }
-                                                className="h-10 bg-white text-xs dark:bg-neutral-900"
-                                                required
+                                                disabled={tanpaSurat}
+                                                className="h-10 bg-white text-xs disabled:bg-neutral-100 disabled:text-neutral-400 dark:bg-neutral-900"
+                                                required={!tanpaSurat}
                                             />
                                         </div>
 
@@ -1134,26 +1291,26 @@ export default function SppdLuarKotaIndex({
                                 </div>
                             )}
 
-                            {/* LANGKAH 3: TUJUAN, ALAMAT LENGKAP, PERIHAL & PEJABAT */}
+                            {/* LANGKAH 3: TUJUAN, ALAMAT LENGKAP, KAB/KOTA, PERIHAL & PEJABAT */}
                             {currentStep === 3 && (
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
-                                        <div className="min-w-0 space-y-1.5 md:col-span-5">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-4">
                                             <Label className="text-xs font-bold">
-                                                Tujuan (Kota / Kabupaten / Instansi) *
+                                                Tujuan (Instansi / Tempat) *
                                             </Label>
                                             <Input
                                                 value={tujuan}
                                                 onChange={(e) =>
                                                     setTujuan(e.target.value)
                                                 }
-                                                placeholder="Contoh: Kota Bandung / Hotel Horison Bandung"
+                                                placeholder="Contoh: Dinas Ketahanan Pangan Prov. Jabar / Hotel Horison"
                                                 className="h-10 bg-white text-xs dark:bg-neutral-900"
                                                 required
                                             />
                                         </div>
 
-                                        <div className="min-w-0 space-y-1.5 md:col-span-7">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-5">
                                             <Label className="text-xs font-bold">
                                                 Alamat Lengkap *
                                             </Label>
@@ -1164,8 +1321,23 @@ export default function SppdLuarKotaIndex({
                                                         e.target.value
                                                     )
                                                 }
-                                                placeholder="Contoh: Jl. Ir. H. Juanda No. 358, Dago, Kecamatan Coblong, Kota Bandung, Jawa Barat"
+                                                placeholder="Contoh: Jl. Ir. H. Juanda No. 358, Dago, Kec. Coblong"
                                                 className="h-10 bg-white text-xs dark:bg-neutral-900"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="min-w-0 space-y-1.5 md:col-span-3">
+                                            <Label className="text-xs font-bold text-[#006565] dark:text-teal-300">
+                                                Kab/Kota *
+                                            </Label>
+                                            <Input
+                                                value={kabKota}
+                                                onChange={(e) =>
+                                                    setKabKota(e.target.value)
+                                                }
+                                                placeholder="Contoh: Kota Bandung"
+                                                className="h-10 border-teal-300 bg-white text-xs dark:bg-neutral-900"
                                                 required
                                             />
                                         </div>
@@ -1550,7 +1722,7 @@ export default function SppdLuarKotaIndex({
                                             Batch &amp; Jumlah SPPD
                                         </th>
                                         <th className="px-4 py-3">
-                                            Sub Kegiatan &amp; DPA
+                                            Sub Kegiatan
                                         </th>
                                         <th className="px-4 py-3">
                                             Tujuan Luar Kota
@@ -1637,27 +1809,33 @@ export default function SppdLuarKotaIndex({
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="max-w-[230px] px-4 py-3">
-                                                            <div className="line-clamp-1 font-semibold text-neutral-800 dark:text-neutral-200">
+                                                        <td className="min-w-[220px] max-w-[360px] px-4 py-3">
+                                                            <div className="leading-snug font-semibold whitespace-normal break-words text-neutral-800 dark:text-neutral-200">
                                                                 {grp
                                                                     .sub_kegiatan
                                                                     ?.sub_kegiatan ||
                                                                     '-'}
                                                             </div>
-                                                            {grp.dpa && (
-                                                                <div className="truncate font-mono text-[10px] text-neutral-400">
-                                                                    DPA:{' '}
-                                                                    {
-                                                                        grp.dpa
-                                                                            .nomor_dpa
-                                                                    }
-                                                                </div>
-                                                            )}
                                                         </td>
-                                                        <td className="max-w-[190px] px-4 py-3">
-                                                            <div className="line-clamp-1 font-semibold text-neutral-800 dark:text-neutral-200">
-                                                                {grp.tujuan_list.join(
-                                                                    ', '
+                                                        <td className="min-w-[180px] max-w-[280px] px-4 py-3">
+                                                            <div className="space-y-1 leading-snug font-semibold whitespace-normal break-words text-neutral-800 dark:text-neutral-200">
+                                                                {grp.tujuan_list.length > 0 ? (
+                                                                    grp.tujuan_list.map(
+                                                                        (
+                                                                            tuj,
+                                                                            tIdx
+                                                                        ) => (
+                                                                            <div
+                                                                                key={`${tuj}-${tIdx}`}
+                                                                            >
+                                                                                {
+                                                                                    tuj
+                                                                                }
+                                                                            </div>
+                                                                        )
+                                                                    )
+                                                                ) : (
+                                                                    <span>-</span>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -1775,6 +1953,26 @@ export default function SppdLuarKotaIndex({
                                                                                 </div>
                                                                             </a>
                                                                         </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/c2-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <Wallet className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        3. C2 (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Perincian Pengeluaran Tanda Bukti
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
                                                                 <Button
@@ -1884,22 +2082,39 @@ export default function SppdLuarKotaIndex({
                                                                                             className="hover:bg-teal-50/30"
                                                                                         >
                                                                                             <td className="px-3 py-2.5 align-top">
+                                                                                                {(item.tanpa_surat ||
+                                                                                                    isTanpaSuratValue(
+                                                                                                        item.pengirim_surat
+                                                                                                    )) && (
+                                                                                                    <Badge className="mb-1 bg-amber-100 text-[10px] font-bold text-amber-800">
+                                                                                                        Tanpa Surat
+                                                                                                    </Badge>
+                                                                                                )}
                                                                                                 <div className="font-bold text-neutral-900 dark:text-neutral-100">
                                                                                                     {
                                                                                                         item.pengirim_surat
                                                                                                     }
                                                                                                 </div>
-                                                                                                <div className="font-mono text-[10px] text-neutral-500">
-                                                                                                    No:{' '}
-                                                                                                    {item.nomor_surat ||
-                                                                                                        '-'}
-                                                                                                </div>
-                                                                                                <div className="text-[10px] text-neutral-500">
-                                                                                                    Tgl Surat:{' '}
-                                                                                                    {
-                                                                                                        item.tanggal_surat_formatted
-                                                                                                    }
-                                                                                                </div>
+                                                                                                {!(
+                                                                                                    item.tanpa_surat ||
+                                                                                                    isTanpaSuratValue(
+                                                                                                        item.pengirim_surat
+                                                                                                    )
+                                                                                                ) && (
+                                                                                                    <>
+                                                                                                        <div className="font-mono text-[10px] text-neutral-500">
+                                                                                                            No:{' '}
+                                                                                                            {item.nomor_surat ||
+                                                                                                                '-'}
+                                                                                                        </div>
+                                                                                                        <div className="text-[10px] text-neutral-500">
+                                                                                                            Tgl Surat:{' '}
+                                                                                                            {
+                                                                                                                item.tanggal_surat_formatted
+                                                                                                            }
+                                                                                                        </div>
+                                                                                                    </>
+                                                                                                )}
                                                                                                 <div className="text-[10px] font-semibold text-[#006565]">
                                                                                                     Tgl SPT:{' '}
                                                                                                     {
@@ -1940,6 +2155,9 @@ export default function SppdLuarKotaIndex({
                                                                                                     {
                                                                                                         item.alamat_lengkap
                                                                                                     }
+                                                                                                    {item.kab_kota
+                                                                                                        ? `, ${item.kab_kota}`
+                                                                                                        : ''}
                                                                                                 </div>
                                                                                                 <div className="mt-1 flex items-start gap-1 text-[11px] text-neutral-700 dark:text-neutral-300">
                                                                                                     <FileText className="mt-0.5 size-3 shrink-0 text-neutral-400" />
@@ -2093,10 +2311,30 @@ export default function SppdLuarKotaIndex({
                         </DialogHeader>
 
                         <form onSubmit={handleSaveEdit} className="space-y-4">
+                            <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-2.5 dark:border-teal-900 dark:bg-teal-950/20">
+                                <label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-[#006565] dark:text-teal-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={eTanpaSurat}
+                                        onChange={(e) =>
+                                            handleToggleEditTanpaSurat(
+                                                e.target.checked
+                                            )
+                                        }
+                                        className="size-4 rounded border-teal-300 text-[#006565] focus:ring-[#006565]"
+                                    />
+                                    <span>
+                                        Tanpa Surat (Dasar Default: 1. UU No. 18 Tahun 2012; 2. PP No.17 Tahun 2015)
+                                    </span>
+                                </label>
+                            </div>
+
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <div className="space-y-1">
                                     <Label className="text-xs">
-                                        Pengirim Surat *
+                                        {eTanpaSurat
+                                            ? 'Dasar Surat di SPT (Tanpa Surat) *'
+                                            : 'Pengirim Surat *'}
                                     </Label>
                                     <Input
                                         value={ePengirim}
@@ -2116,7 +2354,13 @@ export default function SppdLuarKotaIndex({
                                         onChange={(e) =>
                                             setENomorSurat(e.target.value)
                                         }
-                                        className="h-9 text-xs"
+                                        disabled={eTanpaSurat}
+                                        placeholder={
+                                            eTanpaSurat
+                                                ? '- (Tanpa Nomor Surat)'
+                                                : ''
+                                        }
+                                        className="h-9 text-xs disabled:bg-neutral-100"
                                     />
                                 </div>
                             </div>
@@ -2124,7 +2368,7 @@ export default function SppdLuarKotaIndex({
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 <div className="space-y-1">
                                     <Label className="text-xs">
-                                        Tanggal Surat *
+                                        Tanggal Surat {!eTanpaSurat && '*'}
                                     </Label>
                                     <Input
                                         type="date"
@@ -2132,8 +2376,9 @@ export default function SppdLuarKotaIndex({
                                         onChange={(e) =>
                                             setETanggalSurat(e.target.value)
                                         }
-                                        className="h-9 text-xs"
-                                        required
+                                        disabled={eTanpaSurat}
+                                        className="h-9 text-xs disabled:bg-neutral-100"
+                                        required={!eTanpaSurat}
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -2181,7 +2426,7 @@ export default function SppdLuarKotaIndex({
                                 </div>
                             </div>
 
-                            <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-3 sm:grid-cols-3">
                                 <div className="space-y-1">
                                     <Label className="text-xs">Tujuan *</Label>
                                     <Input
@@ -2203,6 +2448,20 @@ export default function SppdLuarKotaIndex({
                                             setEAlamat(e.target.value)
                                         }
                                         className="h-9 text-xs"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-bold text-[#006565]">
+                                        Kab/Kota *
+                                    </Label>
+                                    <Input
+                                        value={eKabKota}
+                                        onChange={(e) =>
+                                            setEKabKota(e.target.value)
+                                        }
+                                        placeholder="Contoh: Kota Bandung"
+                                        className="h-9 border-teal-300 text-xs"
                                         required
                                     />
                                 </div>

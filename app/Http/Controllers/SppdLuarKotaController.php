@@ -10,10 +10,12 @@ use App\Models\SppdPejabat;
 use App\Models\SppdSubKegiatan;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,6 +23,45 @@ use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class SppdLuarKotaController extends Controller
 {
+    public const DEFAULT_DASAR_TANPA_SURAT = '1. Undang-Undang Nomor 18 Tahun 2012 tentang Pangan; 2. PP No.17 Tahun 2015 tentang Ketahanan Pangan dan Gizi.';
+
+    private static function isTanpaSuratText(?string $text): bool
+    {
+        $clean = trim((string) $text);
+        if ($clean === '') {
+            return false;
+        }
+
+        return (bool) preg_match('/^\s*1\.\s+/u', $clean)
+            || str_contains(strtolower($clean), 'undang-undang')
+            || str_contains(strtolower($clean), 'pp no');
+    }
+
+    /**
+     * Pecah teks dasar berpoin (contoh: "1. ...; 2. ...") menjadi array poin tanpa nomor urut di depannya.
+     *
+     * @return array<int, string>
+     */
+    private static function parseNumberedDasarItems(string $text): array
+    {
+        $clean = trim($text);
+        $parts = preg_split('/\s*(?:^|\s+)\d+\.\s+/u', $clean, -1, PREG_SPLIT_NO_EMPTY);
+        if (! is_array($parts) || count($parts) <= 1) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('trim', $parts), fn (string $p) => $p !== ''));
+    }
+
+    private static function ensureKabKotaColumnExists(): void
+    {
+        if (! Schema::hasColumn('sppd_luar_kotas', 'kab_kota')) {
+            Schema::table('sppd_luar_kotas', function (Blueprint $table) {
+                $table->string('kab_kota', 150)->nullable()->after('alamat_lengkap');
+            });
+        }
+    }
+
     private static function formatIndoDate(string|\DateTimeInterface $date): string
     {
         $bulan = [
@@ -31,6 +72,31 @@ class SppdLuarKotaController extends Controller
         $c = Carbon::parse($date);
 
         return $c->day.' '.($bulan[$c->month] ?? $c->format('F')).' '.$c->year;
+    }
+
+    private static function formatIndoDateRange(string|\DateTimeInterface $startDate, string|\DateTimeInterface $endDate): string
+    {
+        $bulan = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        if ($start->isSameDay($end)) {
+            return $start->day.' '.($bulan[$start->month] ?? $start->format('F')).' '.$start->year;
+        }
+
+        if ($start->year === $end->year && $start->month === $end->month) {
+            return $start->day.' - '.$end->day.' '.($bulan[$start->month] ?? $start->format('F')).' '.$start->year;
+        }
+
+        if ($start->year === $end->year) {
+            return $start->day.' '.($bulan[$start->month] ?? $start->format('F')).' - '.$end->day.' '.($bulan[$end->month] ?? $end->format('F')).' '.$start->year;
+        }
+
+        return self::formatIndoDate($start).' - '.self::formatIndoDate($end);
     }
 
     private static function formatIndoDayName(string|\DateTimeInterface $date): string
@@ -156,6 +222,7 @@ class SppdLuarKotaController extends Controller
 
                 $itemsFormatted = $sortedItems->map(fn (SppdLuarKota $sppd): array => [
                     'id' => $sppd->id,
+                    'tanpa_surat' => self::isTanpaSuratText($sppd->pengirim_surat),
                     'pengirim_surat' => $sppd->pengirim_surat,
                     'nomor_surat' => $sppd->nomor_surat,
                     'tanggal_surat' => Carbon::parse($sppd->tanggal_surat)->format('Y-m-d'),
@@ -171,6 +238,7 @@ class SppdLuarKotaController extends Controller
                     'lama_hari' => (int) $sppd->lama_hari,
                     'tujuan' => $sppd->tujuan,
                     'alamat_lengkap' => $sppd->alamat_lengkap,
+                    'kab_kota' => $sppd->kab_kota,
                     'perihal' => $sppd->perihal,
                     'kepala_dinas_id' => $sppd->kepala_dinas_id,
                     'pptk_id' => $sppd->pptk_id,
@@ -243,11 +311,23 @@ class SppdLuarKotaController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        self::ensureKabKotaColumnExists();
+
+        $tanpaSurat = $request->boolean('tanpa_surat');
+        if ($tanpaSurat) {
+            $pengirimInput = trim((string) $request->input('pengirim_surat', ''));
+            $request->merge([
+                'pengirim_surat' => $pengirimInput !== '' ? $pengirimInput : self::DEFAULT_DASAR_TANPA_SURAT,
+                'nomor_surat' => null,
+                'tanggal_surat' => $request->input('tanggal_surat') ?: $request->input('tanggal_spt') ?: now()->format('Y-m-d'),
+            ]);
+        }
+
         $validated = $request->validate([
             'batch_code' => ['nullable', 'string', 'max:60'],
             'sub_kegiatan_id' => ['required', 'exists:sppd_sub_kegiatans,id'],
             'dpa_id' => ['required', 'exists:sppd_dpas,id'],
-            'pengirim_surat' => ['required', 'string', 'max:255'],
+            'pengirim_surat' => ['required', 'string', 'max:500'],
             'nomor_surat' => ['nullable', 'string', 'max:150'],
             'tanggal_surat' => ['required', 'date'],
             'tanggal_spt' => ['required', 'date'],
@@ -255,6 +335,7 @@ class SppdLuarKotaController extends Controller
             'tanggal_kembali' => ['required', 'date', 'after_or_equal:tanggal_berangkat'],
             'tujuan' => ['required', 'string', 'max:255'],
             'alamat_lengkap' => ['required', 'string', 'max:2000'],
+            'kab_kota' => ['required', 'string', 'max:150'],
             'perihal' => ['required', 'string', 'max:2000'],
             'kepala_dinas_id' => ['nullable', 'exists:sppd_pejabats,id'],
             'pptk_id' => ['nullable', 'exists:sppd_pejabats,id'],
@@ -294,6 +375,7 @@ class SppdLuarKotaController extends Controller
                 'lama_hari' => $lamaHari,
                 'tujuan' => trim($validated['tujuan']),
                 'alamat_lengkap' => trim($validated['alamat_lengkap']),
+                'kab_kota' => trim($validated['kab_kota']),
                 'perihal' => trim($validated['perihal']),
                 'kepala_dinas_id' => $validated['kepala_dinas_id'] ?? null,
                 'pptk_id' => $validated['pptk_id'] ?? null,
@@ -345,8 +427,20 @@ class SppdLuarKotaController extends Controller
 
     public function update(Request $request, SppdLuarKota $sppdLuarKota): RedirectResponse
     {
+        self::ensureKabKotaColumnExists();
+
+        $tanpaSurat = $request->boolean('tanpa_surat');
+        if ($tanpaSurat) {
+            $pengirimInput = trim((string) $request->input('pengirim_surat', ''));
+            $request->merge([
+                'pengirim_surat' => $pengirimInput !== '' ? $pengirimInput : self::DEFAULT_DASAR_TANPA_SURAT,
+                'nomor_surat' => null,
+                'tanggal_surat' => $request->input('tanggal_surat') ?: $request->input('tanggal_spt') ?: now()->format('Y-m-d'),
+            ]);
+        }
+
         $validated = $request->validate([
-            'pengirim_surat' => ['required', 'string', 'max:255'],
+            'pengirim_surat' => ['required', 'string', 'max:500'],
             'nomor_surat' => ['nullable', 'string', 'max:150'],
             'tanggal_surat' => ['required', 'date'],
             'tanggal_spt' => ['required', 'date'],
@@ -354,6 +448,7 @@ class SppdLuarKotaController extends Controller
             'tanggal_kembali' => ['required', 'date', 'after_or_equal:tanggal_berangkat'],
             'tujuan' => ['required', 'string', 'max:255'],
             'alamat_lengkap' => ['required', 'string', 'max:2000'],
+            'kab_kota' => ['required', 'string', 'max:150'],
             'perihal' => ['required', 'string', 'max:2000'],
             'kepala_dinas_id' => ['nullable', 'exists:sppd_pejabats,id'],
             'pptk_id' => ['nullable', 'exists:sppd_pejabats,id'],
@@ -378,6 +473,7 @@ class SppdLuarKotaController extends Controller
                 'lama_hari' => $lamaHari,
                 'tujuan' => trim($validated['tujuan']),
                 'alamat_lengkap' => trim($validated['alamat_lengkap']),
+                'kab_kota' => trim($validated['kab_kota']),
                 'perihal' => trim($validated['perihal']),
                 'kepala_dinas_id' => $validated['kepala_dinas_id'] ?? $sppdLuarKota->kepala_dinas_id,
                 'pptk_id' => $validated['pptk_id'] ?? $sppdLuarKota->pptk_id,
@@ -468,29 +564,45 @@ class SppdLuarKotaController extends Controller
 
             $kadinNipFormatted = self::formatNipSpaced($kadin?->nip);
 
-            // Dasar: Surat dari {pengirim_surat} tanggal {tanggal_surat_indo} nomor: {nomor_surat}, perihal: {perihal}.
+            // Dasar: Jika Tanpa Surat -> gunakan langsung teks dasar regulasi (1. UU No 18/2012; 2. PP No 17/2015).
+            // Jika Dengan Surat -> Surat dari {pengirim_surat} tanggal {tanggal_surat_indo} nomor: {nomor_surat}, perihal: {perihal}.
             $pengirim = trim((string) $sppd->pengirim_surat);
             $tglSuratIndo = self::formatIndoDate($sppd->tanggal_surat);
             $nomorSurat = trim((string) ($sppd->nomor_surat ?? ''));
             $perihalClean = rtrim(trim((string) $sppd->perihal), '.');
 
-            $dasarText = "Surat dari {$pengirim} tanggal {$tglSuratIndo}";
-            if ($nomorSurat !== '') {
-                $dasarText .= " nomor: {$nomorSurat}";
-            }
-            $dasarText .= ", perihal: {$perihalClean}.";
+            $isTanpaSurat = self::isTanpaSuratText($pengirim);
 
-            // Untuk Poin 1: Menghadiri {perihal}. (jangan gandakan jika sudah diawali kata kerja)
-            $lowerPerihal = strtolower($perihalClean);
-            if (
-                str_starts_with($lowerPerihal, 'menghadiri ') ||
-                str_starts_with($lowerPerihal, 'melaksanakan ') ||
-                str_starts_with($lowerPerihal, 'mengikuti ') ||
-                str_starts_with($lowerPerihal, 'melakukan ')
-            ) {
-                $untukPoin1 = ucfirst($perihalClean).'.';
+            if ($isTanpaSurat) {
+                $dasarText = $pengirim;
+                $dasarItems = self::parseNumberedDasarItems($pengirim);
             } else {
-                $untukPoin1 = 'Menghadiri '.$perihalClean.'.';
+                $dasarText = "Surat dari {$pengirim} tanggal {$tglSuratIndo}";
+                if ($nomorSurat !== '') {
+                    $dasarText .= " nomor: {$nomorSurat}";
+                }
+                $dasarText .= ", perihal: {$perihalClean}.";
+                $dasarItems = [];
+            }
+
+            // Untuk Poin 1:
+            // Jika Tanpa Surat -> Hilangkan tulisan "Menghadiri", langsung tujuannya/perihalnya apa.
+            // Jika Dengan Surat -> Menghadiri {perihal}. (jangan gandakan jika sudah diawali kata kerja)
+            if ($isTanpaSurat) {
+                $cleanedPerihal = preg_replace('/^menghadiri\s+/iu', '', $perihalClean);
+                $untukPoin1 = ucfirst(trim((string) $cleanedPerihal)).'.';
+            } else {
+                $lowerPerihal = strtolower($perihalClean);
+                if (
+                    str_starts_with($lowerPerihal, 'menghadiri ') ||
+                    str_starts_with($lowerPerihal, 'melaksanakan ') ||
+                    str_starts_with($lowerPerihal, 'mengikuti ') ||
+                    str_starts_with($lowerPerihal, 'melakukan ')
+                ) {
+                    $untukPoin1 = ucfirst($perihalClean).'.';
+                } else {
+                    $untukPoin1 = 'Menghadiri '.$perihalClean.'.';
+                }
             }
 
             // Untuk Poin 2: jadwal & tempat
@@ -500,10 +612,21 @@ class SppdLuarKotaController extends Controller
             $tglBerangkatIndo = self::formatIndoDate($berangkat);
 
             $tujuanClean = rtrim(trim((string) $sppd->tujuan), ',. ');
-            $alamatClean = rtrim(trim((string) $sppd->alamat_lengkap), '. ');
-            $tempatLengkap = $alamatClean !== ''
-                ? "{$tujuanClean}, {$alamatClean}"
-                : $tujuanClean;
+            $alamatClean = rtrim(trim((string) $sppd->alamat_lengkap), ',. ');
+            $kabKotaClean = rtrim(trim((string) ($sppd->kab_kota ?? '')), ',. ');
+
+            $tempatParts = array_values(array_filter(
+                [$tujuanClean, $alamatClean],
+                fn (string $p) => $p !== ''
+            ));
+            if (
+                $kabKotaClean !== '' &&
+                stripos($tujuanClean, $kabKotaClean) === false &&
+                stripos($alamatClean, $kabKotaClean) === false
+            ) {
+                $tempatParts[] = $kabKotaClean;
+            }
+            $tempatLengkap = implode(', ', $tempatParts);
 
             if ($berangkat->isSameDay($kembali)) {
                 $untukPoin2 = "Kegiatan dilaksanakan pada hari {$hariBerangkat}, tanggal {$tglBerangkatIndo}, bertempat di {$tempatLengkap}.";
@@ -542,6 +665,7 @@ class SppdLuarKotaController extends Controller
             return [
                 'nomor_spt_html' => '800.1.11.1/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/KDP',
                 'dasar_text' => $dasarText,
+                'dasar_items' => $dasarItems,
                 'untuk_poin_1' => $untukPoin1,
                 'untuk_poin_2' => $untukPoin2,
                 'tanggal_spt_indo' => self::formatIndoDate($tglSptCarbon),
@@ -690,5 +814,129 @@ class SppdLuarKotaController extends Controller
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download("SPTJB_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Download PDF Laporan C2 (Perincian Pengeluaran Menurut Tanda Bukti Terlampir) untuk 1 Batch SPPD Luar Kota.
+     */
+    public function downloadBatchC2Pdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['subKegiatan', 'dpa', 'participants', 'pptk'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        /** @var SppdLuarKota $first */
+        $first = $records->first();
+
+        $defaultPptk = SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)->first();
+        $defaultSub = SppdSubKegiatan::where('is_active', true)->first();
+        $defaultDpa = SppdDpa::where('is_active', true)->orderByDesc('id')->first();
+
+        $pptk = $first->pptk ?? $defaultPptk;
+        $sk = $first->subKegiatan ?? $defaultSub;
+        $dpa = $first->dpa ?? $defaultDpa;
+
+        $totalHarian = (float) $records->sum('total_uang_harian');
+        $totalTransport = (float) $records->sum('total_uang_transport');
+        $totalBiaya = (float) $records->sum('total_biaya');
+
+        $totalHarianFormatted = number_format($totalHarian, 0, ',', '.');
+        $totalTransportFormatted = $totalTransport > 0 ? number_format($totalTransport, 0, ',', '.') : '-';
+        $totalBiayaFormatted = number_format($totalBiaya, 0, ',', '.');
+        $terbilangText = SppdDalamKotaController::formatTerbilangRupiah($totalBiaya);
+
+        $tglDpaStr = $dpa?->tanggal_dpa
+            ? self::formatIndoDate($dpa->tanggal_dpa)
+            : '2 Januari '.($dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y'));
+        $rawNomorDpa = trim((string) ($dpa?->nomor_dpa ?: 'DPA/A.1/2.09.3.27.0.00.10.0000/001/'.date('Y')));
+        if (! str_starts_with(strtoupper($rawNomorDpa), 'DPA/') && ! str_starts_with(strtoupper($rawNomorDpa), 'DPPA/')) {
+            $rawNomorDpa = 'DPA/'.$rawNomorDpa;
+        }
+        $nomorDpaDisplay = "{$tglDpaStr}/{$rawNomorDpa}";
+
+        $namaKegiatan = $sk?->nama_kegiatan ?: 'Penyusunan Peta Kerentanan dan Ketahanan Pangan Kecamatan';
+        $namaSubKegiatan = $sk?->sub_kegiatan ?: 'Penyusunan, Pemutakhiran dan Analisis Peta Ketahanan dan Kerentanan Pangan';
+        $noRekening = $sk?->no_rekening ?: '5.1.02.04.01.0001';
+        $tahunAnggaran = $dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y');
+
+        $rows = [];
+        $rowNo = 1;
+
+        foreach ($records as $sppd) {
+            $tglIndo = self::formatIndoDateRange($sppd->tanggal_berangkat, $sppd->tanggal_kembali);
+
+            // Kolom tujuan diisi sesuai field kab_kota (fallback ke tujuan jika data lama belum memiliki kab_kota)
+            $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
+            $tujuanShort = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+
+            $sppdTransportSum = 0.0;
+
+            foreach ($sppd->participants as $pt) {
+                $uh = (float) $pt->uang_harian;
+                $ut = (float) $pt->uang_transport;
+                $sppdTransportSum += $ut;
+
+                $pangkat = trim((string) $pt->pangkat);
+                $golongan = trim((string) $pt->golongan);
+                $pangkatGolDash = $pangkat !== '' && $golongan !== ''
+                    ? "{$pangkat} - {$golongan}"
+                    : ($pangkat !== '' ? $pangkat : ($golongan !== '' ? $golongan : '-'));
+
+                $rows[] = [
+                    'type' => 'participant',
+                    'no' => $rowNo,
+                    'is_first' => count($rows) === 0,
+                    'nama' => strtoupper($pt->nama),
+                    'nip' => self::formatNipSpaced($pt->nip),
+                    'pangkat_gol' => $pangkatGolDash,
+                    'tanggal' => $tglIndo,
+                    'tujuan' => $tujuanShort,
+                    'uang_harian_formatted' => number_format($uh, 0, ',', '.'),
+                ];
+                $rowNo++;
+            }
+
+            if ($sppdTransportSum > 0) {
+                $rows[] = [
+                    'type' => 'transport',
+                    'no' => $rowNo,
+                    'tanggal' => $tglIndo,
+                    'tujuan' => $tujuanShort,
+                    'uang_transport_formatted' => number_format($sppdTransportSum, 0, ',', '.'),
+                ];
+                $rowNo++;
+            }
+        }
+
+        $pptkNama = strtoupper($pptk?->nama ?? 'DEDEH SUMIATI, S.IP');
+        $pptkNip = self::formatNipSpaced($pptk?->nip ?? '197009192007012009');
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.c2-luar-kota', [
+            'batchCode' => $batchCode,
+            'namaKegiatan' => $namaKegiatan,
+            'namaSubKegiatan' => $namaSubKegiatan,
+            'tahunAnggaran' => $tahunAnggaran,
+            'noRekening' => $noRekening,
+            'nomorDpaDisplay' => $nomorDpaDisplay,
+            'totalHarianFormatted' => $totalHarianFormatted,
+            'totalTransportFormatted' => $totalTransportFormatted,
+            'totalBiayaFormatted' => $totalBiayaFormatted,
+            'terbilangText' => $terbilangText,
+            'rows' => $rows,
+            'pptkNama' => $pptkNama,
+            'pptkNip' => $pptkNip,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("C2_Luar_Kota_{$safeBatch}.pdf");
     }
 }

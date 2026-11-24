@@ -62,7 +62,7 @@ class ProducerPriceController extends Controller
                 ];
             })->toArray();
         } else {
-            $commoditiesConfig = ProducerPrice::COMMODITIES;
+            $commoditiesConfig = [];
         }
 
         $items = array_map(function ($cfg) use ($currentRecord, $prevRecord): array {

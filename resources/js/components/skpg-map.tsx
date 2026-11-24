@@ -100,7 +100,6 @@ export function getStatusColor(status: string | undefined): {
                 badgeLabel: 'WASPADA',
             };
         case 'AMAN':
-        default:
             return {
                 fill: '#10b981', // Emerald 500
                 hoverFill: '#059669',
@@ -108,6 +107,15 @@ export function getStatusColor(status: string | undefined): {
                 bgClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800',
                 textClass: 'text-emerald-600 dark:text-emerald-400',
                 badgeLabel: 'AMAN',
+            };
+        default:
+            return {
+                fill: '#cbd5e1', // Slate 300 (Belum Ada Data)
+                hoverFill: '#94a3b8',
+                border: '#64748b',
+                bgClass: 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+                textClass: 'text-slate-500 dark:text-slate-400',
+                badgeLabel: 'BELUM ADA DATA',
             };
     }
 }
@@ -521,10 +529,11 @@ export default function SkpgMap({
                         {INDRAMAYU_KECAMATAN_FEATURES.map((feature: KecamatanMapFeature) => {
                             const kecItem =
                                 itemMap.get(feature.name.toUpperCase()) || itemMap.get(feature.rawName.toUpperCase());
-                            const status =
-                                (kecItem?.[selectedIndicator as keyof SkpgKecamatanItem] as string) ||
-                                kecItem?.ikb ||
-                                'AMAN';
+                            const status = kecItem
+                                ? (kecItem[selectedIndicator as keyof SkpgKecamatanItem] as string) ||
+                                  kecItem.ikb ||
+                                  'AMAN'
+                                : undefined;
                             const colors = getStatusColor(status);
 
                             const isSelected = selectedKecamatan?.toUpperCase() === feature.name.toUpperCase();

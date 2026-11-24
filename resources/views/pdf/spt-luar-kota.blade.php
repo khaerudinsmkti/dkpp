@@ -224,7 +224,20 @@
             <tr>
                 <td class="col-label">Dasar</td>
                 <td class="col-colon">:</td>
-                <td class="dasar-text">{{ $sppd['dasar_text'] }}</td>
+                <td class="dasar-text">
+                    @if (!empty($sppd['dasar_items']) && count($sppd['dasar_items']) > 1)
+                        <table class="untuk-item-table">
+                            @foreach ($sppd['dasar_items'] as $dIdx => $dItem)
+                                <tr>
+                                    <td class="u-no">{{ $dIdx + 1 }}.</td>
+                                    <td>{{ $dItem }}</td>
+                                </tr>
+                            @endforeach
+                        </table>
+                    @else
+                        {{ $sppd['dasar_text'] }}
+                    @endif
+                </td>
             </tr>
         </table>
 

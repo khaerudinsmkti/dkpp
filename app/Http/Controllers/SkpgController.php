@@ -53,18 +53,22 @@ class SkpgController extends Controller
         foreach (Skpg::KECAMATAN_LIST as $kecName) {
             $normName = Skpg::normalizeName($kecName);
             $record = $records->get($normName);
+            if (! $record) {
+                continue;
+            }
+
             $code = Skpg::KECAMATAN_CODES[$kecName] ?? '';
 
-            $ik = $record?->ik ?? Skpg::STATUS_AMAN;
-            $ia = $record?->ia ?? Skpg::STATUS_AMAN;
-            $ip = $record?->ip ?? Skpg::STATUS_AMAN;
-            $ikb = $record?->ikb ?? Skpg::STATUS_AMAN;
-            $potensiKering = $record?->potensi_kering ?? Skpg::STATUS_AMAN;
-            $potensiBasah = $record?->potensi_basah ?? Skpg::STATUS_AMAN;
-            $kondisiIklim = $record?->kondisi_iklim ?? Skpg::STATUS_AMAN;
+            $ik = $record->ik ?? Skpg::STATUS_AMAN;
+            $ia = $record->ia ?? Skpg::STATUS_AMAN;
+            $ip = $record->ip ?? Skpg::STATUS_AMAN;
+            $ikb = $record->ikb ?? Skpg::STATUS_AMAN;
+            $potensiKering = $record->potensi_kering ?? Skpg::STATUS_AMAN;
+            $potensiBasah = $record->potensi_basah ?? Skpg::STATUS_AMAN;
+            $kondisiIklim = $record->kondisi_iklim ?? Skpg::STATUS_AMAN;
 
             $item = [
-                'id' => $record?->id,
+                'id' => $record->id,
                 'kecamatan' => $kecName,
                 'kode_kecamatan' => $code,
                 'year' => $selectedYear,
@@ -76,8 +80,8 @@ class SkpgController extends Controller
                 'potensi_kering' => $potensiKering,
                 'potensi_basah' => $potensiBasah,
                 'kondisi_iklim' => $kondisiIklim,
-                'keterangan' => $record?->keterangan ?? '',
-                'is_recorded' => $record !== null,
+                'keterangan' => $record->keterangan ?? '',
+                'is_recorded' => true,
                 'current_indicator_status' => match ($selectedIndicator) {
                     'ik' => $ik,
                     'ia' => $ia,
@@ -167,28 +171,30 @@ class SkpgController extends Controller
         $annualRecords = Skpg::where('year', $selectedYear)->get();
         $annualCalendar = [];
 
-        foreach (Skpg::KECAMATAN_LIST as $kecName) {
-            $normName = Skpg::normalizeName($kecName);
-            $annualCalendar[$normName] = [
-                'kecamatan' => $kecName,
-                'kode_kecamatan' => Skpg::KECAMATAN_CODES[$kecName] ?? '',
-                'months' => array_fill(1, 12, null),
-            ];
-        }
-
-        foreach ($annualRecords as $rec) {
-            $normRec = Skpg::normalizeName($rec->kecamatan);
-            if (isset($annualCalendar[$normRec])) {
-                $annualCalendar[$normRec]['months'][(int) $rec->month] = [
-                    'ik' => $rec->ik,
-                    'ia' => $rec->ia,
-                    'ip' => $rec->ip,
-                    'ikb' => $rec->ikb,
-                    'potensi_kering' => $rec->potensi_kering,
-                    'potensi_basah' => $rec->potensi_basah,
-                    'kondisi_iklim' => $rec->kondisi_iklim,
-                    'keterangan' => $rec->keterangan,
+        if ($annualRecords->isNotEmpty()) {
+            foreach (Skpg::KECAMATAN_LIST as $kecName) {
+                $normName = Skpg::normalizeName($kecName);
+                $annualCalendar[$normName] = [
+                    'kecamatan' => $kecName,
+                    'kode_kecamatan' => Skpg::KECAMATAN_CODES[$kecName] ?? '',
+                    'months' => array_fill(1, 12, null),
                 ];
+            }
+
+            foreach ($annualRecords as $rec) {
+                $normRec = Skpg::normalizeName($rec->kecamatan);
+                if (isset($annualCalendar[$normRec])) {
+                    $annualCalendar[$normRec]['months'][(int) $rec->month] = [
+                        'ik' => $rec->ik,
+                        'ia' => $rec->ia,
+                        'ip' => $rec->ip,
+                        'ikb' => $rec->ikb,
+                        'potensi_kering' => $rec->potensi_kering,
+                        'potensi_basah' => $rec->potensi_basah,
+                        'kondisi_iklim' => $rec->kondisi_iklim,
+                        'keterangan' => $rec->keterangan,
+                    ];
+                }
             }
         }
 

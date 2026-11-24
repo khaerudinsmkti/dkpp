@@ -405,9 +405,9 @@ export default function HargaProdusen({
     const [isHeroHovered, setIsHeroHovered] = useState(false);
     const TOTAL_HERO_SLIDES = 3;
 
-    // Display commodities memoized
+    // Display commodities from database (empty if not yet filled manually)
     const displayCommodities = useMemo(() => {
-        return commodities && commodities.length > 0 ? commodities : DEFAULT_PRODUCER_COMMODITIES;
+        return commodities ?? [];
     }, [commodities]);
 
     // Hero metrics statistics

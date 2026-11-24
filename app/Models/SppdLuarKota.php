@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'lama_hari',
     'tujuan',
     'alamat_lengkap',
+    'kab_kota',
     'perihal',
     'kepala_dinas_id',
     'pptk_id',
