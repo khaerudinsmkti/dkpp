@@ -2090,6 +2090,26 @@ export default function SppdLuarKotaIndex({
                                                                                 </div>
                                                                             </div>
                                                                         </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/rekap-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <FileCheck2 className="mt-0.5 size-4 shrink-0 text-teal-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        8. Rekap (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Rekapitulasi Perjalanan Dinas
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
                                                                 <Button

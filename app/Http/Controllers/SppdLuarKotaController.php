@@ -1472,4 +1472,94 @@ class SppdLuarKotaController extends Controller
 
         return $pdf->download("SPPD_Luar_Kota_{$safeBatch}.pdf");
     }
+
+    /**
+     * Download PDF Rekapitulasi Perjalanan Dinas untuk 1 Batch SPPD Luar Kota.
+     */
+    public function downloadBatchRekapPdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        /** @var SppdLuarKota $first */
+        $first = $records->first();
+        $defaultKadin = SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)->first();
+
+        $kadin = $first->kepalaDinas ?? $defaultKadin;
+
+        $rows = [];
+        $rowNo = 1;
+        $grandTotal = 0.0;
+
+        foreach ($records as $sppd) {
+            $tglIndo = self::formatIndoDateRange($sppd->tanggal_berangkat, $sppd->tanggal_kembali);
+            $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
+            $tujuanShort = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+            $lamaHari = max(1, (int) ($sppd->lama_hari ?: 1));
+
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            $sppdTransportSum = 0.0;
+
+            foreach ($sortedParticipants as $pt) {
+                $dailyRate = (float) $pt->uang_harian;
+                $ptTotalHarian = $lamaHari * $dailyRate;
+                $grandTotal += $ptTotalHarian;
+                $sppdTransportSum += (float) $pt->uang_transport;
+
+                $rows[] = [
+                    'type' => 'participant',
+                    'no' => $rowNo++,
+                    'nama' => strtoupper($pt->nama),
+                    'golongan' => trim((string) ($pt->golongan ?? '')),
+                    'tujuan' => $tujuanShort,
+                    'tanggal' => $tglIndo,
+                    'uang_perjalanan_formatted' => number_format($dailyRate, 0, ',', '.'),
+                    'lama_hari' => $lamaHari,
+                    'jumlah_formatted' => number_format($ptTotalHarian, 0, ',', '.'),
+                ];
+            }
+
+            if ($sppdTransportSum > 0) {
+                $grandTotal += $sppdTransportSum;
+                $rows[] = [
+                    'type' => 'transport',
+                    'uang_perjalanan_formatted' => number_format($sppdTransportSum, 0, ',', '.'),
+                    'jumlah_formatted' => number_format($sppdTransportSum, 0, ',', '.'),
+                ];
+            }
+        }
+
+        $totalFormatted = number_format($grandTotal, 0, ',', '.');
+        $terbilangText = SppdDalamKotaController::formatTerbilangRupiah($grandTotal);
+
+        $kadinNama = strtoupper($kadin?->nama ?? 'RORY FIRMANSYAH, S.STP., M.Si');
+        $kadinNip = self::formatNipSpaced($kadin?->nip ?? '197801011997031003');
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.rekap-luar-kota', [
+            'batchCode' => $batchCode,
+            'logoBase64' => self::getLogoBase64(),
+            'rows' => $rows,
+            'totalFormatted' => $totalFormatted,
+            'terbilangText' => $terbilangText,
+            'kadinNama' => $kadinNama,
+            'kadinNip' => $kadinNip,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("Rekap_Luar_Kota_{$safeBatch}.pdf");
+    }
 }
