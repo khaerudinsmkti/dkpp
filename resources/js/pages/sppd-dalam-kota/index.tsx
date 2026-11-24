@@ -33,6 +33,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
+import {
+    LhpdModal,
+    type LhpdTargetItem,
+    type LhpdType,
+} from '@/components/sppd/lhpd-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -145,6 +150,11 @@ interface SppdBatchChildItem {
     pptk_id?: number | null;
     bendahara_id?: number | null;
     total_uang_saku: number;
+    lhpd_type?: LhpdType | null;
+    lhpd_content?: string | null;
+    lhpd_table_data?: unknown;
+    lhpd_keterangan?: string | null;
+    has_lhpd?: boolean;
     participants: {
         id: number;
         pegawai_id: number | null;
@@ -572,6 +582,24 @@ export default function SppdDalamKotaIndex({
     } | null>(null);
 
     const [sppdSearch, setSppdSearch] = useState('');
+    const [sppdSubKegiatanFilter, setSppdSubKegiatanFilter] =
+        useState<string>('ALL');
+    const [sppdMonthFilter, setSppdMonthFilter] = useState<string>('ALL');
+
+    const MONTH_FILTER_OPTIONS = [
+        { value: '01', label: 'Januari' },
+        { value: '02', label: 'Februari' },
+        { value: '03', label: 'Maret' },
+        { value: '04', label: 'April' },
+        { value: '05', label: 'Mei' },
+        { value: '06', label: 'Juni' },
+        { value: '07', label: 'Juli' },
+        { value: '08', label: 'Agustus' },
+        { value: '09', label: 'September' },
+        { value: '10', label: 'Oktober' },
+        { value: '11', label: 'November' },
+        { value: '12', label: 'Desember' },
+    ];
 
     // =========================================================================
     // STATE MODAL EDIT KEBERANGKATAN SPPD DALAM BATCH
@@ -591,6 +619,50 @@ export default function SppdDalamKotaIndex({
     const [esBendaharaId, setEsBendaharaId] = useState('');
     const [esParticipantIds, setEsParticipantIds] = useState<string[]>([]);
     const [isSavingEditSppd, setIsSavingEditSppd] = useState(false);
+
+    // State Modal Isi LHPD per perjalanan
+    const [lhpdModalOpen, setLhpdModalOpen] = useState(false);
+    const [lhpdTargetItem, setLhpdTargetItem] = useState<LhpdTargetItem | null>(
+        null
+    );
+
+    const allLhpdItems = useMemo<LhpdTargetItem[]>(() => {
+        return sppdBatches.flatMap((grp) =>
+            grp.items.map((it) => ({
+                id: it.id,
+                batch_code: grp.batch_code,
+                tanggal_berangkat_formatted: it.tanggal_berangkat_formatted,
+                tujuan: it.tujuan,
+                nama_desa: it.nama_desa,
+                nama_kecamatan: it.nama_kecamatan,
+                lhpd_type: it.lhpd_type,
+                lhpd_content: it.lhpd_content,
+                lhpd_table_data: it.lhpd_table_data,
+                lhpd_keterangan: it.lhpd_keterangan,
+                has_lhpd: it.has_lhpd,
+            }))
+        );
+    }, [sppdBatches]);
+
+    const handleOpenLhpdModal = (
+        item: SppdBatchChildItem,
+        batchCode: string
+    ) => {
+        setLhpdTargetItem({
+            id: item.id,
+            batch_code: batchCode,
+            tanggal_berangkat_formatted: item.tanggal_berangkat_formatted,
+            tujuan: item.tujuan,
+            nama_desa: item.nama_desa,
+            nama_kecamatan: item.nama_kecamatan,
+            lhpd_type: item.lhpd_type,
+            lhpd_content: item.lhpd_content,
+            lhpd_table_data: item.lhpd_table_data,
+            lhpd_keterangan: item.lhpd_keterangan,
+            has_lhpd: item.has_lhpd,
+        });
+        setLhpdModalOpen(true);
+    };
 
     const handleOpenEditSppd = (
         item: SppdBatchChildItem,
@@ -1171,12 +1243,16 @@ export default function SppdDalamKotaIndex({
         );
     };
 
+    const openPdfPreview = (url: string) => {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
     const handleDownloadBatchPdf = (
         batchCode: string,
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/pdf`);
     };
 
     const handleDownloadBatchSptjbPdf = (
@@ -1184,7 +1260,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sptjb-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sptjb-pdf`);
     };
 
     const handleDownloadBatchC2Pdf = (
@@ -1192,7 +1268,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/c2-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/c2-pdf`);
     };
 
     const handleDownloadBatchRincianPdf = (
@@ -1200,7 +1276,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rincian-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rincian-pdf`);
     };
 
     const handleDownloadBatchKwitansiPdf = (
@@ -1208,7 +1284,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-pdf`);
     };
 
     const handleDownloadBatchKwitansi2Pdf = (
@@ -1216,7 +1292,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-2-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/kwitansi-2-pdf`);
     };
 
     const handleDownloadBatchSppdPdf = (
@@ -1224,7 +1300,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sppd-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/sppd-pdf`);
     };
 
     const handleDownloadBatchRekapPdf = (
@@ -1232,7 +1308,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rekap-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/rekap-pdf`);
     };
 
     const handleDownloadBatchLhpdPdf = (
@@ -1240,7 +1316,7 @@ export default function SppdDalamKotaIndex({
         e?: React.MouseEvent
     ) => {
         if (e) e.stopPropagation();
-        window.location.href = `/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/lhpd-pdf`;
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/lhpd-pdf`);
     };
 
     const handleDownloadBatchWord = (
@@ -1819,9 +1895,22 @@ export default function SppdDalamKotaIndex({
 
     const filteredSppdBatches = useMemo(() => {
         const q = sppdSearch.trim().toLowerCase();
-        if (!q) return sppdBatches;
-        return sppdBatches.filter(
-            (b) =>
+        return sppdBatches.filter((b) => {
+            const matchSub =
+                sppdSubKegiatanFilter === 'ALL' ||
+                String(b.sub_kegiatan_id ?? b.sub_kegiatan?.id ?? '') ===
+                    sppdSubKegiatanFilter;
+            if (!matchSub) return false;
+            const matchMonth =
+                sppdMonthFilter === 'ALL' ||
+                b.items.some(
+                    (it) =>
+                        String(it.tanggal_berangkat || '').slice(5, 7) ===
+                        sppdMonthFilter
+                );
+            if (!matchMonth) return false;
+            if (!q) return true;
+            return (
                 b.batch_code.toLowerCase().includes(q) ||
                 b.tujuan_list.some((t) => t.toLowerCase().includes(q)) ||
                 b.kecamatan_list.some((k) => k.toLowerCase().includes(q)) ||
@@ -1829,8 +1918,9 @@ export default function SppdDalamKotaIndex({
                     b.sub_kegiatan.sub_kegiatan.toLowerCase().includes(q)) ||
                 (b.dpa && b.dpa.nomor_dpa.toLowerCase().includes(q)) ||
                 b.employees.some((emp) => emp.nama.toLowerCase().includes(q))
-        );
-    }, [sppdBatches, sppdSearch]);
+            );
+        });
+    }, [sppdBatches, sppdSearch, sppdSubKegiatanFilter, sppdMonthFilter]);
 
     const renderPejabatSection = (
         tipe: 'kepala_dinas' | 'pptk' | 'bendahara',
@@ -3199,14 +3289,11 @@ export default function SppdDalamKotaIndex({
                         {/* ================================================= */}
                         <Card className="border-sidebar-border/70 shadow-xs">
                             <CardHeader className="border-b border-neutral-100 pb-4 dark:border-neutral-800">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="flex flex-col gap-3">
                                     <div>
                                         <CardTitle className="text-base font-extrabold">
                                             Daftar SPPD Dalam Kota Tersimpan ({filteredSppdBatches.length} Batch &bull; {statistics.total_sppd} Data SPPD)
                                         </CardTitle>
-                                        <p className="text-xs text-neutral-500">
-                                            <strong>Klik pada baris Batch</strong> di bawah ini untuk membuka / menyembunyikan rincian daftar SPPD di dalamnya, atau klik tombol <strong>Cetak SPT (PDF)</strong> &amp; <strong>Download SPTJB (PDF)</strong>.
-                                        </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
                                         {selectedBatchCodesToMerge.length >= 2 && (
@@ -3224,6 +3311,65 @@ export default function SppdDalamKotaIndex({
                                                 Batch Menjadi 1 Batch
                                             </Button>
                                         )}
+                                        <div className="w-full sm:w-40">
+                                            <Select
+                                                value={sppdMonthFilter}
+                                                onValueChange={
+                                                    setSppdMonthFilter
+                                                }
+                                            >
+                                                <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs [&>span]:truncate dark:bg-neutral-900">
+                                                    <SelectValue placeholder="Filter Bulan" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ALL">
+                                                        Semua Bulan
+                                                    </SelectItem>
+                                                    {MONTH_FILTER_OPTIONS.map(
+                                                        (m) => (
+                                                            <SelectItem
+                                                                key={m.value}
+                                                                value={m.value}
+                                                            >
+                                                                {m.label}
+                                                            </SelectItem>
+                                                        )
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="w-full sm:w-64">
+                                            <Select
+                                                value={sppdSubKegiatanFilter}
+                                                onValueChange={
+                                                    setSppdSubKegiatanFilter
+                                                }
+                                            >
+                                                <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs [&>span]:truncate dark:bg-neutral-900">
+                                                    <SelectValue placeholder="Filter Sub Kegiatan" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="ALL">
+                                                        Semua Sub Kegiatan
+                                                    </SelectItem>
+                                                    {subKegiatans.map((sk) => (
+                                                        <SelectItem
+                                                            key={sk.id}
+                                                            value={String(
+                                                                sk.id
+                                                            )}
+                                                        >
+                                                            [
+                                                            {
+                                                                sk.kode_sub_kegiatan
+                                                            }
+                                                            ]{' '}
+                                                            {sk.sub_kegiatan}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
                                         <div className="relative w-full sm:w-72">
                                             <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
                                             <Input
@@ -3243,7 +3389,7 @@ export default function SppdDalamKotaIndex({
                                 <div className="overflow-x-auto">
                                     <table className="w-full border-collapse text-left text-xs">
                                         <thead>
-                                            <tr className="border-b border-neutral-200 bg-neutral-50/80 text-[11px] font-bold tracking-wider text-neutral-500 uppercase dark:border-neutral-800 dark:bg-neutral-900/50">
+                                            <tr className="border-b border-teal-200/80 bg-gradient-to-r from-teal-50/95 via-emerald-50/70 to-teal-50/95 text-[11px] font-extrabold tracking-wider text-[#005757] uppercase dark:border-teal-900/70 dark:from-teal-950/60 dark:via-emerald-950/40 dark:to-teal-950/60 dark:text-teal-200">
                                                 <th className="px-3 py-3 text-center w-10">
                                                     #
                                                 </th>
@@ -3251,7 +3397,7 @@ export default function SppdDalamKotaIndex({
                                                     Batch &amp; Jumlah SPPD
                                                 </th>
                                                 <th className="px-4 py-3">
-                                                    Sub Kegiatan &amp; DPA
+                                                    Sub Kegiatan
                                                 </th>
                                                 <th className="px-4 py-3">
                                                     Tujuan &amp; Kecamatan
@@ -3394,33 +3540,18 @@ export default function SppdDalamKotaIndex({
                                                                         </div>
                                                                     </td>
 
-                                                                    <td className="px-4 py-3 max-w-[250px] align-middle">
+                                                                    <td className="px-4 py-3 min-w-[240px] max-w-[320px] align-middle">
                                                                         {grp.sub_kegiatan ? (
-                                                                            <div className="space-y-0.5">
-                                                                                <div className="font-bold text-neutral-900 dark:text-neutral-100 line-clamp-1" title={grp.sub_kegiatan.sub_kegiatan}>
-                                                                                    {grp.sub_kegiatan.sub_kegiatan}
-                                                                                </div>
-                                                                                <div className="flex flex-wrap items-center gap-1 text-[10px]">
-                                                                                    <span className="rounded bg-teal-50 border border-teal-200 px-1.5 py-0 font-mono font-bold text-[#006565]">
-                                                                                        {grp.sub_kegiatan.kode_sub_kegiatan}
-                                                                                    </span>
-                                                                                    <span className="rounded bg-neutral-100 px-1.5 py-0 font-mono text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-                                                                                        Rek: {grp.sub_kegiatan.no_rekening}
-                                                                                    </span>
-                                                                                </div>
+                                                                            <div className="font-bold leading-snug text-neutral-900 whitespace-normal dark:text-neutral-100">
+                                                                                {grp.sub_kegiatan.sub_kegiatan}
                                                                             </div>
                                                                         ) : (
                                                                             <span className="text-neutral-400">-</span>
                                                                         )}
-                                                                        {grp.dpa && (
-                                                                            <div className="mt-0.5 font-mono text-[10px] text-neutral-400 truncate" title={grp.dpa.nomor_dpa}>
-                                                                                DPA: {grp.dpa.nomor_dpa}
-                                                                            </div>
-                                                                        )}
                                                                     </td>
 
                                                                     <td className="px-4 py-3 max-w-[210px] align-middle">
-                                                                        <div className="font-semibold text-neutral-800 dark:text-neutral-200 line-clamp-1" title={grp.tujuan_list.join(', ')}>
+                                                                        <div className="truncate font-semibold text-neutral-800 dark:text-neutral-200" title={grp.tujuan_list.join(', ')}>
                                                                             {grp.primary_tujuan}
                                                                             {grp.tujuan_list.length > 1 && (
                                                                                 <span className="ml-1 text-[10px] font-bold text-[#006565]">
@@ -3428,18 +3559,18 @@ export default function SppdDalamKotaIndex({
                                                                                 </span>
                                                                             )}
                                                                         </div>
-                                                                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                                                                            {grp.kecamatan_list.slice(0, 2).map((kec) => (
+                                                                        <div className="mt-1 flex items-center gap-1 whitespace-nowrap">
+                                                                            {grp.kecamatan_list.slice(0, 1).map((kec) => (
                                                                                 <span
                                                                                     key={kec}
-                                                                                    className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50/80 px-1.5 py-0 text-[10px] font-semibold text-blue-800"
+                                                                                    className="inline-flex items-center truncate max-w-[140px] rounded-md border border-blue-200 bg-blue-50/80 px-1.5 py-0 text-[10px] font-semibold text-blue-800"
                                                                                 >
                                                                                     Kec. {kec}
                                                                                 </span>
                                                                             ))}
-                                                                            {grp.kecamatan_list.length > 2 && (
-                                                                                <span className="rounded-md bg-neutral-100 px-1.5 py-0 text-[10px] font-bold text-neutral-600">
-                                                                                    +{grp.kecamatan_list.length - 2} kec
+                                                                            {grp.kecamatan_list.length > 1 && (
+                                                                                <span className="shrink-0 rounded-md bg-neutral-100 px-1.5 py-0 text-[10px] font-bold text-neutral-600">
+                                                                                    +{grp.kecamatan_list.length - 1} kec
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -3447,7 +3578,7 @@ export default function SppdDalamKotaIndex({
 
                                                                     <td className="px-4 py-3 align-middle">
                                                                         <div className="flex flex-wrap gap-1 max-w-[230px]">
-                                                                            {grp.employees.map((emp, eIdx) => (
+                                                                            {grp.employees.slice(0, 2).map((emp, eIdx) => (
                                                                                 <span
                                                                                     key={`${emp.nama}-${eIdx}`}
                                                                                     className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-neutral-800 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"
@@ -3463,6 +3594,11 @@ export default function SppdDalamKotaIndex({
                                                                                     </span>
                                                                                 </span>
                                                                             ))}
+                                                                            {grp.employees.length > 2 && (
+                                                                                <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-[10px] font-bold text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                                                                                    +{grp.employees.length - 2} lainnya
+                                                                                </span>
+                                                                            )}
                                                                         </div>
                                                                     </td>
 
@@ -3492,7 +3628,7 @@ export default function SppdDalamKotaIndex({
                                                                                         className="h-8 gap-1.5 px-3 text-xs font-bold bg-[#006565] text-white hover:bg-[#005252] shadow-2xs"
                                                                                     >
                                                                                         <Download className="size-3.5" />
-                                                                                        <span>Download PDF</span>
+                                                                                        <span>Preview / Cetak PDF</span>
                                                                                         <ChevronDown className="size-3.5 opacity-80" />
                                                                                     </Button>
                                                                                 </DropdownMenuTrigger>
@@ -4089,6 +4225,29 @@ export default function SppdDalamKotaIndex({
                                                                                                         </td>
                                                                                                         <td className="px-3 py-2.5 text-right whitespace-nowrap">
                                                                                                             <div className="inline-flex items-center gap-1">
+                                                                                                                <Button
+                                                                                                                    size="sm"
+                                                                                                                    variant="outline"
+                                                                                                                    onClick={() =>
+                                                                                                                        handleOpenLhpdModal(
+                                                                                                                            item,
+                                                                                                                            grp.batch_code
+                                                                                                                        )
+                                                                                                                    }
+                                                                                                                    className={
+                                                                                                                        item.has_lhpd
+                                                                                                                            ? 'h-7 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100'
+                                                                                                                            : 'h-7 gap-1 border-amber-300 bg-amber-50/70 px-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100'
+                                                                                                                    }
+                                                                                                                    title="Isi / Edit Laporan Hasil Perjalanan Dinas (LHPD)"
+                                                                                                                >
+                                                                                                                    <FileText className="size-3" />
+                                                                                                                    <span>
+                                                                                                                        {item.has_lhpd
+                                                                                                                            ? 'LHPD ✓'
+                                                                                                                            : 'Isi LHPD'}
+                                                                                                                    </span>
+                                                                                                                </Button>
                                                                                                                 <Button
                                                                                                                     size="sm"
                                                                                                                     variant="outline"
@@ -5825,6 +5984,13 @@ export default function SppdDalamKotaIndex({
                         </form>
                     </DialogContent>
                 </Dialog>
+
+                <LhpdModal
+                    open={lhpdModalOpen}
+                    onOpenChange={setLhpdModalOpen}
+                    item={lhpdTargetItem}
+                    copyableItems={allLhpdItems}
+                />
             </div>
         </>
     );

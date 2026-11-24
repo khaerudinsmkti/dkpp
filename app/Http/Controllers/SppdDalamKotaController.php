@@ -319,6 +319,14 @@ class SppdDalamKotaController extends Controller
                         'pptk_id' => $sppd->pptk_id,
                         'bendahara_id' => $sppd->bendahara_id,
                         'total_uang_saku' => (float) $sppd->total_uang_saku,
+                        'lhpd_type' => $sppd->lhpd_type,
+                        'lhpd_content' => $sppd->lhpd_content,
+                        'lhpd_table_data' => $sppd->lhpd_table_data,
+                        'lhpd_keterangan' => $sppd->lhpd_keterangan,
+                        'has_lhpd' => (bool) ($sppd->lhpd_type && (
+                            ($sppd->lhpd_type === 'paragraf' && trim((string) $sppd->lhpd_content) !== '') ||
+                            ($sppd->lhpd_type !== 'paragraf' && ! empty($sppd->lhpd_table_data))
+                        )),
                         'participants' => $sppd->participants->map(fn (SppdDalamKotaParticipant $pt): array => [
                             'id' => $pt->id,
                             'pegawai_id' => $pt->pegawai_id,
@@ -579,7 +587,11 @@ HTML;
 
         $pdf = Pdf::loadView($view, $data)->setPaper('a4', 'portrait');
 
-        return $pdf->download("{$baseFilename}.pdf");
+        if ($request->boolean('download')) {
+            return $pdf->download("{$baseFilename}.pdf");
+        }
+
+        return $pdf->stream("{$baseFilename}.pdf");
     }
 
     /**
@@ -1350,6 +1362,10 @@ HTML;
                 'lokasi_desa_kecamatan' => $lokasiDesaKecamatan,
                 'maksud_tujuan' => $maksudTujuan,
                 'participants' => $participants,
+                'lhpd_type' => $sppd->lhpd_type,
+                'lhpd_content' => $sppd->lhpd_content,
+                'lhpd_table_data' => $sppd->lhpd_table_data,
+                'lhpd_keterangan' => $sppd->lhpd_keterangan,
             ];
         })->values()->all();
 
@@ -1360,6 +1376,32 @@ HTML;
             'tahunAnggaran' => $tahunAnggaran,
             'sppdList' => $sppdList,
         ], "LHPD_SPPD_Dalam_Kota_{$safeBatch}");
+    }
+
+    /**
+     * Simpan / perbarui isi Laporan Hasil Perjalanan Dinas (LHPD) untuk 1 SPPD Dalam Kota.
+     */
+    public function updateLhpd(Request $request, SppdDalamKota $sppd): RedirectResponse
+    {
+        $validated = $request->validate([
+            'lhpd_type' => ['required', 'in:paragraf,tabel_harga,tabel_custom'],
+            'lhpd_content' => ['nullable', 'string', 'max:10000'],
+            'lhpd_table_data' => ['nullable', 'array'],
+            'lhpd_keterangan' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $sppd->update([
+            'lhpd_type' => $validated['lhpd_type'],
+            'lhpd_content' => $validated['lhpd_type'] === 'paragraf'
+                ? trim((string) ($validated['lhpd_content'] ?? ''))
+                : null,
+            'lhpd_table_data' => $validated['lhpd_type'] !== 'paragraf'
+                ? ($validated['lhpd_table_data'] ?? null)
+                : null,
+            'lhpd_keterangan' => trim((string) ($validated['lhpd_keterangan'] ?? '')) ?: null,
+        ]);
+
+        return back()->with('success', 'Laporan Hasil Perjalanan Dinas (LHPD) berhasil disimpan.');
     }
 
     /**

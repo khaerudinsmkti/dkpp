@@ -530,6 +530,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sppd-dalam-kota/batch/{batchCode}/lhpd-pdf', [SppdDalamKotaController::class, 'downloadBatchLhpdPdf'])->name('sppd-dalam-kota.batch.lhpd-pdf');
     Route::delete('/sppd-dalam-kota/batch/{batchCode}', [SppdDalamKotaController::class, 'destroyBatch'])->name('sppd-dalam-kota.batch.destroy');
     Route::put('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'updateSppd'])->name('sppd-dalam-kota.sppd.update');
+    Route::put('/sppd-dalam-kota/sppd/{sppd}/lhpd', [SppdDalamKotaController::class, 'updateLhpd'])->name('sppd-dalam-kota.sppd.lhpd.update');
     Route::delete('/sppd-dalam-kota/sppd/{sppd}', [SppdDalamKotaController::class, 'destroySppd'])->name('sppd-dalam-kota.sppd.destroy');
 
     Route::post('/sppd-dalam-kota/pegawai', [SppdDalamKotaController::class, 'storePegawai'])->name('sppd-dalam-kota.pegawai.store');
@@ -563,7 +564,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sppd-luar-kota/batch/{batchCode}/kwitansi-2-pdf', [SppdLuarKotaController::class, 'downloadBatchKwitansi2Pdf'])->name('sppd-luar-kota.batch.kwitansi-2-pdf');
     Route::get('/sppd-luar-kota/batch/{batchCode}/sppd-pdf', [SppdLuarKotaController::class, 'downloadBatchSppdPdf'])->name('sppd-luar-kota.batch.sppd-pdf');
     Route::get('/sppd-luar-kota/batch/{batchCode}/rekap-pdf', [SppdLuarKotaController::class, 'downloadBatchRekapPdf'])->name('sppd-luar-kota.batch.rekap-pdf');
+    Route::get('/sppd-luar-kota/batch/{batchCode}/lhpd-pdf', [SppdLuarKotaController::class, 'downloadBatchLhpdPdf'])->name('sppd-luar-kota.batch.lhpd-pdf');
+    Route::get('/sppd-luar-kota/batch/{batchCode}/bensin-pdf', [SppdLuarKotaController::class, 'downloadBatchBensinPdf'])->name('sppd-luar-kota.batch.bensin-pdf');
     Route::get('/sppd-luar-kota/sppd/{sppdLuarKota}/spt-pdf', [SppdLuarKotaController::class, 'downloadItemSptPdf'])->name('sppd-luar-kota.sppd.spt-pdf');
+    Route::put('/sppd-luar-kota/sppd/{sppdLuarKota}/lhpd', [SppdLuarKotaController::class, 'updateLhpd'])->name('sppd-luar-kota.sppd.lhpd.update');
     Route::put('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'update'])->name('sppd-luar-kota.sppd.update');
     Route::delete('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'destroy'])->name('sppd-luar-kota.sppd.destroy');
     Route::delete('/sppd-luar-kota/batch/{batchCode}', [SppdLuarKotaController::class, 'destroyBatch'])->name('sppd-luar-kota.batch.destroy');

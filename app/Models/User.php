@@ -77,6 +77,34 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * Determine if user belongs to an SPPD-dedicated role.
+     */
+    public function isSppdRole(): bool
+    {
+        if ($this->isSuperAdmin() || ! $this->role) {
+            return false;
+        }
+
+        $slug = strtolower((string) $this->role->slug);
+        $name = strtolower((string) $this->role->name);
+
+        if (str_contains($slug, 'sppd') || str_contains($name, 'sppd')) {
+            return true;
+        }
+
+        return $this->hasPermission('sppd_dalam_kota', 'view')
+            && ! $this->hasPermission('dashboard', 'view');
+    }
+
+    /**
+     * Resolve default home route after login for this user.
+     */
+    public function defaultHomeUrl(): string
+    {
+        return $this->isSppdRole() ? '/sppd-dalam-kota' : '/dashboard';
+    }
+
+    /**
      * Check if the user has permission for a module & action.
      */
     public function hasPermission(string $moduleKey, string $actionKey = 'view'): bool

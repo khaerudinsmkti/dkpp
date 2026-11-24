@@ -9,6 +9,7 @@ import {
     ChevronRight,
     ChevronUp,
     Compass,
+    Copy,
     Download,
     Edit3,
     FileCheck2,
@@ -132,6 +133,8 @@ interface SppdLuarKotaChildItem {
     total_uang_harian: number;
     total_uang_transport: number;
     total_biaya: number;
+    lhpd_content?: string | null;
+    has_lhpd?: boolean;
     participants: SppdLuarKotaParticipantItem[];
 }
 
@@ -293,6 +296,23 @@ export default function SppdLuarKotaIndex({
 
     // Table state (default rincian tersembunyi)
     const [searchQuery, setSearchQuery] = useState('');
+    const [subKegiatanFilter, setSubKegiatanFilter] = useState<string>('ALL');
+    const [monthFilter, setMonthFilter] = useState<string>('ALL');
+
+    const MONTH_FILTER_OPTIONS = [
+        { value: '01', label: 'Januari' },
+        { value: '02', label: 'Februari' },
+        { value: '03', label: 'Maret' },
+        { value: '04', label: 'April' },
+        { value: '05', label: 'Mei' },
+        { value: '06', label: 'Juni' },
+        { value: '07', label: 'Juli' },
+        { value: '08', label: 'Agustus' },
+        { value: '09', label: 'September' },
+        { value: '10', label: 'Oktober' },
+        { value: '11', label: 'November' },
+        { value: '12', label: 'Desember' },
+    ];
     const [expandedBatches, setExpandedBatches] = useState<
         Record<string, boolean>
     >({});
@@ -341,6 +361,83 @@ export default function SppdLuarKotaIndex({
         setSppdVehicleModalOpen(false);
     };
 
+    // Modal Isi LHPD (Paragraf) per perjalanan luar kota
+    const [lhpdModalOpen, setLhpdModalOpen] = useState(false);
+    const [lhpdTargetItem, setLhpdTargetItem] = useState<
+        (SppdLuarKotaChildItem & { batch_code: string }) | null
+    >(null);
+    const [lhpdContent, setLhpdContent] = useState('');
+    const [lhpdCopySourceId, setLhpdCopySourceId] = useState('');
+    const [isSavingLhpd, setIsSavingLhpd] = useState(false);
+
+    const copyableLhpdSources = useMemo(() => {
+        if (!lhpdTargetItem) return [];
+        const list = sppdBatches.flatMap((grp) =>
+            grp.items
+                .filter((it) => it.id !== lhpdTargetItem.id && it.has_lhpd)
+                .map((it) => ({ ...it, batch_code: grp.batch_code }))
+        );
+        return list.sort((a, b) => {
+            const aSame = a.batch_code === lhpdTargetItem.batch_code ? 0 : 1;
+            const bSame = b.batch_code === lhpdTargetItem.batch_code ? 0 : 1;
+            return aSame - bSame;
+        });
+    }, [sppdBatches, lhpdTargetItem]);
+
+    const handleOpenLhpdModal = (
+        item: SppdLuarKotaChildItem,
+        batchCode: string
+    ) => {
+        setLhpdTargetItem({ ...item, batch_code: batchCode });
+        setLhpdContent(item.lhpd_content || '');
+        setLhpdCopySourceId('');
+        setLhpdModalOpen(true);
+    };
+
+    const handleCopyLhpdFromPrevious = (srcIdStr: string) => {
+        setLhpdCopySourceId(srcIdStr);
+        const src = copyableLhpdSources.find((s) => String(s.id) === srcIdStr);
+        if (!src) return;
+        setLhpdContent(src.lhpd_content || '');
+        toast.success(
+            `Isi LHPD berhasil disalin dari ${src.tanggal_berangkat_formatted} (${src.tujuan}).`
+        );
+    };
+
+    const handleSaveLhpd = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!lhpdTargetItem) return;
+        if (!lhpdContent.trim()) {
+            toast.error('Isi Laporan Hasil Perjalanan Dinas wajib diisi.');
+            return;
+        }
+        setIsSavingLhpd(true);
+        router.put(
+            `/sppd-luar-kota/sppd/${lhpdTargetItem.id}/lhpd`,
+            {
+                lhpd_content: lhpdContent.trim(),
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        'Laporan Hasil Perjalanan Dinas (LHPD) berhasil disimpan.'
+                    );
+                    setLhpdModalOpen(false);
+                },
+                onError: (errors) => {
+                    const first = Object.values(errors)[0];
+                    toast.error(
+                        typeof first === 'string'
+                            ? first
+                            : 'Gagal menyimpan LHPD.'
+                    );
+                },
+                onFinish: () => setIsSavingLhpd(false),
+            }
+        );
+    };
+
     const activeSubKegiatanObj = useMemo(
         () =>
             subKegiatans.find(
@@ -375,9 +472,22 @@ export default function SppdLuarKotaIndex({
 
     const filteredBatches = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
-        if (!q) return sppdBatches;
-        return sppdBatches.filter(
-            (b) =>
+        return sppdBatches.filter((b) => {
+            const matchSub =
+                subKegiatanFilter === 'ALL' ||
+                String(b.sub_kegiatan_id ?? b.sub_kegiatan?.id ?? '') ===
+                    subKegiatanFilter;
+            if (!matchSub) return false;
+            const matchMonth =
+                monthFilter === 'ALL' ||
+                b.items.some(
+                    (it) =>
+                        String(it.tanggal_berangkat || '').slice(5, 7) ===
+                        monthFilter
+                );
+            if (!matchMonth) return false;
+            if (!q) return true;
+            return (
                 b.batch_code.toLowerCase().includes(q) ||
                 b.tujuan_list.some((t) => t.toLowerCase().includes(q)) ||
                 b.employees.some((e) => e.nama.toLowerCase().includes(q)) ||
@@ -388,8 +498,9 @@ export default function SppdLuarKotaIndex({
                         it.pengirim_surat.toLowerCase().includes(q) ||
                         it.perihal.toLowerCase().includes(q)
                 )
-        );
-    }, [sppdBatches, searchQuery]);
+            );
+        });
+    }, [sppdBatches, searchQuery, subKegiatanFilter, monthFilter]);
 
     const handleNextStep = () => {
         if (currentStep === 1) {
@@ -1705,7 +1816,7 @@ export default function SppdLuarKotaIndex({
                 {/* ========================================================= */}
                 <Card className="border-sidebar-border/70 shadow-xs">
                     <CardHeader className="border-b border-neutral-100 pb-4 dark:border-neutral-800">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-3">
                             <div>
                                 <CardTitle className="text-base font-extrabold">
                                     Daftar SPPD Luar Kota Tersimpan (
@@ -1716,16 +1827,65 @@ export default function SppdLuarKotaIndex({
                                     Klik baris Batch untuk melihat atau mengedit rincian keberangkatan SPPD Luar Kota di dalamnya.
                                 </p>
                             </div>
-                            <div className="relative w-full sm:w-72">
-                                <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
-                                <Input
-                                    placeholder="Cari kode batch, tujuan, petugas..."
-                                    value={searchQuery}
-                                    onChange={(e) =>
-                                        setSearchQuery(e.target.value)
-                                    }
-                                    className="h-9 pl-9 text-xs"
-                                />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="w-full sm:w-40">
+                                    <Select
+                                        value={monthFilter}
+                                        onValueChange={setMonthFilter}
+                                    >
+                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs [&>span]:truncate dark:bg-neutral-900">
+                                            <SelectValue placeholder="Filter Bulan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">
+                                                Semua Bulan
+                                            </SelectItem>
+                                            {MONTH_FILTER_OPTIONS.map((m) => (
+                                                <SelectItem
+                                                    key={m.value}
+                                                    value={m.value}
+                                                >
+                                                    {m.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="w-full sm:w-64">
+                                    <Select
+                                        value={subKegiatanFilter}
+                                        onValueChange={setSubKegiatanFilter}
+                                    >
+                                        <SelectTrigger className="h-9 w-full min-w-0 overflow-hidden bg-white text-xs [&>span]:truncate dark:bg-neutral-900">
+                                            <SelectValue placeholder="Filter Sub Kegiatan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ALL">
+                                                Semua Sub Kegiatan
+                                            </SelectItem>
+                                            {subKegiatans.map((sk) => (
+                                                <SelectItem
+                                                    key={sk.id}
+                                                    value={String(sk.id)}
+                                                >
+                                                    [{sk.kode_sub_kegiatan}]{' '}
+                                                    {sk.sub_kegiatan}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="relative w-full sm:w-72">
+                                    <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-neutral-400" />
+                                    <Input
+                                        placeholder="Cari kode batch, tujuan, petugas..."
+                                        value={searchQuery}
+                                        onChange={(e) =>
+                                            setSearchQuery(e.target.value)
+                                        }
+                                        className="h-9 pl-9 text-xs"
+                                    />
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -1734,7 +1894,7 @@ export default function SppdLuarKotaIndex({
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse text-left text-xs">
                                 <thead>
-                                    <tr className="border-b border-neutral-200 bg-neutral-50/80 text-[11px] font-bold tracking-wider text-neutral-500 uppercase dark:border-neutral-800 dark:bg-neutral-900/50">
+                                    <tr className="border-b border-teal-200/80 bg-gradient-to-r from-teal-50/95 via-emerald-50/70 to-teal-50/95 text-[11px] font-extrabold tracking-wider text-[#005757] uppercase dark:border-teal-900/70 dark:from-teal-950/60 dark:via-emerald-950/40 dark:to-teal-950/60 dark:text-teal-200">
                                         <th className="w-10 px-3 py-3 text-center">
                                             #
                                         </th>
@@ -1912,18 +2072,19 @@ export default function SppdLuarKotaIndex({
                                                                         <Button
                                                                             size="sm"
                                                                             className="h-8 gap-1.5 bg-[#006565] px-2.5 text-xs font-bold text-white hover:bg-[#005252]"
-                                                                            title="Download Laporan PDF Batch"
+                                                                            title="Preview & Cetak Laporan PDF Batch"
                                                                         >
                                                                             <Download className="size-3.5" />
                                                                             <span>
-                                                                                Download PDF
+                                                                                Preview / Cetak PDF
                                                                             </span>
                                                                             <ChevronDown className="size-3 opacity-80" />
                                                                         </Button>
                                                                     </DropdownMenuTrigger>
                                                                     <DropdownMenuContent
                                                                         align="end"
-                                                                        className="w-64"
+                                                                        collisionPadding={12}
+                                                                        className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
                                                                     >
                                                                         <DropdownMenuLabel className="text-[11px] font-extrabold text-[#006565]">
                                                                             Download Dokumen PDF
@@ -2106,6 +2267,46 @@ export default function SppdLuarKotaIndex({
                                                                                     </div>
                                                                                     <div className="text-[10px] text-neutral-500">
                                                                                         Rekapitulasi Perjalanan Dinas
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/lhpd-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <FileText className="mt-0.5 size-4 shrink-0 text-indigo-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        9. LHPD (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Laporan Hasil Perjalanan Dinas ({grp.spt_count} lembar)
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/bensin-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <FileCheck2 className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        10. Bensin (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Lembar Lampiran Struk BBM ({grp.spt_count} lembar)
                                                                                     </div>
                                                                                 </div>
                                                                             </a>
@@ -2357,6 +2558,29 @@ export default function SppdLuarKotaIndex({
                                                                                             </td>
                                                                                             <td className="px-3 py-2.5 text-right align-top whitespace-nowrap">
                                                                                                 <div className="inline-flex items-center gap-1">
+                                                                                                    <Button
+                                                                                                        size="sm"
+                                                                                                        variant="outline"
+                                                                                                        onClick={() =>
+                                                                                                            handleOpenLhpdModal(
+                                                                                                                item,
+                                                                                                                grp.batch_code
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className={
+                                                                                                            item.has_lhpd
+                                                                                                                ? 'h-7 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[11px] font-bold text-emerald-800 hover:bg-emerald-100'
+                                                                                                                : 'h-7 gap-1 border-amber-300 bg-amber-50/70 px-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100'
+                                                                                                        }
+                                                                                                        title="Isi / Edit Laporan Hasil Perjalanan Dinas (LHPD)"
+                                                                                                    >
+                                                                                                        <FileText className="size-3" />
+                                                                                                        <span>
+                                                                                                            {item.has_lhpd
+                                                                                                                ? 'LHPD ✓'
+                                                                                                                : 'Isi LHPD'}
+                                                                                                        </span>
+                                                                                                    </Button>
                                                                                                     <Button
                                                                                                         size="sm"
                                                                                                         variant="outline"
@@ -2862,6 +3086,115 @@ export default function SppdLuarKotaIndex({
                                 Download PDF SPPD
                             </Button>
                         </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* MODAL ISI LHPD LUAR KOTA (PARAGRAF) */}
+                <Dialog open={lhpdModalOpen} onOpenChange={setLhpdModalOpen}>
+                    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-[#006565]">
+                                <FileText className="size-4.5" />
+                                Isi Laporan Hasil Perjalanan Dinas (LHPD)
+                            </DialogTitle>
+                            {lhpdTargetItem && (
+                                <DialogDescription className="text-xs">
+                                    <strong>{lhpdTargetItem.tujuan}</strong>{' '}
+                                    &bull;{' '}
+                                    {lhpdTargetItem.tanggal_berangkat_formatted}
+                                    {lhpdTargetItem.tanggal_kembali !==
+                                        lhpdTargetItem.tanggal_berangkat &&
+                                        ` s.d. ${lhpdTargetItem.tanggal_kembali_formatted}`}
+                                </DialogDescription>
+                            )}
+                        </DialogHeader>
+
+                        <form onSubmit={handleSaveLhpd} className="space-y-4">
+                            {copyableLhpdSources.length > 0 && (
+                                <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/60 dark:bg-amber-950/20">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
+                                        <Copy className="size-4 shrink-0 text-amber-600" />
+                                        <span>Salin dari LHP Sebelumnya:</span>
+                                    </div>
+                                    <div className="w-full sm:w-72">
+                                        <Select
+                                            value={lhpdCopySourceId}
+                                            onValueChange={
+                                                handleCopyLhpdFromPrevious
+                                            }
+                                        >
+                                            <SelectTrigger className="h-8 w-full min-w-0 overflow-hidden border-amber-300 bg-white text-xs [&>span]:truncate dark:bg-neutral-900">
+                                                <SelectValue placeholder="-- Pilih perjalanan untuk disalin --" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {copyableLhpdSources.map(
+                                                    (src) => (
+                                                        <SelectItem
+                                                            key={src.id}
+                                                            value={String(
+                                                                src.id
+                                                            )}
+                                                        >
+                                                            [{src.batch_code}]{' '}
+                                                            {
+                                                                src.tanggal_berangkat_formatted
+                                                            }{' '}
+                                                            — {src.tujuan}
+                                                        </SelectItem>
+                                                    )
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-bold">
+                                    Uraian Hasil Perjalanan Dinas (Paragraf /
+                                    Poin) *
+                                </Label>
+                                <textarea
+                                    rows={9}
+                                    value={lhpdContent}
+                                    onChange={(e) =>
+                                        setLhpdContent(e.target.value)
+                                    }
+                                    placeholder={
+                                        'Tuliskan hasil perjalanan dinas luar kota dalam bentuk paragraf atau poin (1., 2., a., b.)...\n\nContoh:\n1. Menghadiri pertemuan evaluasi penyusunan SKPG dan FSVA di ...\n2. Hasil pembahasan meliputi:\na. ...\nb. ...'
+                                    }
+                                    className="w-full rounded-xl border border-neutral-300 bg-white p-3 text-xs leading-relaxed focus:border-[#006565] focus:ring-1 focus:ring-[#006565] focus:outline-none dark:border-neutral-700 dark:bg-neutral-900"
+                                    required
+                                />
+                                <p className="text-[11px] text-neutral-500">
+                                    Tips: Baris yang diawali <code>1.</code>,{' '}
+                                    <code>2.</code> atau <code>a.</code>,{' '}
+                                    <code>b.</code> akan otomatis dirapikan saat
+                                    cetak PDF LHPD.
+                                </p>
+                            </div>
+
+                            <DialogFooter className="border-t pt-3">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setLhpdModalOpen(false)}
+                                    className="text-xs"
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSavingLhpd}
+                                    className="gap-1.5 bg-[#006565] text-xs font-extrabold text-white hover:bg-[#005252]"
+                                >
+                                    <Save className="size-3.5" />
+                                    {isSavingLhpd
+                                        ? 'Menyimpan...'
+                                        : 'Simpan LHPD'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
                     </DialogContent>
                 </Dialog>
             </div>

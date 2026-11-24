@@ -14,6 +14,7 @@ use App\Models\PphScore;
 use App\Models\ProducerCommodity;
 use App\Models\ProducerPrice;
 use App\Models\Skpg;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -33,8 +34,11 @@ class DashboardController extends Controller
     /**
      * Display the main administrator dashboard with 8 primary food security metrics.
      */
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if ($request->user()?->isSppdRole()) {
+            return redirect('/sppd-dalam-kota');
+        }
         $currentYear = (int) now()->year;
         $currentMonth = (int) now()->month;
         $todayStr = now()->format('Y-m-d');

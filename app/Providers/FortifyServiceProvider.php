@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -11,6 +12,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
+use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Contracts\TwoFactorLoginResponse;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 
@@ -21,7 +24,27 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $redirectResponse = new class implements LoginResponse, TwoFactorLoginResponse
+        {
+            public function toResponse($request)
+            {
+                /** @var User|null $user */
+                $user = $request->user();
+
+                if ($user && $user->isSppdRole()) {
+                    return $request->wantsJson()
+                        ? response()->json(['two_factor' => false])
+                        : redirect()->to('/sppd-dalam-kota');
+                }
+
+                return $request->wantsJson()
+                    ? response()->json(['two_factor' => false])
+                    : redirect()->intended(Fortify::redirects('login'));
+            }
+        };
+
+        $this->app->instance(LoginResponse::class, $redirectResponse);
+        $this->app->instance(TwoFactorLoginResponse::class, $redirectResponse);
     }
 
     /**

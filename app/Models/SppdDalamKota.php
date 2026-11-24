@@ -22,6 +22,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'pptk_id',
     'bendahara_id',
     'total_uang_saku',
+    'lhpd_type',
+    'lhpd_content',
+    'lhpd_table_data',
+    'lhpd_keterangan',
 ])]
 class SppdDalamKota extends Model
 {
@@ -31,6 +35,7 @@ class SppdDalamKota extends Model
             'tanggal_spt' => 'date:Y-m-d',
             'tanggal_berangkat' => 'date:Y-m-d',
             'total_uang_saku' => 'float',
+            'lhpd_table_data' => 'array',
         ];
     }
 

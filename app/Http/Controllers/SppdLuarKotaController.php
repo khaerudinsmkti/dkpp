@@ -246,6 +246,8 @@ class SppdLuarKotaController extends Controller
                     'total_uang_harian' => (float) $sppd->total_uang_harian,
                     'total_uang_transport' => (float) $sppd->total_uang_transport,
                     'total_biaya' => (float) $sppd->total_biaya,
+                    'lhpd_content' => $sppd->lhpd_content,
+                    'has_lhpd' => trim((string) ($sppd->lhpd_content ?? '')) !== '',
                     'participants' => $sppd->participants->map(fn (SppdLuarKotaParticipant $pt): array => [
                         'id' => $pt->id,
                         'pegawai_id' => $pt->pegawai_id,
@@ -712,7 +714,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => self::buildSptList($records),
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("SPT_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("SPT_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("SPT_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -731,7 +735,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => self::buildSptList(collect([$sppdLuarKota])),
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("SPT_Luar_Kota_{$safeTujuan}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("SPT_Luar_Kota_{$safeTujuan}.pdf")
+            : $pdf->stream("SPT_Luar_Kota_{$safeTujuan}.pdf");
     }
 
     /**
@@ -813,7 +819,9 @@ class SppdLuarKotaController extends Controller
             'kpaNip' => $kpaNip,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("SPTJB_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("SPTJB_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("SPTJB_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -937,7 +945,9 @@ class SppdLuarKotaController extends Controller
             'pptkNip' => $pptkNip,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("C2_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("C2_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("C2_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -1061,7 +1071,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => $sppdList,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("Rincian_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("Rincian_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("Rincian_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -1217,7 +1229,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => $sppdList,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("Kwitansi_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("Kwitansi_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("Kwitansi_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -1327,7 +1341,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => $sppdList,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("Kwitansi_2_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("Kwitansi_2_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("Kwitansi_2_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -1470,7 +1486,9 @@ class SppdLuarKotaController extends Controller
             'sppdList' => $sppdList,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("SPPD_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("SPPD_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("SPPD_Luar_Kota_{$safeBatch}.pdf");
     }
 
     /**
@@ -1560,6 +1578,146 @@ class SppdLuarKotaController extends Controller
             'kadinNip' => $kadinNip,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download("Rekap_Luar_Kota_{$safeBatch}.pdf");
+        return request()->boolean('download')
+            ? $pdf->download("Rekap_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("Rekap_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Simpan / perbarui isi LHPD (paragraf) untuk 1 SPPD Luar Kota.
+     */
+    public function updateLhpd(Request $request, SppdLuarKota $sppdLuarKota): RedirectResponse
+    {
+        $validated = $request->validate([
+            'lhpd_content' => ['required', 'string', 'max:10000'],
+        ], [
+            'lhpd_content.required' => 'Isi Laporan Hasil Perjalanan Dinas wajib diisi.',
+        ]);
+
+        $sppdLuarKota->update([
+            'lhpd_content' => trim($validated['lhpd_content']),
+        ]);
+
+        return back()->with('success', 'Laporan Hasil Perjalanan Dinas (LHPD) Luar Kota berhasil disimpan.');
+    }
+
+    /**
+     * Download PDF LHPD (Laporan Hasil Perjalanan Dinas) untuk 1 Batch SPPD Luar Kota.
+     */
+    public function downloadBatchLhpdPdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['participants'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd): array {
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            $participants = $sortedParticipants->map(fn (SppdLuarKotaParticipant $pt): array => [
+                'nama' => strtoupper($pt->nama),
+                'nip' => self::formatNipSpaced($pt->nip),
+            ])->values()->all();
+
+            $tujuanClean = rtrim(trim((string) $sppd->tujuan), ',. ');
+            $alamatClean = rtrim(trim((string) $sppd->alamat_lengkap), '. ');
+            $tempatTujuan = $alamatClean !== ''
+                ? "{$tujuanClean}, {$alamatClean}"
+                : $tujuanClean;
+
+            $perihalClean = rtrim(trim((string) $sppd->perihal), '.');
+            $lowerPerihal = strtolower($perihalClean);
+            if (
+                str_starts_with($lowerPerihal, 'menghadiri ') ||
+                str_starts_with($lowerPerihal, 'melaksanakan ') ||
+                str_starts_with($lowerPerihal, 'mengikuti ') ||
+                str_starts_with($lowerPerihal, 'melakukan ')
+            ) {
+                $maksudTujuan = ucfirst($perihalClean);
+            } else {
+                $maksudTujuan = 'Menghadiri '.$perihalClean;
+            }
+
+            return [
+                'tempat_tujuan' => $tempatTujuan,
+                'tanggal_berangkat_indo' => self::formatIndoDate($sppd->tanggal_berangkat),
+                'tanggal_kembali_indo' => self::formatIndoDate($sppd->tanggal_kembali),
+                'maksud_tujuan' => $maksudTujuan,
+                'lhpd_content' => $sppd->lhpd_content,
+                'participants' => $participants,
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.lhpd-luar-kota', [
+            'batchCode' => $batchCode,
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return request()->boolean('download')
+            ? $pdf->download("LHPD_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("LHPD_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Download PDF Lembar Bensin (Penempelan Struk BBM) untuk 1 Batch SPPD Luar Kota.
+     */
+    public function downloadBatchBensinPdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['kepalaDinas', 'pptk', 'bendahara'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        $defaultKadin = SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)->first();
+        $defaultPptk = SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)->first();
+        $defaultBendahara = SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)->first();
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd) use ($defaultKadin, $defaultPptk, $defaultBendahara): array {
+            $kadin = $sppd->kepalaDinas ?? $defaultKadin;
+            $pptk = $sppd->pptk ?? $defaultPptk;
+            $bendahara = $sppd->bendahara ?? $defaultBendahara;
+
+            return [
+                'tanggal_indo' => self::formatIndoDate($sppd->tanggal_kembali ?? $sppd->tanggal_berangkat),
+                'pptk_nama' => strtoupper($pptk?->nama ?? '-'),
+                'pptk_nip' => self::formatNipSpaced($pptk?->nip),
+                'bendahara_nama' => strtoupper($bendahara?->nama ?? '-'),
+                'bendahara_nip' => self::formatNipSpaced($bendahara?->nip),
+                'kadin_nama' => strtoupper($kadin?->nama ?? '-'),
+                'kadin_nip' => self::formatNipSpaced($kadin?->nip),
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.bensin-luar-kota', [
+            'batchCode' => $batchCode,
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return request()->boolean('download')
+            ? $pdf->download("Bensin_Luar_Kota_{$safeBatch}.pdf")
+            : $pdf->stream("Bensin_Luar_Kota_{$safeBatch}.pdf");
     }
 }

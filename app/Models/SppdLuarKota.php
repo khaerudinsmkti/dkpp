@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'total_uang_harian',
     'total_uang_transport',
     'total_biaya',
+    'lhpd_content',
 ])]
 class SppdLuarKota extends Model
 {
