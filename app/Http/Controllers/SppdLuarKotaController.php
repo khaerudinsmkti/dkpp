@@ -707,16 +707,19 @@ class SppdLuarKotaController extends Controller
         }
 
         $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+        $withBlokParaf = request()->boolean('paraf');
+        $filePrefix = $withBlokParaf ? 'SPT_Blok_Paraf_Luar_Kota' : 'SPT_Luar_Kota';
 
         $pdf = Pdf::loadView('pdf.spt-luar-kota', [
             'docTitle' => $batchCode,
             'logoBase64' => self::getLogoBase64(),
             'sppdList' => self::buildSptList($records),
+            'withBlokParaf' => $withBlokParaf,
         ])->setPaper('a4', 'portrait');
 
         return request()->boolean('download')
-            ? $pdf->download("SPT_Luar_Kota_{$safeBatch}.pdf")
-            : $pdf->stream("SPT_Luar_Kota_{$safeBatch}.pdf");
+            ? $pdf->download("{$filePrefix}_{$safeBatch}.pdf")
+            : $pdf->stream("{$filePrefix}_{$safeBatch}.pdf");
     }
 
     /**

@@ -1255,6 +1255,14 @@ export default function SppdDalamKotaIndex({
         openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/pdf`);
     };
 
+    const handleDownloadBatchSptParafPdf = (
+        batchCode: string,
+        e?: React.MouseEvent
+    ) => {
+        if (e) e.stopPropagation();
+        openPdfPreview(`/sppd-dalam-kota/batch/${encodeURIComponent(batchCode)}/pdf?paraf=1`);
+    };
+
     const handleDownloadBatchSptjbPdf = (
         batchCode: string,
         e?: React.MouseEvent
@@ -3662,6 +3670,25 @@ export default function SppdDalamKotaIndex({
 
                                                                                     <DropdownMenuItem
                                                                                         onClick={() =>
+                                                                                            handleDownloadBatchSptParafPdf(
+                                                                                                grp.batch_code
+                                                                                            )
+                                                                                        }
+                                                                                        className="flex items-start gap-2.5 rounded-lg px-2.5 py-2 cursor-pointer"
+                                                                                    >
+                                                                                        <FileText className="mt-0.5 size-4 shrink-0 text-sky-600" />
+                                                                                        <div>
+                                                                                            <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                                1b. SPT Blok Paraf (PDF)
+                                                                                            </div>
+                                                                                            <div className="text-[10px] text-neutral-500">
+                                                                                                Surat Tugas dengan kolom paraf ({grp.spt_count} lembar)
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </DropdownMenuItem>
+
+                                                                                    <DropdownMenuItem
+                                                                                        onClick={() =>
                                                                                             handleDownloadBatchSptjbPdf(
                                                                                                 grp.batch_code
                                                                                             )
@@ -3963,6 +3990,17 @@ export default function SppdDalamKotaIndex({
                                                                                                 >
                                                                                                     <FileText className="size-3.5 text-[#006565]" />
                                                                                                     <span>1. Cetak SPT ({grp.spt_count} Lembar PDF)</span>
+                                                                                                </DropdownMenuItem>
+                                                                                                <DropdownMenuItem
+                                                                                                    onClick={() =>
+                                                                                                        handleDownloadBatchSptParafPdf(
+                                                                                                            grp.batch_code
+                                                                                                        )
+                                                                                                    }
+                                                                                                    className="gap-2 text-xs font-semibold cursor-pointer"
+                                                                                                >
+                                                                                                    <FileText className="size-3.5 text-sky-600" />
+                                                                                                    <span>1b. SPT Blok Paraf ({grp.spt_count} Lembar PDF)</span>
                                                                                                 </DropdownMenuItem>
                                                                                                 <DropdownMenuItem
                                                                                                     onClick={() =>

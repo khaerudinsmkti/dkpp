@@ -688,12 +688,15 @@ HTML;
         })->values()->all();
 
         $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+        $withBlokParaf = $request->boolean('paraf');
+        $filePrefix = $withBlokParaf ? 'SPT_Blok_Paraf' : 'Surat_Tugas_SPT';
 
         return $this->renderDocumentResponse($request, 'pdf.spt-batch', [
             'batchCode' => $batchCode,
             'logoBase64' => $logoBase64,
             'sppdList' => $sppdList,
-        ], "Surat_Tugas_SPT_{$safeBatch}");
+            'withBlokParaf' => $withBlokParaf,
+        ], "{$filePrefix}_{$safeBatch}");
     }
 
     /**
