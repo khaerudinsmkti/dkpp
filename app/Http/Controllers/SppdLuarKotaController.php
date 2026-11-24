@@ -864,7 +864,7 @@ class SppdLuarKotaController extends Controller
 
         $namaKegiatan = $sk?->nama_kegiatan ?: 'Penyusunan Peta Kerentanan dan Ketahanan Pangan Kecamatan';
         $namaSubKegiatan = $sk?->sub_kegiatan ?: 'Penyusunan, Pemutakhiran dan Analisis Peta Ketahanan dan Kerentanan Pangan';
-        $noRekening = $sk?->no_rekening ?: '5.1.02.04.01.0001';
+        $noRekening = '5.1.02.04.01.0001';
         $tahunAnggaran = $dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y');
 
         $rows = [];
@@ -938,5 +938,538 @@ class SppdLuarKotaController extends Controller
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download("C2_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Format label golongan untuk Rincian Biaya Perjalanan Dinas Luar Kota:
+     * 1. Ese III/Gol IV
+     * 2. Ese IV/Gol III
+     * 3. Gol II/I/PPPK
+     *
+     * @return array{priority: int, label: string}
+     */
+    private static function resolveRincianGolonganGroup(?string $golongan, ?string $pangkat = null): array
+    {
+        $golNorm = SppdPegawai::normalizeGolonganGroup($golongan);
+
+        if ($golNorm === 'Golongan IV') {
+            return ['priority' => 1, 'label' => 'Ese III/Gol IV'];
+        }
+
+        if ($golNorm === 'Golongan III') {
+            return ['priority' => 2, 'label' => 'Ese IV/Gol III'];
+        }
+
+        return ['priority' => 3, 'label' => 'Gol II/I/PPPK'];
+    }
+
+    /**
+     * Download PDF Rincian Biaya Perjalanan Dinas untuk 1 Batch SPPD Luar Kota (1 halaman per SPPD).
+     */
+    public function downloadBatchRincianPdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['participants', 'bendahara'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        $defaultBendahara = SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)->first();
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd) use ($defaultBendahara): array {
+            $bendahara = $sppd->bendahara ?? $defaultBendahara;
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            /** @var SppdLuarKotaParticipant|null $firstParticipant */
+            $firstParticipant = $sortedParticipants->first();
+
+            $lamaHari = max(1, (int) ($sppd->lama_hari ?: 1));
+            $grouped = [];
+            $calculatedTotalHarian = 0.0;
+
+            foreach ($sortedParticipants as $pt) {
+                $golInfo = self::resolveRincianGolonganGroup($pt->golongan, $pt->pangkat);
+                $priority = $golInfo['priority'];
+                $label = $golInfo['label'];
+
+                // uang_harian pada petugas adalah tarif uang harian per hari (misal 430000 ke Bandung)
+                $dailyRate = (float) $pt->uang_harian;
+                $participantSubtotal = $lamaHari * $dailyRate;
+                $calculatedTotalHarian += $participantSubtotal;
+
+                $key = $priority.'|'.$label.'|'.$dailyRate;
+
+                if (! isset($grouped[$key])) {
+                    $grouped[$key] = [
+                        'priority' => $priority,
+                        'label' => $label,
+                        'count' => 0,
+                        'rate' => $dailyRate,
+                        'subtotal' => 0.0,
+                    ];
+                }
+
+                $grouped[$key]['count']++;
+                $grouped[$key]['subtotal'] += $participantSubtotal;
+            }
+
+            usort($grouped, fn (array $a, array $b) => $a['priority'] <=> $b['priority']);
+
+            $groupsFormatted = array_map(fn (array $g): array => [
+                'label' => $g['label'],
+                'count' => $g['count'],
+                'rate_formatted' => number_format($g['rate'], 0, ',', '.'),
+                'subtotal_formatted' => number_format($g['subtotal'], 0, ',', '.'),
+            ], $grouped);
+
+            $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
+            $tujuanKabKota = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+
+            $totalTransport = (float) $sppd->total_uang_transport;
+            $totalBiaya = $calculatedTotalHarian + $totalTransport;
+
+            return [
+                'nomor_spd' => '',
+                'tanggal_kembali_indo' => self::formatIndoDate($sppd->tanggal_kembali ?? $sppd->tanggal_berangkat),
+                'tujuan_kab_kota' => $tujuanKabKota,
+                'lama_hari' => $lamaHari,
+                'groups' => $groupsFormatted,
+                'total_transport_formatted' => $totalTransport > 0 ? number_format($totalTransport, 0, ',', '.') : '-',
+                'total_biaya_formatted' => number_format($totalBiaya, 0, ',', '.'),
+                'terbilang_text' => SppdDalamKotaController::formatTerbilangRupiah($totalBiaya),
+                'bendahara_nama' => strtoupper($bendahara?->nama ?? 'UFI NAJARUDIN LUTFI'),
+                'bendahara_nip' => self::formatNipSpaced($bendahara?->nip ?? '197401092009011003'),
+                'penerima_nama' => strtoupper($firstParticipant?->nama ?? '-'),
+                'penerima_nip' => self::formatNipSpaced($firstParticipant?->nip ?? ''),
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.rincian-luar-kota', [
+            'batchCode' => $batchCode,
+            'logoBase64' => self::getLogoBase64(),
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("Rincian_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Ubah angka lama hari (1..30) menjadi teks huruf kecil (contoh: 1 -> "satu", 2 -> "dua").
+     */
+    private static function formatHariTerbilang(int $hari): string
+    {
+        $map = [
+            1 => 'satu',
+            2 => 'dua',
+            3 => 'tiga',
+            4 => 'empat',
+            5 => 'lima',
+            6 => 'enam',
+            7 => 'tujuh',
+            8 => 'delapan',
+            9 => 'sembilan',
+            10 => 'sepuluh',
+            11 => 'sebelas',
+            12 => 'dua belas',
+            13 => 'tiga belas',
+            14 => 'empat belas',
+            15 => 'lima belas',
+        ];
+
+        return $map[$hari] ?? (string) $hari;
+    }
+
+    /**
+     * Download PDF Kwitansi (Tanda Terima Uang Harian Perjalanan Dinas Biasa) untuk 1 Batch SPPD Luar Kota.
+     */
+    public function downloadBatchKwitansiPdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas', 'pptk', 'bendahara'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        /** @var SppdLuarKota $first */
+        $first = $records->first();
+        $defaultKadin = SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)->first();
+        $defaultPptk = SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_PPTK)->first();
+        $defaultBendahara = SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)->first();
+        $defaultSub = SppdSubKegiatan::where('is_active', true)->first();
+
+        $sk = $first->subKegiatan ?? $defaultSub;
+
+        $kodeSubKegiatan = $sk?->kode_sub_kegiatan ?: '2.09.04.2.01.0001';
+        $noRekening = '5.1.02.04.01.0001';
+        $namaSubKegiatan = $sk?->sub_kegiatan
+            ?: 'Penyusunan, Pemutakhiran dan Analisis Peta Ketahanan dan Kerentanan Pangan';
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd) use ($defaultKadin, $defaultPptk, $defaultBendahara): array {
+            $kadin = $sppd->kepalaDinas ?? $defaultKadin;
+            $pptk = $sppd->pptk ?? $defaultPptk;
+            $bendahara = $sppd->bendahara ?? $defaultBendahara;
+
+            $lamaHari = max(1, (int) ($sppd->lama_hari ?: 1));
+
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            $totalUangHarian = 0.0;
+
+            $participants = $sortedParticipants->map(function (SppdLuarKotaParticipant $pt) use ($lamaHari, &$totalUangHarian): array {
+                $dailyRate = (float) $pt->uang_harian;
+                $ptTotalHarian = $lamaHari * $dailyRate;
+                $totalUangHarian += $ptTotalHarian;
+
+                $jabatanText = trim((string) $pt->jabatan);
+                if ($jabatanText !== '' && ! str_contains(strtolower($jabatanText), 'dkpp')) {
+                    $jabatanText .= ' Pada DKPP Kab. Indramayu';
+                }
+
+                return [
+                    'nama' => strtoupper($pt->nama),
+                    'nip' => self::formatNipSpaced($pt->nip),
+                    'pangkat_gol' => self::formatPangkatGolSlash($pt->pangkat, $pt->golongan),
+                    'jabatan' => $jabatanText ?: 'Pelaksana Pada DKPP Kab. Indramayu',
+                    'uang_harian_formatted' => number_format($ptTotalHarian, 0, ',', '.'),
+                ];
+            })->values()->all();
+
+            $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
+            $tujuanKabKota = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+
+            // Uraian kegiatan di bawah Sesuai dengan SPD No:
+            $pengirim = trim((string) $sppd->pengirim_surat);
+            $perihalClean = rtrim(trim((string) $sppd->perihal), '.');
+            $isTanpaSurat = self::isTanpaSuratText($pengirim);
+
+            if ($isTanpaSurat) {
+                $cleanedPerihal = preg_replace('/^menghadiri\s+/iu', '', $perihalClean);
+                $uraianBase = ucfirst(trim((string) $cleanedPerihal));
+            } else {
+                $lowerPerihal = strtolower($perihalClean);
+                if (
+                    str_starts_with($lowerPerihal, 'menghadiri ') ||
+                    str_starts_with($lowerPerihal, 'melaksanakan ') ||
+                    str_starts_with($lowerPerihal, 'mengikuti ') ||
+                    str_starts_with($lowerPerihal, 'melakukan ')
+                ) {
+                    $uraianBase = ucfirst($perihalClean);
+                } else {
+                    $uraianBase = 'Menghadiri '.$perihalClean;
+                }
+            }
+
+            if ($tujuanKabKota !== '' && stripos($uraianBase, 'di '.$tujuanKabKota) === false) {
+                $uraianKegiatan = $uraianBase.' di '.$tujuanKabKota;
+            } else {
+                $uraianKegiatan = $uraianBase;
+            }
+
+            return [
+                'lama_hari' => $lamaHari,
+                'lama_hari_terbilang' => self::formatHariTerbilang($lamaHari),
+                'tujuan_kab_kota' => $tujuanKabKota,
+                'tanggal_kembali_indo' => self::formatIndoDate($sppd->tanggal_kembali ?? $sppd->tanggal_berangkat),
+                'uraian_kegiatan' => $uraianKegiatan,
+                'total_formatted' => number_format($totalUangHarian, 0, ',', '.'),
+                'terbilang_text' => SppdDalamKotaController::formatTerbilangRupiah($totalUangHarian),
+                'participants' => $participants,
+                'kadin_nama' => strtoupper($kadin?->nama ?? 'RORY FIRMANSYAH, S.STP., M.Si'),
+                'kadin_nip' => self::formatNipSpaced($kadin?->nip ?? '197801011997031003'),
+                'pptk_nama' => strtoupper($pptk?->nama ?? 'DEDEH SUMIATI, S.IP'),
+                'pptk_nip' => self::formatNipSpaced($pptk?->nip ?? '197009192007012009'),
+                'bendahara_nama' => strtoupper($bendahara?->nama ?? 'UFI NAJARUDIN LUTFI'),
+                'bendahara_nip' => self::formatNipSpaced($bendahara?->nip ?? '197401092009011003'),
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.kwitansi-luar-kota', [
+            'batchCode' => $batchCode,
+            'kodeSubKegiatan' => $kodeSubKegiatan,
+            'noRekening' => $noRekening,
+            'namaSubKegiatan' => $namaSubKegiatan,
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("Kwitansi_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Download PDF Kwitansi 2 untuk 1 Batch SPPD Luar Kota (1 halaman per SPPD).
+     */
+    public function downloadBatchKwitansi2Pdf(string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['subKegiatan', 'dpa', 'participants', 'kepalaDinas', 'bendahara'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        /** @var SppdLuarKota $first */
+        $first = $records->first();
+        $defaultKadin = SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)->first();
+        $defaultBendahara = SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_BENDAHARA)->first();
+        $defaultDpa = SppdDpa::where('is_active', true)->orderByDesc('id')->first();
+
+        $dpa = $first->dpa ?? $defaultDpa;
+        $tahunAnggaran = $dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y');
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd) use ($defaultKadin, $defaultBendahara): array {
+            $kadin = $sppd->kepalaDinas ?? $defaultKadin;
+            $bendahara = $sppd->bendahara ?? $defaultBendahara;
+
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            /** @var SppdLuarKotaParticipant|null $firstParticipant */
+            $firstParticipant = $sortedParticipants->first();
+
+            $lamaHari = max(1, (int) ($sppd->lama_hari ?: 1));
+            $totalHarian = 0.0;
+            foreach ($sortedParticipants as $pt) {
+                $totalHarian += $lamaHari * (float) $pt->uang_harian;
+            }
+
+            $totalTransport = (float) $sppd->total_uang_transport;
+            $totalBiaya = $totalHarian + $totalTransport;
+
+            $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
+            $tujuanKabKota = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+
+            $pengirim = trim((string) $sppd->pengirim_surat);
+            $perihalClean = rtrim(trim((string) $sppd->perihal), '.');
+            $isTanpaSurat = self::isTanpaSuratText($pengirim);
+
+            if ($isTanpaSurat) {
+                $cleanedPerihal = preg_replace('/^menghadiri\s+/iu', '', $perihalClean);
+                $uraianBase = trim((string) $cleanedPerihal);
+            } else {
+                $lowerPerihal = strtolower($perihalClean);
+                if (
+                    str_starts_with($lowerPerihal, 'menghadiri ') ||
+                    str_starts_with($lowerPerihal, 'melaksanakan ') ||
+                    str_starts_with($lowerPerihal, 'mengikuti ') ||
+                    str_starts_with($lowerPerihal, 'melakukan ')
+                ) {
+                    $uraianBase = lcfirst($perihalClean);
+                } else {
+                    $uraianBase = 'menghadiri '.$perihalClean;
+                }
+            }
+
+            if ($tujuanKabKota !== '' && stripos($uraianBase, 'di '.$tujuanKabKota) === false) {
+                $untukUraian = $uraianBase.' di '.$tujuanKabKota;
+            } else {
+                $untukUraian = $uraianBase;
+            }
+
+            $terbilangTitle = ucwords(strtolower(SppdDalamKotaController::formatTerbilangRupiah($totalBiaya)));
+
+            return [
+                'tanggal_kembali_indo' => self::formatIndoDate($sppd->tanggal_kembali ?? $sppd->tanggal_berangkat),
+                'untuk_uraian' => $untukUraian,
+                'total_harian_formatted' => number_format($totalHarian, 0, ',', '.'),
+                'has_transport' => $totalTransport > 0,
+                'total_transport_formatted' => $totalTransport > 0 ? number_format($totalTransport, 0, ',', '.') : '-',
+                'total_biaya_formatted' => number_format($totalBiaya, 0, ',', '.'),
+                'terbilang_title' => $terbilangTitle,
+                'penerima_nama' => strtoupper($firstParticipant?->nama ?? '-'),
+                'penerima_nip' => self::formatNipSpaced($firstParticipant?->nip ?? ''),
+                'kadin_nama' => strtoupper($kadin?->nama ?? 'RORY FIRMANSYAH, S.STP., M.Si'),
+                'kadin_nip' => self::formatNipSpaced($kadin?->nip ?? '197801011997031003'),
+                'bendahara_nama' => strtoupper($bendahara?->nama ?? 'UFI NAJARUDIN LUTFI'),
+                'bendahara_nip' => self::formatNipSpaced($bendahara?->nip ?? '197401092009011003'),
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.kwitansi2-luar-kota', [
+            'batchCode' => $batchCode,
+            'logoBase64' => self::getLogoBase64(),
+            'tahunAnggaran' => $tahunAnggaran,
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("Kwitansi_2_Luar_Kota_{$safeBatch}.pdf");
+    }
+
+    /**
+     * Download PDF SPPD (Surat Perjalanan Dinas / SPD) untuk 1 Batch SPPD Luar Kota (1 halaman per SPPD).
+     */
+    public function downloadBatchSppdPdf(Request $request, string $batchCode): SymfonyResponse
+    {
+        $records = SppdLuarKota::with(['subKegiatan', 'dpa', 'participants.pegawai', 'kepalaDinas'])
+            ->where('batch_code', $batchCode)
+            ->orderBy('tanggal_berangkat')
+            ->orderBy('id')
+            ->get();
+
+        if ($records->isEmpty()) {
+            abort(404, 'Data Batch SPPD Luar Kota tidak ditemukan.');
+        }
+
+        $allowedAlatAngkut = [
+            'Kendaraan Umum',
+            'Kendaraan Dinas Ketahanan Pangan dan Pertanian',
+        ];
+        $requestedAlatAngkut = trim((string) $request->query('alat_angkut', 'Kendaraan Umum'));
+        $alatAngkut = in_array($requestedAlatAngkut, $allowedAlatAngkut, true)
+            ? $requestedAlatAngkut
+            : 'Kendaraan Umum';
+
+        $defaultKadin = SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+            ->where('is_active', true)
+            ->first() ?? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)->first();
+
+        $sppdList = $records->map(function (SppdLuarKota $sppd) use ($defaultKadin): array {
+            $kadin = $sppd->kepalaDinas ?? $defaultKadin;
+
+            $sortedParticipants = $sppd->participants->sortBy([
+                ['urutan', 'asc'],
+                ['id', 'asc'],
+            ])->values();
+
+            /** @var SppdLuarKotaParticipant|null $leader */
+            $leader = $sortedParticipants->first();
+
+            // Jika pegawai pertama jabatannya mengandung kata "Kepala Bidang" -> Tingkat C, selain itu -> Tingkat D
+            $isLeaderKepalaBidang = stripos((string) ($leader?->jabatan ?? ''), 'kepala bidang') !== false;
+            $tingkatBiaya = $isLeaderKepalaBidang ? 'Tingkat C' : 'Tingkat D';
+
+            $leaderPangkat = trim((string) ($leader?->pangkat ?? ''));
+            $leaderGol = trim((string) ($leader?->golongan ?? ''));
+            $leaderPangkatGol = $leaderPangkat !== '' && $leaderGol !== ''
+                ? "{$leaderPangkat} - {$leaderGol}"
+                : ($leaderPangkat !== '' ? $leaderPangkat : ($leaderGol !== '' ? $leaderGol : '-'));
+
+            $leaderJabatan = trim((string) ($leader?->jabatan ?? ''));
+            if ($leaderJabatan !== '' && ! str_contains(strtolower($leaderJabatan), 'dkpp')) {
+                $leaderJabatan .= ' Pada DKPP Kab. Indramayu';
+            }
+
+            $followers = $sortedParticipants->slice(1)->map(function (SppdLuarKotaParticipant $pt): array {
+                $tglLahirRaw = $pt->pegawai?->tanggal_lahir
+                    ? Carbon::parse($pt->pegawai->tanggal_lahir)->format('Y-m-d')
+                    : SppdPegawai::extractBirthDateFromNip($pt->nip);
+
+                return [
+                    'nama' => strtoupper($pt->nama),
+                    'tanggal_lahir_indo' => $tglLahirRaw ? self::formatIndoDate($tglLahirRaw) : '-',
+                ];
+            })->values()->all();
+
+            // Maksud Perjalanan Dinas
+            $pengirim = trim((string) $sppd->pengirim_surat);
+            $perihalClean = rtrim(trim((string) $sppd->perihal), '.');
+            $isTanpaSurat = self::isTanpaSuratText($pengirim);
+
+            if ($isTanpaSurat) {
+                $cleanedPerihal = preg_replace('/^menghadiri\s+/iu', '', $perihalClean);
+                $maksudPerjalanan = ucfirst(trim((string) $cleanedPerihal));
+            } else {
+                $lowerPerihal = strtolower($perihalClean);
+                if (
+                    str_starts_with($lowerPerihal, 'menghadiri ') ||
+                    str_starts_with($lowerPerihal, 'melaksanakan ') ||
+                    str_starts_with($lowerPerihal, 'mengikuti ') ||
+                    str_starts_with($lowerPerihal, 'melakukan ')
+                ) {
+                    $maksudPerjalanan = ucfirst($perihalClean);
+                } else {
+                    $maksudPerjalanan = 'Menghadiri '.$perihalClean;
+                }
+            }
+
+            // Tempat tujuan lengkap: tujuan, alamat_lengkap, kab_kota (tanpa duplikasi)
+            $tujuanClean = rtrim(trim((string) $sppd->tujuan), ',. ');
+            $alamatClean = rtrim(trim((string) $sppd->alamat_lengkap), ',. ');
+            $kabKotaClean = rtrim(trim((string) ($sppd->kab_kota ?? '')), ',. ');
+
+            $tempatParts = array_values(array_filter(
+                [$tujuanClean, $alamatClean],
+                fn (string $p) => $p !== ''
+            ));
+            if (
+                $kabKotaClean !== '' &&
+                stripos($tujuanClean, $kabKotaClean) === false &&
+                stripos($alamatClean, $kabKotaClean) === false
+            ) {
+                $tempatParts[] = $kabKotaClean;
+            }
+            $tempatTujuanDisplay = implode(', ', $tempatParts);
+
+            $lamaHari = max(1, (int) ($sppd->lama_hari ?: 1));
+
+            $kadinPangkatGol = trim(implode(' - ', array_filter([
+                trim((string) ($kadin?->pangkat ?? 'Pembina Utama Muda')),
+                trim((string) ($kadin?->golongan ?? 'IV/c')),
+            ])));
+
+            return [
+                'leader_nama' => strtoupper($leader?->nama ?? '-'),
+                'leader_nip' => self::formatNipSpaced($leader?->nip ?? ''),
+                'leader_pangkat_gol' => $leaderPangkatGol,
+                'leader_jabatan' => $leaderJabatan ?: 'Pelaksana Pada DKPP Kab. Indramayu',
+                'tingkat_biaya' => $tingkatBiaya,
+                'maksud_perjalanan' => $maksudPerjalanan,
+                'tempat_tujuan_display' => $tempatTujuanDisplay,
+                'lama_hari' => $lamaHari,
+                'lama_hari_terbilang' => self::formatHariTerbilang($lamaHari),
+                'tanggal_berangkat_indo' => self::formatIndoDate($sppd->tanggal_berangkat),
+                'tanggal_kembali_indo' => self::formatIndoDate($sppd->tanggal_kembali ?? $sppd->tanggal_berangkat),
+                'followers' => $followers,
+                'kadin_nama' => strtoupper($kadin?->nama ?? 'RORY FIRMANSYAH, S.STP., M.Si'),
+                'kadin_pangkat_gol' => $kadinPangkatGol,
+                'kadin_nip' => self::formatNipSpaced($kadin?->nip ?? '197801011997031003'),
+            ];
+        })->values()->all();
+
+        $safeBatch = preg_replace('/[^A-Za-z0-9\-_]/', '_', $batchCode);
+
+        $pdf = Pdf::loadView('pdf.sppd-luar-kota', [
+            'batchCode' => $batchCode,
+            'logoBase64' => self::getLogoBase64(),
+            'alatAngkut' => $alatAngkut,
+            'sppdList' => $sppdList,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download("SPPD_Luar_Kota_{$safeBatch}.pdf");
     }
 }

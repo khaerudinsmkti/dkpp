@@ -321,6 +321,26 @@ export default function SppdLuarKotaIndex({
     );
     const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+    // Modal pilih jenis kendaraan untuk Download PDF SPPD
+    const [sppdVehicleModalOpen, setSppdVehicleModalOpen] = useState(false);
+    const [sppdVehicleBatchCode, setSppdVehicleBatchCode] = useState('');
+    const [selectedVehicleType, setSelectedVehicleType] = useState<string>(
+        'Kendaraan Umum'
+    );
+
+    const handleOpenSppdVehicleModal = (batchCode: string) => {
+        setSppdVehicleBatchCode(batchCode);
+        setSelectedVehicleType('Kendaraan Umum');
+        setSppdVehicleModalOpen(true);
+    };
+
+    const handleConfirmDownloadSppdPdf = () => {
+        if (!sppdVehicleBatchCode) return;
+        const url = `/sppd-luar-kota/batch/${encodeURIComponent(sppdVehicleBatchCode)}/sppd-pdf?alat_angkut=${encodeURIComponent(selectedVehicleType)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setSppdVehicleModalOpen(false);
+    };
+
     const activeSubKegiatanObj = useMemo(
         () =>
             subKegiatans.find(
@@ -1973,6 +1993,103 @@ export default function SppdLuarKotaIndex({
                                                                                 </div>
                                                                             </a>
                                                                         </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/rincian-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <FileText className="mt-0.5 size-4 shrink-0 text-sky-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        4. Rincian (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Rincian Biaya Perjalanan Dinas (
+                                                                                        {
+                                                                                            grp.spt_count
+                                                                                        }{' '}
+                                                                                        lembar)
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/kwitansi-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <Wallet className="mt-0.5 size-4 shrink-0 text-purple-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        5. Kwitansi (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Tanda Terima Uang Harian (
+                                                                                        {
+                                                                                            grp.spt_count
+                                                                                        }{' '}
+                                                                                        lembar)
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            asChild
+                                                                        >
+                                                                            <a
+                                                                                href={`/sppd-luar-kota/batch/${encodeURIComponent(grp.batch_code)}/kwitansi-2-pdf`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                                className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                            >
+                                                                                <Wallet className="mt-0.5 size-4 shrink-0 text-rose-600" />
+                                                                                <div className="min-w-0">
+                                                                                    <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                        6. Kwitansi 2 (PDF)
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-neutral-500">
+                                                                                        Kuitansi Biaya Perjalanan Dinas (
+                                                                                        {
+                                                                                            grp.spt_count
+                                                                                        }{' '}
+                                                                                        lembar)
+                                                                                    </div>
+                                                                                </div>
+                                                                            </a>
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            onSelect={(
+                                                                                e
+                                                                            ) => {
+                                                                                e.preventDefault();
+                                                                                handleOpenSppdVehicleModal(
+                                                                                    grp.batch_code
+                                                                                );
+                                                                            }}
+                                                                            className="flex cursor-pointer items-start gap-2.5 py-2"
+                                                                        >
+                                                                            <FileText className="mt-0.5 size-4 shrink-0 text-indigo-600" />
+                                                                            <div className="min-w-0">
+                                                                                <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                                                                    7. SPPD (PDF)
+                                                                                </div>
+                                                                                <div className="text-[10px] text-neutral-500">
+                                                                                    Surat Perjalanan Dinas / SPD (
+                                                                                    {
+                                                                                        grp.spt_count
+                                                                                    }{' '}
+                                                                                    lembar)
+                                                                                </div>
+                                                                            </div>
+                                                                        </DropdownMenuItem>
                                                                     </DropdownMenuContent>
                                                                 </DropdownMenu>
                                                                 <Button
@@ -2654,6 +2771,77 @@ export default function SppdLuarKotaIndex({
                                 </Button>
                             </DialogFooter>
                         </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* MODAL PILIH JENIS KENDARAAN UNTUK DOWNLOAD PDF SPPD */}
+                <Dialog
+                    open={sppdVehicleModalOpen}
+                    onOpenChange={setSppdVehicleModalOpen}
+                >
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="text-base font-extrabold text-[#006565]">
+                                Pilih Jenis Kendaraan (SPPD)
+                            </DialogTitle>
+                            <DialogDescription className="text-xs">
+                                Pilih alat angkut yang digunakan untuk Batch{' '}
+                                <span className="font-mono font-bold text-neutral-800 dark:text-neutral-200">
+                                    {sppdVehicleBatchCode}
+                                </span>{' '}
+                                sebelum mengunduh PDF SPPD.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-2.5 py-2">
+                            {[
+                                'Kendaraan Umum',
+                                'Kendaraan Dinas Ketahanan Pangan dan Pertanian',
+                            ].map((option) => {
+                                const isSelected =
+                                    selectedVehicleType === option;
+                                return (
+                                    <label
+                                        key={option}
+                                        className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-xs font-semibold transition-colors ${
+                                            isSelected
+                                                ? 'border-[#006565] bg-teal-50/70 text-[#006565] dark:bg-teal-950/40 dark:text-teal-300'
+                                                : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300'
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="sppd_vehicle_type"
+                                            value={option}
+                                            checked={isSelected}
+                                            onChange={() =>
+                                                setSelectedVehicleType(option)
+                                            }
+                                            className="size-4 accent-[#006565]"
+                                        />
+                                        <span>{option}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+
+                        <DialogFooter className="gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setSppdVehicleModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={handleConfirmDownloadSppdPdf}
+                                className="gap-1.5 bg-[#006565] text-white hover:bg-[#005252]"
+                            >
+                                <Download className="size-3.5" />
+                                Download PDF SPPD
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>
