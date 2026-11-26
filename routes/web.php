@@ -19,6 +19,7 @@ use App\Http\Controllers\ProducerPriceController;
 use App\Http\Controllers\SkpgController;
 use App\Http\Controllers\SppdDalamKotaController;
 use App\Http\Controllers\SppdLuarKotaController;
+use App\Http\Controllers\SuratTugasController;
 use App\Http\Controllers\UserRoleController;
 use App\Models\Commodity;
 use App\Models\ConsumerPrice;
@@ -514,6 +515,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/users-roles/roles/{role}', [UserRoleController::class, 'updateRole'])->name('users-roles.roles.update');
     Route::put('/users-roles/roles/{role}/matrix', [UserRoleController::class, 'updateMatrix'])->name('users-roles.roles.matrix');
     Route::delete('/users-roles/roles/{role}', [UserRoleController::class, 'destroyRole'])->name('users-roles.roles.destroy');
+
+    // Modul Surat Tugas Mandiri (SPPD)
+    Route::get('/surat-tugas', [SuratTugasController::class, 'index'])->name('surat-tugas.index');
+    Route::post('/surat-tugas', [SuratTugasController::class, 'store'])->name('surat-tugas.store');
+    Route::post('/surat-tugas/{suratTugas}', [SuratTugasController::class, 'update'])->name('surat-tugas.update');
+    Route::delete('/surat-tugas/{suratTugas}', [SuratTugasController::class, 'destroy'])->name('surat-tugas.destroy');
+    Route::get('/surat-tugas/{suratTugas}/pdf', [SuratTugasController::class, 'downloadPdf'])->name('surat-tugas.pdf');
 
     // Modul SPPD Dalam Kota & 7 Master Data Perjalanan Dinas
     Route::get('/sppd-dalam-kota', [SppdDalamKotaController::class, 'index'])->name('sppd-dalam-kota.index');

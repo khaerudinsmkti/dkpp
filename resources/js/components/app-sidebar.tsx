@@ -6,6 +6,7 @@ import {
     Coins,
     Compass,
     FileSpreadsheet,
+    FileText,
     FolderKanban,
     LayoutGrid,
     Layers,
@@ -181,6 +182,12 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
     {
         title: 'SPPD & Perjalanan Dinas',
         items: [
+            {
+                title: 'Surat Tugas',
+                href: '/surat-tugas',
+                icon: FileText,
+                moduleKey: 'sppd_dalam_kota',
+            },
             {
                 title: 'SPPD Dalam Kota',
                 href: '/sppd-dalam-kota',
