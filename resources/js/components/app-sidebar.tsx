@@ -16,6 +16,7 @@ import {
     MapPin,
     Package,
     PieChart,
+    Receipt,
     Scale,
     ShieldAlert,
     ShieldCheck,
@@ -203,6 +204,12 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
                 title: 'SPPD Luar Kota',
                 href: '/sppd-luar-kota',
                 icon: Compass,
+                moduleKey: 'sppd_dalam_kota',
+            },
+            {
+                title: 'Nota Pencairan Dana (NPD)',
+                href: '/npd',
+                icon: Receipt,
                 moduleKey: 'sppd_dalam_kota',
             },
             {

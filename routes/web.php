@@ -595,6 +595,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'update'])->name('sppd-luar-kota.sppd.update');
     Route::delete('/sppd-luar-kota/sppd/{sppdLuarKota}', [SppdLuarKotaController::class, 'destroy'])->name('sppd-luar-kota.sppd.destroy');
     Route::delete('/sppd-luar-kota/batch/{batchCode}', [SppdLuarKotaController::class, 'destroyBatch'])->name('sppd-luar-kota.batch.destroy');
+
+    // Modul Nota Pencairan Dana (NPD)
+    Route::get('/npd', [\App\Http\Controllers\NpdController::class, 'index'])->name('npd.index');
+    Route::post('/npd', [\App\Http\Controllers\NpdController::class, 'store'])->name('npd.store');
+    Route::get('/npd/{npd}/pdf', [\App\Http\Controllers\NpdController::class, 'downloadPdf'])->name('npd.pdf');
+    Route::delete('/npd/{npd}', [\App\Http\Controllers\NpdController::class, 'destroy'])->name('npd.destroy');
+    Route::post('/npd/rekening', [\App\Http\Controllers\NpdController::class, 'storeRekening'])->name('npd.rekening.store');
+    Route::post('/npd/rekening/parse-sipd-pdf', [\App\Http\Controllers\NpdController::class, 'parseSipdPdf'])->name('npd.rekening.parse-sipd-pdf');
+    Route::put('/npd/rekening/{npdRekening}', [\App\Http\Controllers\NpdController::class, 'updateRekening'])->name('npd.rekening.update');
+    Route::delete('/npd/rekening/{npdRekening}', [\App\Http\Controllers\NpdController::class, 'destroyRekening'])->name('npd.rekening.destroy');
 });
 
 require __DIR__.'/settings.php';
