@@ -16,6 +16,7 @@ use App\Http\Controllers\PphScoreDetailController;
 use App\Http\Controllers\ProducerCommodityController;
 use App\Http\Controllers\ProducerHapController;
 use App\Http\Controllers\ProducerPriceController;
+use App\Http\Controllers\RealisasiAnggaranController;
 use App\Http\Controllers\SkpgController;
 use App\Http\Controllers\SppdDalamKotaController;
 use App\Http\Controllers\SppdLuarKotaController;
@@ -515,6 +516,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/users-roles/roles/{role}', [UserRoleController::class, 'updateRole'])->name('users-roles.roles.update');
     Route::put('/users-roles/roles/{role}/matrix', [UserRoleController::class, 'updateMatrix'])->name('users-roles.roles.matrix');
     Route::delete('/users-roles/roles/{role}', [UserRoleController::class, 'destroyRole'])->name('users-roles.roles.destroy');
+
+    // Modul Realisasi Anggaran per Sub Kegiatan (Upload RKA SIPD + Matriks Bulanan + Dashboard Atasan)
+    Route::get('/realisasi-anggaran', [RealisasiAnggaranController::class, 'index'])->name('realisasi-anggaran.index');
+    Route::post('/realisasi-anggaran/parse-rka', [RealisasiAnggaranController::class, 'parseRkaPdf'])->name('realisasi-anggaran.parse-rka');
+    Route::post('/realisasi-anggaran/sub-kegiatan', [RealisasiAnggaranController::class, 'storeSubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.store');
+    Route::post('/realisasi-anggaran/sub-kegiatan/{subKegiatan}', [RealisasiAnggaranController::class, 'updateSubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.update');
+    Route::post('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/keterangan', [RealisasiAnggaranController::class, 'updateKeterangan'])->name('realisasi-anggaran.sub-kegiatan.keterangan');
+    Route::post('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/akb', [RealisasiAnggaranController::class, 'saveAkb'])->name('realisasi-anggaran.akb.save');
+    Route::post('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/matrix', [RealisasiAnggaranController::class, 'saveMatrix'])->name('realisasi-anggaran.matrix.save');
+    Route::post('/realisasi-anggaran/pergeseran/manual', [RealisasiAnggaranController::class, 'storePergeseranManual'])->name('realisasi-anggaran.pergeseran.manual');
+    Route::post('/realisasi-anggaran/pergeseran/pdf', [RealisasiAnggaranController::class, 'storePergeseranPdf'])->name('realisasi-anggaran.pergeseran.pdf');
+    Route::delete('/realisasi-anggaran/pergeseran/{pergeseran}', [RealisasiAnggaranController::class, 'destroyPergeseran'])->name('realisasi-anggaran.pergeseran.destroy');
+    Route::delete('/realisasi-anggaran/sub-kegiatan/{subKegiatan}', [RealisasiAnggaranController::class, 'destroySubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.destroy');
+    Route::get('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/pdf', [RealisasiAnggaranController::class, 'downloadPdf'])->name('realisasi-anggaran.pdf');
+    Route::get('/realisasi-anggaran/program-kegiatan/pdf', [RealisasiAnggaranController::class, 'downloadProgramKegiatanPdf'])->name('realisasi-anggaran.program-kegiatan.pdf');
 
     // Modul Surat Tugas Mandiri (SPPD)
     Route::get('/surat-tugas', [SuratTugasController::class, 'index'])->name('surat-tugas.index');

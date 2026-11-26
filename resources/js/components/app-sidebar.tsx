@@ -1,8 +1,11 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Apple,
+    ArrowLeftRight,
     Award,
+    BarChart3,
     Briefcase,
+    CalendarClock,
     Coins,
     Compass,
     FileSpreadsheet,
@@ -17,7 +20,9 @@ import {
     ShieldAlert,
     ShieldCheck,
     Store,
+    Table2,
     TrendingUp,
+    Upload,
     UserCheck,
     Users,
     Wheat,
@@ -201,6 +206,44 @@ const rawNavGroups: PermissionAwareNavGroup[] = [
                 moduleKey: 'sppd_dalam_kota',
             },
             {
+                title: 'Realisasi Anggaran',
+                href: '#',
+                icon: Coins,
+                moduleKey: 'sppd_dalam_kota',
+                items: [
+                    {
+                        title: 'Dashboard Monitoring',
+                        href: '/realisasi-anggaran?tab=dashboard',
+                        icon: BarChart3,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Input AKB (Anggaran Kas)',
+                        href: '/realisasi-anggaran?tab=akb',
+                        icon: CalendarClock,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Input Realisasi Bulanan',
+                        href: '/realisasi-anggaran?tab=matrix',
+                        icon: Table2,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Pergeseran / RKA Perubahan',
+                        href: '/realisasi-anggaran?tab=pergeseran',
+                        icon: ArrowLeftRight,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                    {
+                        title: 'Upload / Kelola Data RKA',
+                        href: '/realisasi-anggaran?tab=upload',
+                        icon: Upload,
+                        moduleKey: 'sppd_dalam_kota',
+                    },
+                ],
+            },
+            {
                 title: 'Master Data SPPD',
                 href: '#',
                 icon: Layers,
@@ -302,6 +345,26 @@ export function AppSidebar() {
                       })
                       .map(resolveSppdActive)
                 : undefined;
+
+            if (
+                typeof item.href === 'string' &&
+                item.href.startsWith('/realisasi-anggaran')
+            ) {
+                const itemUrl = new URL(item.href, 'http://localhost');
+                const itemTab = itemUrl.searchParams.get('tab');
+                const isMatch =
+                    currentPath === '/realisasi-anggaran' &&
+                    (itemTab
+                        ? currentTab === itemTab ||
+                          (!currentTab && itemTab === 'dashboard')
+                        : !currentTab || currentTab === 'dashboard');
+
+                return {
+                    ...item,
+                    isActive: isMatch,
+                    items: mappedChildren,
+                };
+            }
 
             if (
                 typeof item.href === 'string' &&
