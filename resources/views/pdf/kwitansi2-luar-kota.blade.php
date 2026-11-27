@@ -10,7 +10,7 @@
         }
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 11pt;
+            font-size: 11.5pt;
             color: #000000;
             line-height: 1.38;
             margin: 0;
@@ -54,7 +54,7 @@
             line-height: 1.15;
         }
         .kop-alamat {
-            font-size: 8.8pt;
+            font-size: 9.5pt;
             font-weight: normal;
             margin: 0;
             line-height: 1.22;
@@ -69,8 +69,8 @@
         .header-row-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 34px;
-            font-size: 11pt;
+            margin-bottom: 30px;
+            font-size: 11.5pt;
         }
         .header-row-table td {
             vertical-align: top;
@@ -85,7 +85,7 @@
         .content-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11pt;
+            font-size: 11.5pt;
         }
         .content-table td {
             vertical-align: top;
@@ -93,7 +93,7 @@
             line-height: 1.4;
         }
         .c-label {
-            width: 126px;
+            width: 136px;
             white-space: nowrap;
         }
         .c-colon {
@@ -103,7 +103,7 @@
         .rincian-inner-table {
             border-collapse: collapse;
             margin-top: 2px;
-            font-size: 11pt;
+            font-size: 11.5pt;
         }
         .rincian-inner-table td {
             padding: 2px 0;
@@ -111,7 +111,7 @@
             line-height: 1.4;
         }
         .ri-label {
-            width: 265px;
+            width: 275px;
             white-space: nowrap;
         }
         .ri-colon {
@@ -123,7 +123,7 @@
             white-space: nowrap;
         }
         .ri-amount {
-            width: 78px;
+            width: 82px;
             text-align: right;
             white-space: nowrap;
         }
@@ -137,7 +137,7 @@
         .ttd-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11pt;
+            font-size: 11.5pt;
         }
         .ttd-table td {
             vertical-align: top;

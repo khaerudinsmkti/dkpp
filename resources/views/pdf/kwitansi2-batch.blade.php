@@ -10,9 +10,9 @@
         }
         body {
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 9.5pt;
+            font-size: 11.5pt;
             color: #000000;
-            line-height: 1.35;
+            line-height: 1.38;
             margin: 0;
             padding: 0;
         }
@@ -54,7 +54,7 @@
             line-height: 1.15;
         }
         .kop-alamat {
-            font-size: 8.8pt;
+            font-size: 9.5pt;
             font-weight: normal;
             margin: 0;
             line-height: 1.22;
@@ -69,8 +69,8 @@
         .header-row-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 34px;
-            font-size: 9.5pt;
+            margin-bottom: 30px;
+            font-size: 11.5pt;
         }
         .header-row-table td {
             vertical-align: top;
@@ -78,22 +78,22 @@
         }
         .hr-right {
             text-align: right;
-            padding-right: 18px;
+            padding-right: 12px;
         }
 
         /* ISI KUITANSI */
         .content-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9.5pt;
+            font-size: 11.5pt;
         }
         .content-table td {
             vertical-align: top;
-            padding: 1.5px 0;
-            line-height: 1.38;
+            padding: 2px 0;
+            line-height: 1.4;
         }
         .c-label {
-            width: 112px;
+            width: 136px;
             white-space: nowrap;
         }
         .c-colon {
@@ -103,15 +103,15 @@
         .rincian-inner-table {
             border-collapse: collapse;
             margin-top: 2px;
-            font-size: 9.5pt;
+            font-size: 11.5pt;
         }
         .rincian-inner-table td {
-            padding: 1.5px 0;
+            padding: 2px 0;
             vertical-align: top;
-            line-height: 1.38;
+            line-height: 1.4;
         }
         .ri-label {
-            width: 225px;
+            width: 275px;
             white-space: nowrap;
         }
         .ri-colon {
@@ -128,7 +128,7 @@
         .ttd-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 9.5pt;
+            font-size: 11.5pt;
         }
         .ttd-table td {
             vertical-align: top;
