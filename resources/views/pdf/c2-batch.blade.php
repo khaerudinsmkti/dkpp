@@ -236,7 +236,7 @@
                     <td class="c-tanggal">{{ $row['tanggal_berangkat_indo'] }}</td>
                     <td class="c-tujuan">
                         <div class="tujuan-line">Uang Harian Belanja Perjalanan Dinas Dalam Kota Dibayar (1 Hari x Rp. {{ $row['uang_saku_formatted'] }},- = Rp. {{ $row['uang_saku_formatted'] }},-)</div>
-                        <div>Melaksanakan {{ $row['tujuan'] }} Kecamatan {{ $row['nama_kecamatan'] }} Tahun Anggaran {{ $tahunAnggaran }}</div>
+                        <div>{{ $row['tujuan_kalimat'] }}</div>
                     </td>
                     <td class="c-uang">{{ $row['uang_saku_formatted'] }}</td>
                     <td class="c-transpot"></td>

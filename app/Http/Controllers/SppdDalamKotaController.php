@@ -816,10 +816,29 @@ HTML;
         $noRekening = $sk?->no_rekening ?: '5.1.02.04.01.0003';
         $tahunAnggaran = $dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y');
 
+        $tahunSaatIni = (int) date('Y');
         $rows = [];
         foreach ($records as $sppd) {
             $tglIndo = self::formatIndoDate($sppd->tanggal_berangkat);
-            $rawTujuan = trim($sppd->tujuan);
+            $rawTujuan = trim((string) preg_replace('/^melaksanakan\s+/i', '', trim((string) $sppd->tujuan)));
+            $rawTujuan = rtrim($rawTujuan, '. ');
+            $rawDesa = trim((string) ($sppd->nama_desa ?? ''));
+            $rawKec = trim((string) ($sppd->nama_kecamatan ?? ''));
+
+            $lokasiParts = [];
+            if ($rawDesa !== '') {
+                $lokasiParts[] = $rawDesa;
+            }
+            if ($rawKec !== '') {
+                $lokasiParts[] = str_starts_with(strtolower($rawKec), 'kecamatan')
+                    ? $rawKec
+                    : 'Kecamatan '.$rawKec;
+            }
+            $lokasiText = implode(' ', $lokasiParts);
+
+            $tujuanKalimat = $lokasiText !== ''
+                ? "Melaksanakan {$rawTujuan} di {$lokasiText} Tahun Anggaran {$tahunSaatIni}"
+                : "Melaksanakan {$rawTujuan} Tahun Anggaran {$tahunSaatIni}";
 
             foreach ($sppd->participants as $pt) {
                 $uangSaku = (float) $pt->uang_saku;
@@ -830,6 +849,7 @@ HTML;
                     'tanggal_berangkat_indo' => $tglIndo,
                     'tujuan' => $rawTujuan,
                     'nama_kecamatan' => $sppd->nama_kecamatan,
+                    'tujuan_kalimat' => $tujuanKalimat,
                     'uang_saku_formatted' => number_format($uangSaku, 0, ',', '.'),
                 ];
             }

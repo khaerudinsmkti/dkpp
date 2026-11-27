@@ -878,15 +878,31 @@ class SppdLuarKotaController extends Controller
         $noRekening = '5.1.02.04.01.0001';
         $tahunAnggaran = $dpa?->tahun_anggaran ?: Carbon::parse($first->tanggal_berangkat)->format('Y');
 
+        $tahunSaatIni = (int) date('Y');
         $rows = [];
         $rowNo = 1;
 
         foreach ($records as $sppd) {
             $tglIndo = self::formatIndoDateRange($sppd->tanggal_berangkat, $sppd->tanggal_kembali);
 
-            // Kolom tujuan diisi sesuai field kab_kota (fallback ke tujuan jika data lama belum memiliki kab_kota)
+            $rawPerihal = trim((string) preg_replace('/^melaksanakan\s+/i', '', trim((string) ($sppd->perihal ?? ''))));
+            $rawPerihal = rtrim($rawPerihal, '. ');
+            $rawTempat = trim((string) ($sppd->tujuan ?? ''));
             $rawKabKota = trim((string) ($sppd->kab_kota ?? ''));
-            $tujuanShort = $rawKabKota !== '' ? $rawKabKota : trim((string) $sppd->tujuan);
+
+            if ($rawTempat !== '' && $rawKabKota !== '' && ! str_contains(strtolower($rawTempat), strtolower($rawKabKota))) {
+                $lokasiLengkap = "{$rawTempat}, {$rawKabKota}";
+            } else {
+                $lokasiLengkap = $rawTempat !== '' ? $rawTempat : $rawKabKota;
+            }
+
+            if ($rawPerihal !== '' && $lokasiLengkap !== '') {
+                $tujuanShort = "Melaksanakan {$rawPerihal} di {$lokasiLengkap} Tahun Anggaran {$tahunSaatIni}";
+            } elseif ($lokasiLengkap !== '') {
+                $tujuanShort = "Melaksanakan Perjalanan Dinas di {$lokasiLengkap} Tahun Anggaran {$tahunSaatIni}";
+            } else {
+                $tujuanShort = "Melaksanakan {$rawPerihal} Tahun Anggaran {$tahunSaatIni}";
+            }
 
             $sppdTransportSum = 0.0;
 
