@@ -947,6 +947,69 @@ class RealisasiAnggaranController extends Controller
     }
 
     /**
+     * Preview / Download PDF Tabel AKB (Anggaran Kas Belanja) Bulanan (A4 Landscape) untuk Murni maupun Perubahan.
+     */
+    public function downloadAkbPdf(Request $request, RealisasiSubKegiatan $subKegiatan): SymfonyResponse
+    {
+        $subKegiatan->load(['rekenings.bulanans']);
+
+        $monthlyAkbTotals = array_fill(1, 12, 0.0);
+        $totalAnggaran = 0.0;
+        $totalAkb = 0.0;
+
+        $rows = $subKegiatan->rekenings->map(function (RealisasiRekening $rek, int $idx) use (&$monthlyAkbTotals, &$totalAnggaran, &$totalAkb): array {
+            $akbMap = array_fill(1, 12, 0.0);
+            foreach ($rek->bulanans as $bln) {
+                $m = (int) $bln->bulan;
+                if ($m >= 1 && $m <= 12) {
+                    $val = (float) ($bln->akb ?? 0);
+                    $akbMap[$m] = $val;
+                    $monthlyAkbTotals[$m] += $val;
+                }
+            }
+
+            $pagu = (float) $rek->pagu_anggaran;
+            $rowAkb = array_sum($akbMap);
+            $sisaPagu = $pagu - $rowAkb;
+
+            $totalAnggaran += $pagu;
+            $totalAkb += $rowAkb;
+
+            return [
+                'no' => $idx + 1,
+                'kode_rekening' => $rek->kode_rekening,
+                'uraian' => $rek->uraian,
+                'pagu' => $pagu,
+                'akb_bulanan' => $akbMap,
+                'total_akb' => $rowAkb,
+                'sisa_pagu' => $sisaPagu,
+            ];
+        })->values()->all();
+
+        $totalSisaPagu = $totalAnggaran - $totalAkb;
+        $terbilangAnggaran = ucfirst(strtolower(SppdDalamKotaController::formatTerbilangRupiah($totalAnggaran)));
+        $jenisLabel = self::normalizeJenis($subKegiatan->jenis_anggaran) === 'perubahan' ? 'PERUBAHAN' : 'MURNI';
+
+        $safeKode = Str::slug($subKegiatan->kode_sub_kegiatan ?: 'sub_kegiatan_'.$subKegiatan->id, '_');
+        $filename = "AKB_{$jenisLabel}_{$subKegiatan->tahun_anggaran}_{$safeKode}.pdf";
+
+        $pdf = Pdf::loadView('pdf.realisasi-akb', [
+            'subKegiatan' => $subKegiatan,
+            'jenisLabel' => $jenisLabel,
+            'rows' => $rows,
+            'monthlyAkbTotals' => $monthlyAkbTotals,
+            'totalAnggaran' => $totalAnggaran,
+            'totalAkb' => $totalAkb,
+            'totalSisaPagu' => $totalSisaPagu,
+            'terbilangAnggaran' => $terbilangAnggaran,
+        ])->setPaper('a4', 'landscape');
+
+        return $request->boolean('download')
+            ? $pdf->download($filename)
+            : $pdf->stream($filename);
+    }
+
+    /**
      * Simpan / perbarui kolom Keterangan manual per Sub Kegiatan secara langsung dari tabel.
      */
     public function updateKeterangan(Request $request, RealisasiSubKegiatan $subKegiatan): RedirectResponse

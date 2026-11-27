@@ -2160,9 +2160,9 @@ HTML;
 
         // 3. No Rekening Perjalanan Dinas (prioritaskan Dalam Kota 5.1.02.04.001.00003 / 5.1.02.04.01.0003)
         $noRekening = '5.1.02.04.01.0003';
-        if (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.000?03)\b/mi', $text, $m)) {
+        if (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.000?03)(?=\s|[A-Za-z]|$)/mi', $text, $m)) {
             $noRekening = trim($m[1]);
-        } elseif (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.\d{4,5})\b/mi', $text, $m)) {
+        } elseif (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.\d{4,5})(?=\s|[A-Za-z]|$)/mi', $text, $m)) {
             $noRekening = trim($m[1]);
         }
 
@@ -2208,11 +2208,13 @@ HTML;
                     continue;
                 }
 
-                // Ambil Harga Satuan (angka berformat ribuan seperti 150.000,00 tepat sebelum "0 %" dan "Rp.")
+                // Ambil Harga Satuan (format 1-kolom: "150.000,00 0 % Rp." atau 2-kolom: "150.000,00 - 2.100.000,00")
                 $harga = null;
                 if (preg_match('/([\d.]+,\d{2})\s+\d+\s*%\s*Rp\./i', $body, $hm)) {
                     $harga = $parseIdr($hm[1]);
-                } elseif (preg_match('/(?:Hari|OH|Orang)\s+([\d.]+(?:,\d{2})?)\s+\d+\s*%/is', $body, $hm)) {
+                } elseif (preg_match('/([\d.]+,\d{2})\s+(?:-|\d+\s*%)\s+[\d.]+,\d{2}/i', $body, $hm)) {
+                    $harga = $parseIdr($hm[1]);
+                } elseif (preg_match('/(?:Hari|OH|Orang)\s+([\d.]+(?:,\d{2})?)\s+(?:-|\d+\s*%)/is', $body, $hm)) {
                     $harga = $parseIdr($hm[1]);
                 }
 

@@ -2303,6 +2303,35 @@ export default function RealisasiAnggaranIndex({
                                             <Button
                                                 type="button"
                                                 variant="outline"
+                                                asChild
+                                                className="h-9 gap-1.5 border-sky-300 bg-white text-xs font-bold text-sky-700 hover:bg-sky-50"
+                                            >
+                                                <a
+                                                    href={`/realisasi-anggaran/sub-kegiatan/${activeSubKegiatan.id}/akb-pdf`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <Eye className="size-3.5" />
+                                                    Preview PDF AKB
+                                                </a>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                asChild
+                                                className="h-9 gap-1.5 border-neutral-300 bg-white text-xs font-bold text-neutral-700 hover:bg-neutral-50"
+                                                title="Download PDF AKB"
+                                            >
+                                                <a
+                                                    href={`/realisasi-anggaran/sub-kegiatan/${activeSubKegiatan.id}/akb-pdf?download=1`}
+                                                >
+                                                    <Download className="size-3.5" />
+                                                    Download PDF
+                                                </a>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
                                                 onClick={() => navigateTab('matrix')}
                                                 className="h-9 gap-1.5 border-teal-300 bg-white text-xs font-bold text-[#006565] hover:bg-teal-50"
                                             >
@@ -2311,7 +2340,7 @@ export default function RealisasiAnggaranIndex({
                                             </Button>
                                             <Button
                                                 type="button"
-                                                disabled={isSavingAkb}
+                                                disabled={isSavingAkb || isReadOnlyLocked}
                                                 onClick={handleSaveAkb}
                                                 className="h-9 gap-1.5 bg-sky-700 text-xs font-bold text-white hover:bg-sky-800"
                                             >

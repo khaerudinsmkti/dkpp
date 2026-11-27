@@ -554,15 +554,31 @@ class NpdController extends Controller
             return round((float) $cleaned, 2);
         };
 
+        $extractTrailingAmount = static function (string $segment) use ($parseIdr): ?array {
+            // 1. Format 2-kolom SIPD-RI (Sebelum | Sesudah | Bertambah/(Berkurang)) -> ambil Sesudah
+            if (preg_match('/^(.*?)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+\(?-?[\d.]+,\d{2}\)?\s*$/', $segment, $rm)) {
+                return [trim($rm[1]), $parseIdr($rm[3])];
+            }
+            // 2. Format 1-kolom SIPD-RI dengan prefix Rp.
+            if (preg_match('/^(.*?)\s*Rp\.?\s*([\d.]+(?:,\d{1,2})?)\s*$/i', $segment, $rm)) {
+                return [trim($rm[1]), $parseIdr($rm[2])];
+            }
+            // 3. Fallback angka desimal Indonesia tanpa Rp.
+            if (preg_match('/^(.*?)\s+([\d.]+,\d{2})\s*$/', $segment, $rm)) {
+                return [trim($rm[1]), $parseIdr($rm[2])];
+            }
+
+            return null;
+        };
+
         for ($i = 0; $i < $lineCount; $i++) {
             $line = trim($lines[$i]);
             if ($line === '') {
                 continue;
             }
 
-            // Cocokkan kode rekening level 6 (Sub Rincian Objek), misal:
-            // 5.1.02.01.001.00026 atau 5.1.02.04.01.0003
-            if (! preg_match('/^(\d+\.\d+\.\d+\.\d+\.\d+\.\d+)\s+(.+)$/', $line, $m)) {
+            // Cocokkan kode rekening level 6 (Sub Rincian Objek), termasuk jika menempel tanpa spasi pada cetakan 2-kolom SIPD-RI
+            if (! preg_match('/^(\d+\.\d+\.\d+\.\d+\.\d+\.\d+)(?=\s|[A-Za-z]|$)\s*(.+)$/', $line, $m)) {
                 continue;
             }
 
@@ -571,9 +587,10 @@ class NpdController extends Controller
             $uraianParts = [];
             $anggaran = null;
 
-            if (preg_match('/^(.*?)\s*Rp\.?\s*([\d.]+(?:,\d{1,2})?)\s*$/i', $rest, $rm)) {
-                $uraianParts[] = trim($rm[1]);
-                $anggaran = $parseIdr($rm[2]);
+            $sameLineMatch = $extractTrailingAmount($rest);
+            if ($sameLineMatch !== null) {
+                $uraianParts[] = $sameLineMatch[0];
+                $anggaran = $sameLineMatch[1];
             } else {
                 $uraianParts[] = $rest;
                 // Cek maksimal 3 baris berikutnya jika uraian terpotong multi-baris
@@ -590,11 +607,12 @@ class NpdController extends Controller
                     ) {
                         break;
                     }
-                    if (preg_match('/^(.*?)\s*Rp\.?\s*([\d.]+(?:,\d{1,2})?)\s*$/i', $nextLine, $rm)) {
-                        if (trim($rm[1]) !== '') {
-                            $uraianParts[] = trim($rm[1]);
+                    $nextLineMatch = $extractTrailingAmount($nextLine);
+                    if ($nextLineMatch !== null) {
+                        if ($nextLineMatch[0] !== '') {
+                            $uraianParts[] = $nextLineMatch[0];
                         }
-                        $anggaran = $parseIdr($rm[2]);
+                        $anggaran = $nextLineMatch[1];
                         $i = $j;
                         break;
                     }

@@ -166,7 +166,26 @@ class RkaPdfParserService
         $count = count($lines);
 
         // Pola kode rekening belanja 6 segmen (misal 5.1.02.01.001.00026 atau 5.1.02.01.01.0026)
-        $kodePattern = '/^(5\.\d+\.\d{2}\.\d{2}\.\d{2,3}\.\d{4,5})\b\s*(.*)$/';
+        // Mendukung kondisi teks menempel tanpa spasi pada cetakan 2-kolom SIPD-RI (misal 5.1.02.01.001.00026Belanja...)
+        $kodePattern = '/^(5\.\d+\.\d{2}\.\d{2}\.\d{2,3}\.\d{4,5})(?=\s|[A-Za-z]|$)\s*(.*)$/';
+
+        // Helper untuk mengekstrak (uraian, nominal) dari akhir baris pada format 1-kolom (Rp.) maupun 2-kolom (Sebelum, Sesudah, Selisih)
+        $extractTrailingAmount = static function (string $segment): ?array {
+            // 1. Format 2-kolom SIPD-RI (Sebelum | Sesudah | Bertambah/(Berkurang)) -> ambil kolom Sesudah
+            if (preg_match('/^(.*?)\s+([\d\.]+,\d{2})\s+([\d\.]+,\d{2})\s+\(?-?[\d\.]+,\d{2}\)?\s*$/', $segment, $m)) {
+                return [trim($m[1]), self::parseIndoMoney($m[3])];
+            }
+            // 2. Format 1-kolom SIPD-RI dengan prefix Rp.
+            if (preg_match('/^(.*?)\s*Rp\.?\s*([\d\.]+(?:,\d{2})?)\s*$/i', $segment, $m)) {
+                return [trim($m[1]), self::parseIndoMoney($m[2])];
+            }
+            // 3. Fallback 1-kolom angka desimal Indonesia tanpa Rp.
+            if (preg_match('/^(.*?)\s+([\d\.]+,\d{2})\s*$/', $segment, $m)) {
+                return [trim($m[1]), self::parseIndoMoney($m[2])];
+            }
+
+            return null;
+        };
 
         for ($i = 0; $i < $count; $i++) {
             $line = $lines[$i];
@@ -179,12 +198,13 @@ class RkaPdfParserService
             $uraianParts = [];
             $amount = null;
 
-            // Cek apakah nominal Rp. xxx sudah ada di baris yang sama
-            if (preg_match('/^(.*?)\s+Rp\.?\s*([\d\.]+(?:,\d{2})?)\s*$/i', $rest, $am)) {
-                if (trim($am[1]) !== '') {
-                    $uraianParts[] = trim($am[1]);
+            // Cek apakah nominal sudah ada di baris yang sama
+            $matchedSameLine = $extractTrailingAmount($rest);
+            if ($matchedSameLine !== null) {
+                if ($matchedSameLine[0] !== '') {
+                    $uraianParts[] = $matchedSameLine[0];
                 }
-                $amount = self::parseIndoMoney($am[2]);
+                $amount = $matchedSameLine[1];
             } else {
                 if ($rest !== '') {
                     $uraianParts[] = $rest;
@@ -196,14 +216,15 @@ class RkaPdfParserService
                         continue;
                     }
                     // Berhenti jika bertemu kode rekening baru atau blok [#] / [-]
-                    if (preg_match('/^5(?:\.\d+)+\b/', $next) || str_starts_with($next, '[ # ]') || str_starts_with($next, '[ - ]') || str_starts_with($next, '[#]') || str_starts_with($next, '[-]')) {
+                    if (preg_match('/^5(?:\.\d+)+(?=\s|[A-Za-z]|$)/', $next) || str_starts_with($next, '[ # ]') || str_starts_with($next, '[ - ]') || str_starts_with($next, '[#]') || str_starts_with($next, '[-]')) {
                         break;
                     }
-                    if (preg_match('/^(.*?)\s*Rp\.?\s*([\d\.]+(?:,\d{2})?)\s*$/i', $next, $am2)) {
-                        if (trim($am2[1]) !== '') {
-                            $uraianParts[] = trim($am2[1]);
+                    $matchedNextLine = $extractTrailingAmount($next);
+                    if ($matchedNextLine !== null) {
+                        if ($matchedNextLine[0] !== '') {
+                            $uraianParts[] = $matchedNextLine[0];
                         }
-                        $amount = self::parseIndoMoney($am2[2]);
+                        $amount = $matchedNextLine[1];
                         break;
                     }
                     $uraianParts[] = $next;

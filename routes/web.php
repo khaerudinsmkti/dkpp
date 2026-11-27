@@ -534,6 +534,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/realisasi-anggaran/pergeseran/{pergeseran}', [RealisasiAnggaranController::class, 'destroyPergeseran'])->name('realisasi-anggaran.pergeseran.destroy');
     Route::delete('/realisasi-anggaran/sub-kegiatan/{subKegiatan}', [RealisasiAnggaranController::class, 'destroySubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.destroy');
     Route::get('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/pdf', [RealisasiAnggaranController::class, 'downloadPdf'])->name('realisasi-anggaran.pdf');
+    Route::get('/realisasi-anggaran/sub-kegiatan/{subKegiatan}/akb-pdf', [RealisasiAnggaranController::class, 'downloadAkbPdf'])->name('realisasi-anggaran.akb-pdf');
     Route::get('/realisasi-anggaran/program-kegiatan/pdf', [RealisasiAnggaranController::class, 'downloadProgramKegiatanPdf'])->name('realisasi-anggaran.program-kegiatan.pdf');
 
     // Modul Surat Tugas Mandiri (SPPD)
