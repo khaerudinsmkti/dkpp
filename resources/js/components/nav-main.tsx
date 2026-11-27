@@ -161,7 +161,7 @@ export function NavMain({ items, groups }: NavMainProps) {
                                                                 className={cn(
                                                                     'h-8 rounded-lg px-2.5 transition-all duration-150',
                                                                     subActive
-                                                                        ? 'bg-gradient-to-r from-[#006565] via-emerald-700 to-teal-700 font-bold !text-white shadow-xs data-[active=true]:!text-white dark:from-emerald-500 dark:to-teal-600'
+                                                                        ? 'bg-gradient-to-r from-[#006565] via-emerald-700 to-teal-700 font-bold !text-white shadow-md shadow-[#006565]/20 ring-1 ring-[#006565]/30 data-[active=true]:bg-gradient-to-r data-[active=true]:from-[#006565] data-[active=true]:via-emerald-700 data-[active=true]:to-teal-700 data-[active=true]:!text-white hover:!text-white dark:from-emerald-500 dark:via-emerald-600 dark:to-teal-600 dark:data-[active=true]:from-emerald-500 dark:data-[active=true]:to-teal-600'
                                                                         : 'text-xs font-medium text-slate-600 hover:bg-emerald-100/70 hover:text-[#006565] dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white',
                                                                 )}
                                                             >

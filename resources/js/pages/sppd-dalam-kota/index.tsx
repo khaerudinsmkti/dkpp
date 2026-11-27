@@ -40,6 +40,7 @@ import {
     type LhpdType,
 } from '@/components/sppd/lhpd-modal';
 import { RkaImportModal } from '@/components/sppd/rka-import-modal';
+import { TablePagination } from '@/components/sppd/table-pagination';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1933,6 +1934,23 @@ export default function SppdDalamKotaIndex({
         });
     }, [sppdBatches, sppdSearch, sppdSubKegiatanFilter, sppdMonthFilter]);
 
+    const [sppdBatchPage, setSppdBatchPage] = useState(1);
+    const [sppdBatchPerPage, setSppdBatchPerPage] = useState(10);
+
+    useEffect(() => {
+        setSppdBatchPage(1);
+    }, [sppdSearch, sppdSubKegiatanFilter, sppdMonthFilter]);
+
+    const safeSppdBatchPage = Math.min(
+        sppdBatchPage,
+        Math.max(1, Math.ceil(filteredSppdBatches.length / sppdBatchPerPage))
+    );
+
+    const paginatedSppdBatches = useMemo(() => {
+        const start = (safeSppdBatchPage - 1) * sppdBatchPerPage;
+        return filteredSppdBatches.slice(start, start + sppdBatchPerPage);
+    }, [filteredSppdBatches, safeSppdBatchPage, sppdBatchPerPage]);
+
     const renderPejabatSection = (
         tipe: 'kepala_dinas' | 'pptk' | 'bendahara',
         title: string,
@@ -3435,7 +3453,7 @@ export default function SppdDalamKotaIndex({
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                filteredSppdBatches.map(
+                                                paginatedSppdBatches.map(
                                                     (grp, idx) => {
                                                         const isExpanded =
                                                             Boolean(
@@ -3508,7 +3526,10 @@ export default function SppdDalamKotaIndex({
                                                                                 />
                                                                             )}
                                                                             <span className="font-bold text-neutral-500">
-                                                                                {idx +
+                                                                                {(safeSppdBatchPage -
+                                                                                    1) *
+                                                                                    sppdBatchPerPage +
+                                                                                    idx +
                                                                                     1}
                                                                             </span>
                                                                         </div>
@@ -4346,6 +4367,14 @@ export default function SppdDalamKotaIndex({
                                         </tbody>
                                     </table>
                                 </div>
+                                <TablePagination
+                                    totalItems={filteredSppdBatches.length}
+                                    currentPage={safeSppdBatchPage}
+                                    perPage={sppdBatchPerPage}
+                                    onPageChange={setSppdBatchPage}
+                                    onPerPageChange={setSppdBatchPerPage}
+                                    itemLabel="Batch"
+                                />
                             </CardContent>
                         </Card>
                     </div>

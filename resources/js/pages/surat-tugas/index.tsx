@@ -5,6 +5,7 @@ import {
     Award,
     Calendar,
     CheckCircle2,
+    ChevronDown,
     ChevronUp,
     Download,
     Edit3,
@@ -39,6 +40,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -1878,20 +1887,49 @@ export default function SuratTugasIndex({
 
                                                 <td className="px-4 py-3 text-right whitespace-nowrap">
                                                     <div className="inline-flex items-center gap-1.5">
-                                                        <a
-                                                            href={`/surat-tugas/${st.id}/pdf`}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            title="Preview PDF sebelum download"
-                                                        >
-                                                            <Button
-                                                                size="sm"
-                                                                className="h-8 gap-1.5 bg-[#006565] px-2.5 text-xs font-bold text-white hover:bg-[#005252]"
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="h-8 gap-1.5 bg-[#006565] px-2.5 text-xs font-bold text-white hover:bg-[#005252]"
+                                                                >
+                                                                    <Eye className="size-3.5" />
+                                                                    <span>Preview PDF</span>
+                                                                    <ChevronDown className="size-3.5 opacity-80" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent
+                                                                align="end"
+                                                                className="w-52"
                                                             >
-                                                                <Eye className="size-3.5" />
-                                                                Preview PDF
-                                                            </Button>
-                                                        </a>
+                                                                <DropdownMenuLabel className="text-[11px] font-bold text-neutral-500">
+                                                                    Pilih Laporan PDF
+                                                                </DropdownMenuLabel>
+                                                                <DropdownMenuSeparator />
+                                                                <DropdownMenuItem asChild>
+                                                                    <a
+                                                                        href={`/surat-tugas/${st.id}/pdf`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="flex cursor-pointer items-center gap-2 text-xs font-semibold"
+                                                                    >
+                                                                        <FileText className="size-3.5 text-[#006565]" />
+                                                                        <span>1. SPT</span>
+                                                                    </a>
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem asChild>
+                                                                    <a
+                                                                        href={`/surat-tugas/${st.id}/pdf?paraf=1`}
+                                                                        target="_blank"
+                                                                        rel="noreferrer"
+                                                                        className="flex cursor-pointer items-center gap-2 text-xs font-semibold"
+                                                                    >
+                                                                        <FileCheck2 className="size-3.5 text-indigo-600" />
+                                                                        <span>2. SPT Blok Paraf</span>
+                                                                    </a>
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
                                                         <Button
                                                             size="sm"
                                                             variant="outline"

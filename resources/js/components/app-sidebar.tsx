@@ -397,8 +397,12 @@ export function AppSidebar() {
             ) {
                 const itemUrl = new URL(item.href, 'http://localhost');
                 const itemTab = itemUrl.searchParams.get('tab');
+                const pathMatched =
+                    currentPath === itemUrl.pathname ||
+                    (currentPath === '/realisasi-anggaran' &&
+                        itemUrl.pathname === '/realisasi-anggaran/murni');
                 const isMatch =
-                    currentPath === '/realisasi-anggaran' &&
+                    pathMatched &&
                     (itemTab
                         ? currentTab === itemTab ||
                           (!currentTab && itemTab === 'dashboard')

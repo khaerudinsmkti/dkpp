@@ -28,35 +28,68 @@ export type UseCurrentUrlReturn = {
 
 export function useCurrentUrl(): UseCurrentUrlReturn {
     const page = usePage();
-    const currentUrlPath = new URL(
-        page.url,
+    const origin =
         typeof window !== 'undefined'
             ? window.location.origin
-            : 'http://localhost',
-    ).pathname;
+            : 'http://localhost';
+    const currentParsed = new URL(page.url, origin);
+    const currentUrlPath = currentParsed.pathname;
 
     const isCurrentUrl: IsCurrentUrlFn = (
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
         currentUrl?: string,
         startsWith: boolean = false,
     ) => {
-        const urlToCompare = currentUrl ?? currentUrlPath;
         const urlString = toUrl(urlToCheck);
-
-        const comparePath = (path: string): boolean =>
-            startsWith ? urlToCompare.startsWith(path) : path === urlToCompare;
-
-        if (!urlString.startsWith('http')) {
-            return comparePath(urlString);
+        if (!urlString || urlString === '#') {
+            return false;
         }
 
-        try {
-            const absoluteUrl = new URL(urlString);
+        const effectiveCurrent = currentUrl
+            ? new URL(currentUrl, origin)
+            : currentParsed;
 
-            return comparePath(absoluteUrl.pathname);
+        let targetParsed: URL;
+        try {
+            targetParsed = new URL(urlString, origin);
         } catch {
             return false;
         }
+
+        const pathMatches = startsWith
+            ? effectiveCurrent.pathname.startsWith(targetParsed.pathname)
+            : targetParsed.pathname === effectiveCurrent.pathname;
+
+        if (!pathMatches) {
+            return false;
+        }
+
+        const targetEntries = Array.from(targetParsed.searchParams.entries());
+        if (targetEntries.length > 0) {
+            return targetEntries.every(([key, value]) => {
+                const currentVal = effectiveCurrent.searchParams.get(key);
+                if (currentVal !== null) {
+                    return currentVal === value;
+                }
+                // Default tab dashboard saat URL /realisasi-anggaran/murni atau /perubahan tanpa ?tab=
+                if (
+                    key === 'tab' &&
+                    value === 'dashboard' &&
+                    effectiveCurrent.pathname.startsWith('/realisasi-anggaran')
+                ) {
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        // Jika menu utama tanpa ?tab= (misal /sppd-dalam-kota), jangan aktif saat membuka submenu ?tab=...
+        const currentTab = effectiveCurrent.searchParams.get('tab');
+        if (currentTab && !startsWith) {
+            return false;
+        }
+
+        return true;
     };
 
     const isCurrentOrParentUrl: IsCurrentOrParentUrlFn = (

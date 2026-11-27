@@ -104,10 +104,21 @@ class SuratTugasController extends Controller
             return [];
         }
 
-        return array_values(array_filter(array_map(
+        $items = array_values(array_filter(array_map(
             fn (string $item) => rtrim(trim($item), '; '),
             $parts
         ), fn (string $item) => $item !== ''));
+
+        $total = count($items);
+        if ($total > 1) {
+            foreach ($items as $idx => $val) {
+                if ($idx < $total - 1 && ! str_ends_with($val, ';') && ! str_ends_with($val, '.')) {
+                    $items[$idx] = $val.';';
+                }
+            }
+        }
+
+        return $items;
     }
 
     private static function getLogoBase64(): string
@@ -639,9 +650,10 @@ class SuratTugasController extends Controller
             : '800.1.11.1/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/KDP';
 
         $safeName = Str::slug(Str::limit($suratTugas->tujuan, 40, ''), '_') ?: 'surat_tugas_'.$suratTugas->id;
+        $withBlokParaf = request()->boolean('paraf');
 
         $pdf = Pdf::loadView('pdf.surat-tugas', [
-            'docTitle' => 'Surat Tugas - '.$suratTugas->tujuan,
+            'docTitle' => ($withBlokParaf ? 'Surat Tugas Blok Paraf - ' : 'Surat Tugas - ').$suratTugas->tujuan,
             'logoBase64' => self::getLogoBase64(),
             'nomorSptHtml' => $nomorSptHtml,
             'dasarText' => $dasarText,
@@ -659,13 +671,18 @@ class SuratTugasController extends Controller
             'ttdOffsetX' => (int) ($suratTugas->ttd_offset_x ?? 0),
             'ttdOffsetY' => (int) ($suratTugas->ttd_offset_y ?? 0),
             'ttdHeightPx' => max(20, (int) round(64 * (((int) ($suratTugas->ttd_scale ?? 100)) / 100))),
+            'withBlokParaf' => $withBlokParaf,
         ])->setPaper('a4', 'portrait');
 
+        $filename = $withBlokParaf
+            ? "Surat_Tugas_Blok_Paraf_{$safeName}.pdf"
+            : "Surat_Tugas_{$safeName}.pdf";
+
         if (request()->boolean('download')) {
-            return $pdf->download("Surat_Tugas_{$safeName}.pdf");
+            return $pdf->download($filename);
         }
 
-        return $pdf->stream("Surat_Tugas_{$safeName}.pdf");
+        return $pdf->stream($filename);
     }
 
     /**

@@ -23,9 +23,10 @@ import {
     Users,
     Wallet,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { TablePagination } from '@/components/sppd/table-pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -501,6 +502,23 @@ export default function SppdLuarKotaIndex({
             );
         });
     }, [sppdBatches, searchQuery, subKegiatanFilter, monthFilter]);
+
+    const [batchPage, setBatchPage] = useState(1);
+    const [batchPerPage, setBatchPerPage] = useState(10);
+
+    useEffect(() => {
+        setBatchPage(1);
+    }, [searchQuery, subKegiatanFilter, monthFilter]);
+
+    const safeBatchPage = Math.min(
+        batchPage,
+        Math.max(1, Math.ceil(filteredBatches.length / batchPerPage))
+    );
+
+    const paginatedBatches = useMemo(() => {
+        const start = (safeBatchPage - 1) * batchPerPage;
+        return filteredBatches.slice(start, start + batchPerPage);
+    }, [filteredBatches, safeBatchPage, batchPerPage]);
 
     const handleNextStep = () => {
         if (currentStep === 1) {
@@ -1929,7 +1947,7 @@ export default function SppdLuarKotaIndex({
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredBatches.map((grp, idx) => {
+                                        paginatedBatches.map((grp, idx) => {
                                             const isExpanded = Boolean(
                                                 expandedBatches[grp.batch_code]
                                             );
@@ -1950,7 +1968,11 @@ export default function SppdLuarKotaIndex({
                                                         }`}
                                                     >
                                                         <td className="px-3 py-3 text-center font-bold text-neutral-500">
-                                                            {idx + 1}
+                                                            {(safeBatchPage -
+                                                                1) *
+                                                                batchPerPage +
+                                                                idx +
+                                                                1}
                                                         </td>
                                                         <td className="px-4 py-3 whitespace-nowrap">
                                                             <div className="flex items-center gap-2">
@@ -2679,6 +2701,14 @@ export default function SppdLuarKotaIndex({
                                 </tbody>
                             </table>
                         </div>
+                        <TablePagination
+                            totalItems={filteredBatches.length}
+                            currentPage={safeBatchPage}
+                            perPage={batchPerPage}
+                            onPageChange={setBatchPage}
+                            onPerPageChange={setBatchPerPage}
+                            itemLabel="Batch"
+                        />
                     </CardContent>
                 </Card>
 

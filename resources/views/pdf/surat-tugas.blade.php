@@ -199,6 +199,28 @@
             text-decoration: underline;
             text-transform: uppercase;
         }
+        /* Blok Paraf (kiri tanda tangan Kepala Dinas) */
+        .paraf-table {
+            width: 98%;
+            border-collapse: collapse;
+            margin-top: 18px;
+        }
+        .paraf-table td {
+            border: 1px solid #3b638c;
+            color: #274c77;
+            font-size: 7.3pt;
+            line-height: 1.22;
+            text-align: center;
+            vertical-align: middle;
+            padding: 5px 5px;
+            height: 38px;
+        }
+        .paraf-label {
+            width: 68%;
+        }
+        .paraf-col {
+            width: 16%;
+        }
     </style>
 </head>
 <body>
@@ -321,7 +343,27 @@
         <div class="ttd-wrapper">
             <table class="ttd-table">
                 <tr>
-                    <td class="ttd-spacer"></td>
+                    <td class="ttd-spacer" style="vertical-align: bottom; padding-right: 10px;">
+                        @if (!empty($withBlokParaf))
+                            <table class="paraf-table">
+                                <tr>
+                                    <td class="paraf-label">SEKRETARIS DINAS KETAHANAN PANGAN DAN PERTANIAN KABUPATEN INDRAMAYU</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                </tr>
+                                <tr>
+                                    <td class="paraf-label">KEPALA BIDANG KETERSEDIAAN DAN DISTRIBUSI PANGAN</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                </tr>
+                                <tr>
+                                    <td class="paraf-label">ANALIS KETAHANAN PANGAN</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                    <td class="paraf-col">&nbsp;</td>
+                                </tr>
+                            </table>
+                        @endif
+                    </td>
                     <td class="ttd-box">
                         <table class="ttd-inner-table">
                             <tr>
