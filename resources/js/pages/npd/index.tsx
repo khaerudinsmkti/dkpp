@@ -17,6 +17,7 @@ import {
     Plus,
     Printer,
     Receipt,
+    RefreshCw,
     Save,
     Search,
     Settings2,
@@ -76,6 +77,7 @@ interface NpdRekeningItem {
     id: number;
     sub_kegiatan_id: number;
     tahun_anggaran: number;
+    jenis_anggaran: 'murni' | 'perubahan';
     nama_program: string | null;
     kode_rekening: string;
     uraian: string;
@@ -266,6 +268,9 @@ export default function NpdIndex({
     const [tahunAnggaran, setTahunAnggaran] = useState(
         String(activeTahunAnggaran || new Date().getFullYear())
     );
+    const [jenisAnggaran, setJenisAnggaran] = useState<'murni' | 'perubahan'>(
+        'murni'
+    );
     const [namaProgram, setNamaProgram] = useState(
         'PROGRAM PENANGANAN KERAWANAN PANGAN'
     );
@@ -298,6 +303,8 @@ export default function NpdIndex({
     const [paguTahun, setPaguTahun] = useState(
         String(activeTahunAnggaran || new Date().getFullYear())
     );
+    const [paguJenis, setPaguJenis] = useState<'murni' | 'perubahan'>('murni');
+    const [isSyncingRealisasi, setIsSyncingRealisasi] = useState(false);
     const [paguProgram, setPaguProgram] = useState(
         'PROGRAM PENANGANAN KERAWANAN PANGAN'
     );
@@ -338,23 +345,30 @@ export default function NpdIndex({
         return rekenings.filter(
             (r) =>
                 String(r.sub_kegiatan_id) === String(selectedSubKegiatanId) &&
-                String(r.tahun_anggaran) === String(tahunAnggaran)
+                String(r.tahun_anggaran) === String(tahunAnggaran) &&
+                (r.jenis_anggaran || 'murni') === jenisAnggaran
         );
-    }, [rekenings, selectedSubKegiatanId, tahunAnggaran]);
+    }, [rekenings, selectedSubKegiatanId, tahunAnggaran, jenisAnggaran]);
 
     const paguModalRekenings = useMemo(() => {
         return rekenings.filter(
             (r) =>
                 String(r.sub_kegiatan_id) === String(paguSubId) &&
-                String(r.tahun_anggaran) === String(paguTahun)
+                String(r.tahun_anggaran) === String(paguTahun) &&
+                (r.jenis_anggaran || 'murni') === paguJenis
         );
-    }, [rekenings, paguSubId, paguTahun]);
+    }, [rekenings, paguSubId, paguTahun, paguJenis]);
 
-    const loadMasterRekeningsToDraft = (subId: string, thn: string) => {
+    const loadMasterRekeningsToDraft = (
+        subId: string,
+        thn: string,
+        jenis: 'murni' | 'perubahan' = jenisAnggaran
+    ) => {
         const list = rekenings.filter(
             (r) =>
                 String(r.sub_kegiatan_id) === String(subId) &&
-                String(r.tahun_anggaran) === String(thn)
+                String(r.tahun_anggaran) === String(thn) &&
+                (r.jenis_anggaran || 'murni') === jenis
         );
         if (list.length > 0) {
             if (list[0].nama_program) {
@@ -638,6 +652,7 @@ export default function NpdIndex({
             {
                 sub_kegiatan_id: Number(paguSubId),
                 tahun_anggaran: Number(paguTahun),
+                jenis_anggaran: paguJenis,
                 nama_program: paguProgram.trim() || null,
                 kode_rekening: newKodeRek.trim(),
                 uraian: newUraian.trim(),
@@ -692,6 +707,7 @@ export default function NpdIndex({
             {
                 sub_kegiatan_id: Number(paguSubId),
                 tahun_anggaran: Number(paguTahun),
+                jenis_anggaran: paguJenis,
                 nama_program: paguProgram.trim() || null,
                 items: items as never,
             },
@@ -806,6 +822,7 @@ export default function NpdIndex({
             {
                 sub_kegiatan_id: Number(paguSubId),
                 tahun_anggaran: Number(paguTahun),
+                jenis_anggaran: paguJenis,
                 nama_program: paguProgram.trim() || null,
                 items: selected.map((it) => ({
                     kode_rekening: it.kode_rekening.trim(),
@@ -824,6 +841,50 @@ export default function NpdIndex({
                     setShowImportSipdPdf(false);
                 },
                 onFinish: () => setIsSavingPagu(false),
+            }
+        );
+    };
+
+    const handleSyncFromRealisasi = (syncAllSubKegiatans: boolean) => {
+        const labelJenis =
+            paguJenis === 'perubahan' ? 'Anggaran Perubahan' : 'Anggaran Murni';
+        const scopeLabel = syncAllSubKegiatans
+            ? 'SEMUA Sub Kegiatan yang cocok'
+            : 'Sub Kegiatan yang dipilih';
+        if (
+            !window.confirm(
+                `Tarik & sinkronkan Pagu Rekening dari modul ${labelJenis} TA ${paguTahun} untuk ${scopeLabel}?`
+            )
+        ) {
+            return;
+        }
+
+        setIsSyncingRealisasi(true);
+        router.post(
+            '/npd/rekening/sync-realisasi',
+            {
+                tahun_anggaran: Number(paguTahun),
+                jenis_anggaran: paguJenis,
+                sub_kegiatan_id: syncAllSubKegiatans
+                    ? null
+                    : Number(paguSubId) || null,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        `Pagu Rekening berhasil disinkronkan dari ${labelJenis} TA ${paguTahun}.`
+                    );
+                },
+                onError: (errors) => {
+                    const first = Object.values(errors)[0];
+                    toast.error(
+                        first
+                            ? String(first)
+                            : 'Gagal menyinkronkan dari Realisasi Anggaran.'
+                    );
+                },
+                onFinish: () => setIsSyncingRealisasi(false),
             }
         );
     };
@@ -1118,7 +1179,7 @@ export default function NpdIndex({
                                 {/* LANGKAH 1 */}
                                 {currentStep === 1 && (
                                     <div className="grid grid-cols-1 gap-3.5 md:grid-cols-12">
-                                        <div className="min-w-0 space-y-1.5 md:col-span-9">
+                                        <div className="min-w-0 space-y-1.5 md:col-span-7">
                                             <Label className="text-xs font-extrabold text-[#006565]">
                                                 1. Pilih Sub Kegiatan *
                                             </Label>
@@ -1147,7 +1208,42 @@ export default function NpdIndex({
 
                                         <div className="min-w-0 space-y-1.5 md:col-span-3">
                                             <Label className="text-xs font-extrabold text-[#006565]">
-                                                2. Tahun Anggaran *
+                                                Sumber Pagu Anggaran
+                                            </Label>
+                                            <Select
+                                                value={jenisAnggaran}
+                                                onValueChange={(v) => {
+                                                    const next =
+                                                        v === 'perubahan'
+                                                            ? 'perubahan'
+                                                            : 'murni';
+                                                    setJenisAnggaran(next);
+                                                    if (selectedSubKegiatanId) {
+                                                        loadMasterRekeningsToDraft(
+                                                            selectedSubKegiatanId,
+                                                            tahunAnggaran,
+                                                            next
+                                                        );
+                                                    }
+                                                }}
+                                            >
+                                                <SelectTrigger className="h-10 w-full border-teal-300 bg-white text-xs font-bold">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="murni">
+                                                        Anggaran Murni
+                                                    </SelectItem>
+                                                    <SelectItem value="perubahan">
+                                                        Anggaran Perubahan
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="min-w-0 space-y-1.5 md:col-span-2">
+                                            <Label className="text-xs font-extrabold text-[#006565]">
+                                                2. Tahun *
                                             </Label>
                                             <Input
                                                 type="number"
@@ -1159,7 +1255,8 @@ export default function NpdIndex({
                                                     if (selectedSubKegiatanId) {
                                                         loadMasterRekeningsToDraft(
                                                             selectedSubKegiatanId,
-                                                            e.target.value
+                                                            e.target.value,
+                                                            jenisAnggaran
                                                         );
                                                     }
                                                 }}
@@ -2280,6 +2377,74 @@ export default function NpdIndex({
                         </DialogHeader>
 
                         <div className="space-y-4">
+                            {/* PILIH SUMBER ANGGARAN MURNI / PERUBAHAN + SINKRON 1-KLIK */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-neutral-50/80 p-2.5">
+                                <div className="inline-flex rounded-lg border bg-white p-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPaguJenis('murni')}
+                                        className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                                            paguJenis === 'murni'
+                                                ? 'bg-[#006565] text-white shadow-2xs'
+                                                : 'text-neutral-600 hover:bg-neutral-100'
+                                        }`}
+                                    >
+                                        Anggaran Murni
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setPaguJenis('perubahan')
+                                        }
+                                        className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                                            paguJenis === 'perubahan'
+                                                ? 'bg-indigo-700 text-white shadow-2xs'
+                                                : 'text-neutral-600 hover:bg-neutral-100'
+                                        }`}
+                                    >
+                                        Anggaran Perubahan
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isSyncingRealisasi || !paguSubId}
+                                        onClick={() =>
+                                            handleSyncFromRealisasi(false)
+                                        }
+                                        className="h-8 gap-1.5 border-indigo-300 bg-white text-[11px] font-bold text-indigo-700 hover:bg-indigo-50"
+                                    >
+                                        <RefreshCw
+                                            className={`size-3.5 ${isSyncingRealisasi ? 'animate-spin' : ''}`}
+                                        />
+                                        Tarik dari{' '}
+                                        {paguJenis === 'perubahan'
+                                            ? 'Anggaran Perubahan'
+                                            : 'Anggaran Murni'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={isSyncingRealisasi}
+                                        onClick={() =>
+                                            handleSyncFromRealisasi(true)
+                                        }
+                                        className={`h-8 gap-1.5 text-[11px] font-bold text-white ${
+                                            paguJenis === 'perubahan'
+                                                ? 'bg-indigo-700 hover:bg-indigo-800'
+                                                : 'bg-[#006565] hover:bg-[#005252]'
+                                        }`}
+                                    >
+                                        <RefreshCw
+                                            className={`size-3.5 ${isSyncingRealisasi ? 'animate-spin' : ''}`}
+                                        />
+                                        Sinkron Semua Sub Kegiatan
+                                    </Button>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                                 <div className="space-y-1 sm:col-span-6">
                                     <Label className="text-xs font-bold">

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RealisasiSubKegiatan;
 use App\Models\SppdDalamKota;
 use App\Models\SppdDalamKotaParticipant;
 use App\Models\SppdDpa;
@@ -10,6 +11,7 @@ use App\Models\SppdPejabat;
 use App\Models\SppdSubKegiatan;
 use App\Models\SppdZonasi;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Smalot\PdfParser\Parser as PdfParser;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class SppdDalamKotaController extends Controller
@@ -2016,5 +2019,405 @@ HTML;
         $sppd->delete();
 
         return back()->with('success', 'Item SPPD berhasil dihapus dari batch.');
+    }
+
+    // =========================================================================
+    // IMPOR MASTER DATA SPPD DARI PDF RKA-BELANJA SIPD-RI & REALISASI ANGGARAN
+    // =========================================================================
+
+    public function parseRkaPdf(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pdfs' => ['required', 'array', 'min:1'],
+            'pdfs.*' => ['required', 'file', 'mimes:pdf', 'max:10240'],
+        ], [
+            'pdfs.required' => 'Pilih minimal 1 file PDF RKA-Belanja SIPD-RI.',
+            'pdfs.*.mimes' => 'Semua file harus berformat PDF.',
+        ]);
+
+        $parser = new PdfParser;
+        $subKegiatansMap = [];
+        $zonasiRatesMap = [];
+        $pejabatKadin = null;
+        $tahunAnggaran = null;
+        $errors = [];
+
+        foreach ($request->file('pdfs') as $file) {
+            try {
+                $pdf = $parser->parseFile($file->getRealPath());
+                $extracted = self::extractSppdMasterFromRkaText($pdf->getText());
+
+                if ($extracted['tahun_anggaran'] && ! $tahunAnggaran) {
+                    $tahunAnggaran = $extracted['tahun_anggaran'];
+                }
+
+                if ($extracted['sub_kegiatan']) {
+                    $sk = $extracted['sub_kegiatan'];
+                    $sk['source_file'] = $file->getClientOriginalName();
+                    $subKegiatansMap[$sk['kode_sub_kegiatan']] = $sk;
+                }
+
+                foreach ($extracted['zonasi_rates'] as $rate) {
+                    $key = $rate['zona'].'|'.$rate['golongan'];
+                    $zonasiRatesMap[$key] = $rate;
+                }
+
+                if ($extracted['pejabat_kadin'] && ! $pejabatKadin) {
+                    $pejabatKadin = $extracted['pejabat_kadin'];
+                }
+            } catch (\Throwable $e) {
+                $errors[] = $file->getClientOriginalName().': gagal membaca PDF.';
+            }
+        }
+
+        if (empty($subKegiatansMap) && empty($zonasiRatesMap) && ! $pejabatKadin) {
+            return response()->json([
+                'message' => 'Tidak ditemukan data Sub Kegiatan maupun Tarif Zonasi SPPD pada file PDF yang diunggah. Pastikan file merupakan PDF teks asli RKA-BELANJA SKPD dari SIPD-RI.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        // Bandingkan dengan data Master saat ini agar UI dapat menampilkan status Baru / Update & Tarif Lama -> Baru
+        $existingSubCodes = SppdSubKegiatan::pluck('kode_sub_kegiatan')
+            ->map(fn ($c) => trim((string) $c))
+            ->all();
+
+        $subKegiatans = array_values(array_map(function (array $sk) use ($existingSubCodes): array {
+            $sk['exists_in_master'] = in_array(trim($sk['kode_sub_kegiatan']), $existingSubCodes, true);
+
+            return $sk;
+        }, $subKegiatansMap));
+
+        $currentZonasiTarif = [];
+        foreach (SppdZonasi::select('zona', 'golongan', 'uang_saku')->distinct()->get() as $z) {
+            $currentZonasiTarif[$z->zona.'|'.$z->golongan] = (float) $z->uang_saku;
+        }
+
+        $zonaOrder = ['Zona I' => 1, 'Zona II' => 2, 'Zona III' => 3];
+        $golOrder = ['Golongan IV' => 1, 'Golongan III' => 2, 'Golongan II' => 3, 'Golongan I' => 4];
+        $zonasiRates = array_values(array_map(function (array $rate) use ($currentZonasiTarif): array {
+            $key = $rate['zona'].'|'.$rate['golongan'];
+            $oldTarif = $currentZonasiTarif[$key] ?? null;
+            $rate['uang_saku_lama'] = $oldTarif;
+            $rate['is_changed'] = $oldTarif === null || abs($oldTarif - (float) $rate['uang_saku']) >= 1;
+
+            return $rate;
+        }, $zonasiRatesMap));
+
+        usort($zonasiRates, function (array $a, array $b) use ($zonaOrder, $golOrder): int {
+            $za = $zonaOrder[$a['zona']] ?? 99;
+            $zb = $zonaOrder[$b['zona']] ?? 99;
+            if ($za !== $zb) {
+                return $za <=> $zb;
+            }
+
+            return ($golOrder[$a['golongan']] ?? 99) <=> ($golOrder[$b['golongan']] ?? 99);
+        });
+
+        return response()->json([
+            'tahun_anggaran' => $tahunAnggaran,
+            'sub_kegiatans' => $subKegiatans,
+            'zonasi_rates' => $zonasiRates,
+            'pejabat_kadin' => $pejabatKadin,
+            'warnings' => $errors,
+        ]);
+    }
+
+    /**
+     * Ekstrak Sub Kegiatan, Tarif Zonasi SPPD Dalam Kota, dan Pejabat Kepala Dinas
+     * dari teks PDF RKA-BELANJA SKPD SIPD-RI.
+     *
+     * @return array{
+     *     tahun_anggaran: ?int,
+     *     sub_kegiatan: ?array{kode_sub_kegiatan: string, sub_kegiatan: string, nama_kegiatan: string, no_rekening: string},
+     *     zonasi_rates: array<int, array{zona: string, golongan: string, uang_saku: float}>,
+     *     pejabat_kadin: ?array{nama: string, nip: string, jabatan: string}
+     * }
+     */
+    public static function extractSppdMasterFromRkaText(string $rawText): array
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", $rawText);
+
+        $tahunAnggaran = null;
+        if (preg_match('/Tahun\s+Anggaran\s+(\d{4})/i', $text, $m)) {
+            $tahunAnggaran = (int) $m[1];
+        }
+
+        // 1. Nama Kegiatan (bisa multi-baris di antara "Kegiatan :" dan "Sub Kegiatan :")
+        $namaKegiatan = '';
+        if (preg_match('/Kegiatan\s*:\s*(.*?)(?=\n\s*Sub\s+Kegiatan\s*:)/is', $text, $m)) {
+            $rawKeg = trim(preg_replace('/\s+/', ' ', $m[1]));
+            $namaKegiatan = trim((string) preg_replace('/^[\d.]+\s+/', '', $rawKeg));
+        }
+
+        // 2. Kode & Nama Sub Kegiatan
+        $kodeSubKegiatan = '';
+        $namaSubKegiatan = '';
+        if (preg_match('/^Sub\s+Kegiatan\s*:\s*([\d.]+)\s+(.+)$/mi', $text, $m)) {
+            $kodeSubKegiatan = trim($m[1]);
+            $namaSubKegiatan = trim(preg_replace('/\s+/', ' ', $m[2]));
+        }
+
+        // 3. No Rekening Perjalanan Dinas (prioritaskan Dalam Kota 5.1.02.04.001.00003 / 5.1.02.04.01.0003)
+        $noRekening = '5.1.02.04.01.0003';
+        if (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.000?03)\b/mi', $text, $m)) {
+            $noRekening = trim($m[1]);
+        } elseif (preg_match('/^(5\.1\.02\.04\.\d{2,3}\.\d{4,5})\b/mi', $text, $m)) {
+            $noRekening = trim($m[1]);
+        }
+
+        $subKegiatan = $kodeSubKegiatan !== '' ? [
+            'kode_sub_kegiatan' => $kodeSubKegiatan,
+            'sub_kegiatan' => $namaSubKegiatan,
+            'nama_kegiatan' => $namaKegiatan ?: $namaSubKegiatan,
+            'no_rekening' => $noRekening,
+        ] : null;
+
+        // 4. Ekstrak Tarif Zonasi (Wilayah Zona I / II / III) beserta Harga Satuan per Golongan
+        $parseIdr = static function (string $val): float {
+            $cleaned = preg_replace('/[^\d.,]/', '', $val);
+            $cleaned = str_replace('.', '', $cleaned);
+            $cleaned = str_replace(',', '.', $cleaned);
+
+            return round((float) $cleaned, 2);
+        };
+
+        $zonasiRatesMap = [];
+        if (preg_match_all('/Wilayah\s+Zona\s+(III|II|I)\b(.*?)(?=Wilayah\s+Zona\s+(?:III|II|I)\b|Jumlah\s*:|SIPD-RI:|\z)/is', $text, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $block) {
+                $zonaRomawi = strtoupper(trim($block[1]));
+                $zonaLabel = 'Zona '.$zonaRomawi;
+                $body = $block[2];
+
+                // Tentukan golongan dari teks Spesifikasi
+                $golongans = [];
+                if (preg_match('/Gol(?:ongan)?\.?\s*IV\b|Eselon\s*III\b|Fungsional\s+Madya/i', $body)) {
+                    $golongans[] = 'Golongan IV';
+                } elseif (preg_match('/Gol(?:ongan)?\.?\s*III\b|Eselon\s*IV\b|Fungsional\s+Muda/i', $body)) {
+                    $golongans[] = 'Golongan III';
+                } elseif (preg_match('/Gol(?:ongan)?\.?\s*II\s*,\s*I\b|Gol(?:ongan)?\.?\s*I\s*,\s*II\b/i', $body)) {
+                    $golongans[] = 'Golongan II';
+                    $golongans[] = 'Golongan I';
+                } elseif (preg_match('/Gol(?:ongan)?\.?\s*II\b/i', $body)) {
+                    $golongans[] = 'Golongan II';
+                } elseif (preg_match('/Gol(?:ongan)?\.?\s*I\b/i', $body)) {
+                    $golongans[] = 'Golongan I';
+                }
+
+                if (empty($golongans)) {
+                    continue;
+                }
+
+                // Ambil Harga Satuan (angka berformat ribuan seperti 150.000,00 tepat sebelum "0 %" dan "Rp.")
+                $harga = null;
+                if (preg_match('/([\d.]+,\d{2})\s+\d+\s*%\s*Rp\./i', $body, $hm)) {
+                    $harga = $parseIdr($hm[1]);
+                } elseif (preg_match('/(?:Hari|OH|Orang)\s+([\d.]+(?:,\d{2})?)\s+\d+\s*%/is', $body, $hm)) {
+                    $harga = $parseIdr($hm[1]);
+                }
+
+                if ($harga !== null && $harga > 0) {
+                    foreach ($golongans as $gol) {
+                        $zonasiRatesMap[$zonaLabel.'|'.$gol] = [
+                            'zona' => $zonaLabel,
+                            'golongan' => $gol,
+                            'uang_saku' => $harga,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 5. Ekstrak Pejabat Kepala Dinas dari blok tanda tangan halaman akhir
+        $pejabatKadin = null;
+        if (preg_match('/((?:Plt\.\s*)?Kepala\s+DINAS[^\n]+)\n+([A-Z][^\n]+)\n+NIP\.?\s*([\d\s]+)/i', $text, $pm)) {
+            $jabatan = trim(preg_replace('/\s+/', ' ', $pm[1]));
+            $nama = trim(preg_replace('/\s+/', ' ', $pm[2]));
+            $nip = preg_replace('/\D/', '', $pm[3]);
+            if ($nama !== '' && $nip !== '') {
+                $pejabatKadin = [
+                    'nama' => $nama,
+                    'nip' => $nip,
+                    'jabatan' => $jabatan,
+                ];
+            }
+        }
+
+        return [
+            'tahun_anggaran' => $tahunAnggaran,
+            'sub_kegiatan' => $subKegiatan,
+            'zonasi_rates' => array_values($zonasiRatesMap),
+            'pejabat_kadin' => $pejabatKadin,
+        ];
+    }
+
+    public function importFromRka(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'sub_kegiatans' => ['nullable', 'array'],
+            'sub_kegiatans.*.kode_sub_kegiatan' => ['required', 'string', 'max:100'],
+            'sub_kegiatans.*.sub_kegiatan' => ['required', 'string', 'max:500'],
+            'sub_kegiatans.*.nama_kegiatan' => ['required', 'string', 'max:500'],
+            'sub_kegiatans.*.no_rekening' => ['required', 'string', 'max:100'],
+            'zonasi_rates' => ['nullable', 'array'],
+            'zonasi_rates.*.zona' => ['required', 'string', 'max:50'],
+            'zonasi_rates.*.golongan' => ['required', 'string', 'max:50'],
+            'zonasi_rates.*.uang_saku' => ['required', 'numeric', 'min:0'],
+            'pejabat_kadin' => ['nullable', 'array'],
+            'pejabat_kadin.nama' => ['required_with:pejabat_kadin', 'string', 'max:150'],
+            'pejabat_kadin.nip' => ['nullable', 'string', 'max:50'],
+            'pejabat_kadin.jabatan' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $subCreated = 0;
+        $subUpdated = 0;
+        $zonasiRowsUpdated = 0;
+        $pejabatSaved = false;
+
+        DB::transaction(function () use ($validated, &$subCreated, &$subUpdated, &$zonasiRowsUpdated, &$pejabatSaved): void {
+            foreach ($validated['sub_kegiatans'] ?? [] as $sk) {
+                $kode = trim($sk['kode_sub_kegiatan']);
+                $existing = SppdSubKegiatan::where('kode_sub_kegiatan', $kode)->first();
+                if ($existing) {
+                    $existing->update([
+                        'no_rekening' => trim($sk['no_rekening']),
+                        'nama_kegiatan' => trim($sk['nama_kegiatan']),
+                        'sub_kegiatan' => trim($sk['sub_kegiatan']),
+                        'is_active' => true,
+                    ]);
+                    $subUpdated++;
+                } else {
+                    SppdSubKegiatan::create([
+                        'kode_sub_kegiatan' => $kode,
+                        'no_rekening' => trim($sk['no_rekening']),
+                        'nama_kegiatan' => trim($sk['nama_kegiatan']),
+                        'sub_kegiatan' => trim($sk['sub_kegiatan']),
+                        'is_active' => true,
+                    ]);
+                    $subCreated++;
+                }
+            }
+
+            foreach ($validated['zonasi_rates'] ?? [] as $zr) {
+                $updated = SppdZonasi::where('zona', trim($zr['zona']))
+                    ->where('golongan', trim($zr['golongan']))
+                    ->update(['uang_saku' => (float) $zr['uang_saku']]);
+                $zonasiRowsUpdated += $updated;
+            }
+
+            if (! empty($validated['pejabat_kadin'])) {
+                $pj = $validated['pejabat_kadin'];
+                $nipDigits = preg_replace('/\D/', '', (string) ($pj['nip'] ?? ''));
+                $existingPj = $nipDigits !== ''
+                    ? SppdPejabat::where('tipe', SppdPejabat::TIPE_KEPALA_DINAS)
+                        ->get()
+                        ->first(fn (SppdPejabat $p) => preg_replace('/\D/', '', (string) $p->nip) === $nipDigits)
+                    : null;
+
+                if ($existingPj) {
+                    $existingPj->update([
+                        'nama' => trim($pj['nama']),
+                        'jabatan' => ! empty($pj['jabatan']) ? trim($pj['jabatan']) : $existingPj->jabatan,
+                    ]);
+                } else {
+                    SppdPejabat::create([
+                        'tipe' => SppdPejabat::TIPE_KEPALA_DINAS,
+                        'nama' => trim($pj['nama']),
+                        'nip' => $nipDigits ?: null,
+                        'jabatan' => ! empty($pj['jabatan']) ? trim($pj['jabatan']) : 'Kepala Dinas Ketahanan Pangan dan Pertanian',
+                        'is_active' => true,
+                    ]);
+                }
+                $pejabatSaved = true;
+            }
+        });
+
+        $summary = [];
+        if ($subCreated > 0 || $subUpdated > 0) {
+            $summary[] = "{$subCreated} Sub Kegiatan baru, {$subUpdated} diperbarui";
+        }
+        if ($zonasiRowsUpdated > 0) {
+            $summary[] = "{$zonasiRowsUpdated} baris tarif zonasi kecamatan diperbarui";
+        }
+        if ($pejabatSaved) {
+            $summary[] = 'Pejabat Kepala Dinas disimpan';
+        }
+
+        return back()->with(
+            'success',
+            ! empty($summary)
+                ? 'Impor RKA SIPD-RI berhasil: '.implode(' • ', $summary).'.'
+                : 'Tidak ada data yang dipilih untuk disimpan.'
+        );
+    }
+
+    public function syncSubKegiatanFromRealisasi(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'jenis_anggaran' => ['required', 'in:murni,perubahan'],
+        ]);
+
+        $tahun = (int) $validated['tahun_anggaran'];
+        $jenis = $validated['jenis_anggaran'];
+        $jenisLabel = $jenis === 'perubahan' ? 'Anggaran Perubahan' : 'Anggaran Murni';
+
+        $realisasiSks = RealisasiSubKegiatan::with('rekenings')
+            ->where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', $jenis)
+            ->orderBy('kode_sub_kegiatan')
+            ->get();
+
+        if ($realisasiSks->isEmpty()) {
+            return back()->withErrors([
+                'sync' => "Belum ada data {$jenisLabel} TA {$tahun} di modul Realisasi Anggaran.",
+            ]);
+        }
+
+        $created = 0;
+        $updated = 0;
+
+        DB::transaction(function () use ($realisasiSks, &$created, &$updated): void {
+            foreach ($realisasiSks as $rsk) {
+                $kode = trim((string) $rsk->kode_sub_kegiatan);
+                if ($kode === '') {
+                    continue;
+                }
+
+                // Cari rekening Perjalanan Dinas Dalam Kota jika ada
+                $rekDk = $rsk->rekenings->first(
+                    fn ($r) => (bool) preg_match('/^5\.1\.02\.04\.\d{2,3}\.000?03$/', trim((string) $r->kode_rekening))
+                );
+                $noRek = $rekDk ? trim($rekDk->kode_rekening) : '5.1.02.04.01.0003';
+
+                $cleanKeg = trim((string) preg_replace('/^[\d.]+\s+/', '', trim((string) ($rsk->kegiatan ?: $rsk->nama_sub_kegiatan))));
+                $cleanSub = trim((string) $rsk->nama_sub_kegiatan);
+
+                $existing = SppdSubKegiatan::where('kode_sub_kegiatan', $kode)->first();
+                if ($existing) {
+                    $existing->update([
+                        'no_rekening' => $noRek,
+                        'nama_kegiatan' => $cleanKeg ?: $existing->nama_kegiatan,
+                        'sub_kegiatan' => $cleanSub ?: $existing->sub_kegiatan,
+                        'is_active' => true,
+                    ]);
+                    $updated++;
+                } else {
+                    SppdSubKegiatan::create([
+                        'kode_sub_kegiatan' => $kode,
+                        'no_rekening' => $noRek,
+                        'nama_kegiatan' => $cleanKeg ?: $cleanSub,
+                        'sub_kegiatan' => $cleanSub,
+                        'is_active' => true,
+                    ]);
+                    $created++;
+                }
+            }
+        });
+
+        return back()->with(
+            'success',
+            "Berhasil menarik Sub Kegiatan dari {$jenisLabel} TA {$tahun}: {$created} baru, {$updated} diperbarui."
+        );
     }
 }

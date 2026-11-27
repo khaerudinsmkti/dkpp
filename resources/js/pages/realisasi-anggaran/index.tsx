@@ -7,12 +7,14 @@ import {
     ChevronDown,
     ChevronRight,
     Coins,
+    Copy,
     Download,
     Eye,
     FileSpreadsheet,
     FileText,
     FileUp,
     Loader2,
+    Lock,
     Pencil,
     Plus,
     Save,
@@ -20,6 +22,7 @@ import {
     Table2,
     Trash2,
     TrendingUp,
+    Unlock,
     Upload,
     Wallet,
     X,
@@ -114,10 +117,18 @@ interface SubKegiatanItem {
 }
 
 interface PageProps {
+    jenisAnggaran: 'murni' | 'perubahan';
     selectedYear: number;
     availableYears: number[];
     subKegiatans: SubKegiatanItem[];
     pergeserans: PergeseranLog[];
+    isMurniLocked: boolean;
+    murniLockedInfo: {
+        locked_at: string | null;
+        locked_by: string | null;
+    } | null;
+    murniCount: number;
+    perubahanCount: number;
 }
 
 interface DraftRekeningRow {
@@ -171,12 +182,26 @@ function parseRealisasiTab(
 }
 
 export default function RealisasiAnggaranIndex({
+    jenisAnggaran = 'murni',
     selectedYear,
     availableYears,
     subKegiatans,
     pergeserans,
+    isMurniLocked = false,
+    murniLockedInfo = null,
+    murniCount = 0,
+    perubahanCount = 0,
 }: PageProps) {
     const page = usePage();
+    const isPerubahan = jenisAnggaran === 'perubahan';
+    const basePath = isPerubahan
+        ? '/realisasi-anggaran/perubahan'
+        : '/realisasi-anggaran/murni';
+    const isReadOnlyLocked = !isPerubahan && isMurniLocked;
+    const [isTogglingLock, setIsTogglingLock] = useState(false);
+    const [isCopyingMurni, setIsCopyingMurni] = useState(false);
+    const [lockMurniOnCopy, setLockMurniOnCopy] = useState(true);
+
     const [activeTab, setActiveTab] = useState<
         'dashboard' | 'akb' | 'matrix' | 'pergeseran' | 'upload'
     >(() => parseRealisasiTab(page.url));
@@ -190,7 +215,7 @@ export default function RealisasiAnggaranIndex({
     ) => {
         setActiveTab(tab);
         router.get(
-            '/realisasi-anggaran',
+            basePath,
             { tahun: selectedYear, tab },
             { preserveState: true, preserveScroll: true, replace: true }
         );
@@ -242,6 +267,7 @@ export default function RealisasiAnggaranIndex({
     const buildProgramKegiatanPdfUrl = (download: boolean) => {
         const params = new URLSearchParams();
         params.set('tahun', String(selectedYear));
+        params.set('jenis', jenisAnggaran);
         params.set('cols', pdfSelectedCols.join(','));
         if (pdfCustomTitle.trim() !== '') {
             params.set('judul', pdfCustomTitle.trim());
@@ -822,9 +848,66 @@ export default function RealisasiAnggaranIndex({
     // =========================================================================
     const handleYearChange = (yr: string) => {
         router.get(
-            '/realisasi-anggaran',
+            basePath,
             { tahun: yr, tab: activeTab },
             { preserveState: false }
+        );
+    };
+
+    const handleToggleMurniLock = (nextLocked: boolean) => {
+        const msg = nextLocked
+            ? `Kunci Anggaran Murni TA ${selectedYear}? Data Murni akan menjadi read-only agar tidak tidak sengaja diubah saat Anggaran Perubahan aktif.`
+            : `Buka kunci Anggaran Murni TA ${selectedYear}? Data Murni akan dapat diedit kembali.`;
+        if (!window.confirm(msg)) return;
+
+        setIsTogglingLock(true);
+        router.post(
+            '/realisasi-anggaran/toggle-lock',
+            { tahun_anggaran: selectedYear, locked: nextLocked },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        nextLocked
+                            ? `Anggaran Murni TA ${selectedYear} berhasil dikunci.`
+                            : `Kunci Anggaran Murni TA ${selectedYear} dibuka.`
+                    );
+                },
+                onError: (errors) => {
+                    const first = Object.values(errors)[0];
+                    toast.error(first ? String(first) : 'Gagal mengubah status kunci.');
+                },
+                onFinish: () => setIsTogglingLock(false),
+            }
+        );
+    };
+
+    const handleCopyMurniToPerubahan = (shouldLockMurni: boolean) => {
+        const msg = shouldLockMurni
+            ? `Salin ${murniCount} Sub Kegiatan (beserta AKB & Realisasi Bulanan) dari Anggaran Murni TA ${selectedYear} ke Anggaran Perubahan, sekaligus KUNCI Anggaran Murni?`
+            : `Salin ${murniCount} Sub Kegiatan (beserta AKB & Realisasi Bulanan) dari Anggaran Murni TA ${selectedYear} ke Anggaran Perubahan?`;
+        if (!window.confirm(msg)) return;
+
+        setIsCopyingMurni(true);
+        router.post(
+            '/realisasi-anggaran/copy-murni-to-perubahan',
+            {
+                tahun_anggaran: selectedYear,
+                lock_murni: shouldLockMurni,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success(
+                        `Data Anggaran Murni TA ${selectedYear} berhasil disalin ke Anggaran Perubahan.`
+                    );
+                },
+                onError: (errors) => {
+                    const first = Object.values(errors)[0];
+                    toast.error(first ? String(first) : 'Gagal menyalin data dari Murni.');
+                },
+                onFinish: () => setIsCopyingMurni(false),
+            }
         );
     };
 
@@ -920,6 +1003,7 @@ export default function RealisasiAnggaranIndex({
 
         const formData = new FormData();
         formData.append('tahun_anggaran', draftTahun);
+        formData.append('jenis_anggaran', jenisAnggaran);
         formData.append('urusan', draftUrusan.trim());
         formData.append('bidang', draftBidang.trim());
         formData.append('unit_organisasi', draftUnit.trim());
@@ -1082,11 +1166,19 @@ export default function RealisasiAnggaranIndex({
 
     return (
         <>
-            <Head title="Realisasi Anggaran per Sub Kegiatan - DKPP Indramayu" />
+            <Head
+                title={`${isPerubahan ? 'Anggaran Perubahan' : 'Anggaran Murni'} TA ${selectedYear} - DKPP Indramayu`}
+            />
 
             <div className="mx-auto flex w-full max-w-[1520px] flex-col gap-5 p-4 md:p-6">
                 {/* HEADER BANNER */}
-                <div className="relative overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-r from-[#005555] via-[#006565] to-[#007a7a] p-5 text-white shadow-sm">
+                <div
+                    className={`relative overflow-hidden rounded-2xl border p-5 text-white shadow-sm ${
+                        isPerubahan
+                            ? 'border-indigo-300/80 bg-gradient-to-r from-indigo-900 via-indigo-700 to-violet-700'
+                            : 'border-teal-200/80 bg-gradient-to-r from-[#005555] via-[#006565] to-[#007a7a]'
+                    }`}
+                >
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
                             <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-xs">
@@ -1094,39 +1186,64 @@ export default function RealisasiAnggaranIndex({
                             </div>
                             <div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-lg font-extrabold tracking-tight md:text-xl">
-                                        {activeTab === 'akb'
-                                            ? 'Input AKB (Anggaran Kas Belanja)'
-                                            : activeTab === 'matrix'
-                                              ? 'Input Realisasi Bulanan (Jan–Des)'
-                                              : activeTab === 'pergeseran'
-                                                ? 'Pergeseran Anggaran & RKA Perubahan'
-                                                : activeTab === 'upload'
-                                                  ? editingSubKegiatan
-                                                      ? 'Edit Data RKA Sub Kegiatan'
-                                                      : 'Upload & Kelola Data RKA'
-                                                  : 'Dashboard Monitoring Realisasi Anggaran'}
-                                    </h1>
+                                    <Badge
+                                        className={`text-[10px] font-extrabold tracking-wider uppercase ${
+                                            isPerubahan
+                                                ? 'bg-amber-400 text-indigo-950 hover:bg-amber-400'
+                                                : 'bg-emerald-300 text-teal-950 hover:bg-emerald-300'
+                                        }`}
+                                    >
+                                        {isPerubahan
+                                            ? 'ANGGARAN PERUBAHAN'
+                                            : 'ANGGARAN MURNI'}
+                                    </Badge>
                                     <Badge className="bg-white/20 text-[10px] font-bold text-white hover:bg-white/25">
                                         TA {selectedYear}
                                     </Badge>
+                                    {isReadOnlyLocked && (
+                                        <Badge className="gap-1 bg-amber-500 text-[10px] font-extrabold text-white hover:bg-amber-500">
+                                            <Lock className="size-3" />
+                                            TERKUNCI (READ-ONLY)
+                                        </Badge>
+                                    )}
                                 </div>
-                                <p className="mt-0.5 text-xs text-teal-100 md:text-sm">
-                                    Upload PDF RKA SIPD-RI otomatis, input realisasi bulanan
-                                    (Jan–Des), dan monitoring serapan anggaran per sub kegiatan
-                                    serta per kode rekening.
+                                <h1 className="mt-1 text-lg font-extrabold tracking-tight md:text-xl">
+                                    {activeTab === 'akb'
+                                        ? `Input AKB ${isPerubahan ? 'Perubahan' : 'Murni'} (Anggaran Kas Belanja)`
+                                        : activeTab === 'matrix'
+                                          ? `Input Realisasi Bulanan ${isPerubahan ? 'Perubahan' : 'Murni'} (Jan–Des)`
+                                          : activeTab === 'pergeseran'
+                                            ? `Pergeseran Anggaran ${isPerubahan ? 'Perubahan' : 'Murni'}`
+                                            : activeTab === 'upload'
+                                              ? editingSubKegiatan
+                                                  ? `Edit Data RKA ${isPerubahan ? 'Perubahan' : 'Murni'}`
+                                                  : `Upload & Kelola RKA ${isPerubahan ? 'Perubahan' : 'Murni'}`
+                                              : `Dashboard Monitoring ${isPerubahan ? 'Anggaran Perubahan' : 'Anggaran Murni'}`}
+                                </h1>
+                                <p
+                                    className={`mt-0.5 text-xs md:text-sm ${
+                                        isPerubahan ? 'text-indigo-100' : 'text-teal-100'
+                                    }`}
+                                >
+                                    {isPerubahan
+                                        ? 'Ruang kerja khusus APBD Perubahan — data terpisah dari arsip Murni dengan perbandingan pagu otomatis.'
+                                        : 'Ruang kerja khusus APBD Murni — upload PDF RKA SIPD-RI, input AKB, realisasi bulanan, dan monitoring serapan.'}
                                 </p>
                             </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-1.5 ring-1 ring-white/25">
-                                <span className="text-xs font-bold text-teal-100">Tahun:</span>
+                                <span className="text-xs font-bold text-white/90">Tahun:</span>
                                 <Select
                                     value={String(selectedYear)}
                                     onValueChange={handleYearChange}
                                 >
-                                    <SelectTrigger className="h-8 w-[96px] border-0 bg-white text-xs font-extrabold text-[#006565]">
+                                    <SelectTrigger
+                                        className={`h-8 w-[96px] border-0 bg-white text-xs font-extrabold ${
+                                            isPerubahan ? 'text-indigo-800' : 'text-[#006565]'
+                                        }`}
+                                    >
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1139,14 +1256,59 @@ export default function RealisasiAnggaranIndex({
                                 </Select>
                             </div>
 
-                            {activeTab !== 'upload' && (
+                            {!isPerubahan && (
+                                <Button
+                                    type="button"
+                                    disabled={isTogglingLock}
+                                    onClick={() => handleToggleMurniLock(!isMurniLocked)}
+                                    className={`gap-1.5 font-bold shadow-xs ${
+                                        isMurniLocked
+                                            ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
+                                            : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'
+                                    }`}
+                                >
+                                    {isMurniLocked ? (
+                                        <>
+                                            <Unlock className="size-4" />
+                                            Buka Kunci Murni
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Lock className="size-4" />
+                                            Kunci Murni
+                                        </>
+                                    )}
+                                </Button>
+                            )}
+
+                            {isPerubahan && murniCount > 0 && (
+                                <Button
+                                    type="button"
+                                    disabled={isCopyingMurni}
+                                    onClick={() => handleCopyMurniToPerubahan(true)}
+                                    className="gap-1.5 bg-amber-400 font-bold text-indigo-950 shadow-xs hover:bg-amber-300"
+                                >
+                                    {isCopyingMurni ? (
+                                        <Loader2 className="size-4 animate-spin" />
+                                    ) : (
+                                        <Copy className="size-4" />
+                                    )}
+                                    Salin dari Murni
+                                </Button>
+                            )}
+
+                            {activeTab !== 'upload' && !isReadOnlyLocked && (
                                 <Button
                                     type="button"
                                     onClick={() => {
                                         resetDraftForm();
                                         navigateTab('upload');
                                     }}
-                                    className="gap-1.5 bg-white font-bold text-[#006565] shadow-xs hover:bg-teal-50"
+                                    className={`gap-1.5 bg-white font-bold shadow-xs ${
+                                        isPerubahan
+                                            ? 'text-indigo-800 hover:bg-indigo-50'
+                                            : 'text-[#006565] hover:bg-teal-50'
+                                    }`}
                                 >
                                     <FileUp className="size-4" />
                                     Upload PDF RKA
@@ -1155,6 +1317,98 @@ export default function RealisasiAnggaranIndex({
                         </div>
                     </div>
                 </div>
+
+                {/* BANNER LOCK ANGGARAN MURNI */}
+                {isReadOnlyLocked && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-950 shadow-2xs">
+                        <div className="flex items-start gap-2.5">
+                            <Lock className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                            <div>
+                                <div className="font-extrabold">
+                                    Anggaran Murni TA {selectedYear} sedang dikunci (Mode Arsip / Read-Only)
+                                </div>
+                                <div className="mt-0.5 text-[11px] text-amber-800">
+                                    {perubahanCount > 0
+                                        ? `Anggaran Perubahan TA ${selectedYear} sudah aktif (${perubahanCount} Sub Kegiatan). `
+                                        : ''}
+                                    Perubahan data RKA, AKB, dan Realisasi di menu Murni dinonaktifkan agar arsip tetap utuh.
+                                    {murniLockedInfo?.locked_at && (
+                                        <span>
+                                            {' '}
+                                            Dikunci pada {murniLockedInfo.locked_at}
+                                            {murniLockedInfo.locked_by
+                                                ? ` oleh ${murniLockedInfo.locked_by}`
+                                                : ''}
+                                            .
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                    router.get('/realisasi-anggaran/perubahan', {
+                                        tahun: selectedYear,
+                                    })
+                                }
+                                className="h-8 border-indigo-300 bg-white text-xs font-bold text-indigo-700 hover:bg-indigo-50"
+                            >
+                                Buka Anggaran Perubahan
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                disabled={isTogglingLock}
+                                onClick={() => handleToggleMurniLock(false)}
+                                className="h-8 gap-1 bg-amber-600 text-xs font-bold text-white hover:bg-amber-700"
+                            >
+                                <Unlock className="size-3.5" />
+                                Buka Kunci
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* BANNER 1-KLIK SALIN DATA MURNI KE PERUBAHAN SAAT PERUBAHAN MASIH KOSONG */}
+                {isPerubahan && subKegiatans.length === 0 && murniCount > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-4 shadow-2xs">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-extrabold text-indigo-950">
+                                <Copy className="size-4 text-indigo-600" />
+                                Mulai Anggaran Perubahan TA {selectedYear} dari Data Murni
+                            </div>
+                            <p className="text-xs text-neutral-600">
+                                Ditemukan <strong>{murniCount} Sub Kegiatan</strong> di Anggaran Murni TA {selectedYear}. Salin seluruh Sub Kegiatan, Rekening, AKB, dan Realisasi Jan–Sep dengan 1 klik tanpa input ulang, lalu unggah PDF RKA Perubahan SIPD-RI untuk memperbarui pagu.
+                            </p>
+                            <label className="mt-1 inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-indigo-900">
+                                <input
+                                    type="checkbox"
+                                    checked={lockMurniOnCopy}
+                                    onChange={(e) => setLockMurniOnCopy(e.target.checked)}
+                                    className="size-3.5 rounded border-indigo-300 accent-indigo-600"
+                                />
+                                Sekaligus kunci (Lock) Anggaran Murni TA {selectedYear} agar tidak tidak sengaja diubah
+                            </label>
+                        </div>
+                        <Button
+                            type="button"
+                            disabled={isCopyingMurni}
+                            onClick={() => handleCopyMurniToPerubahan(lockMurniOnCopy)}
+                            className="gap-2 bg-indigo-700 font-extrabold text-white hover:bg-indigo-800"
+                        >
+                            {isCopyingMurni ? (
+                                <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                                <Copy className="size-4" />
+                            )}
+                            Salin {murniCount} Sub Kegiatan dari Murni
+                        </Button>
+                    </div>
+                )}
 
                 {/* ================================================================= */}
                 {/* TAB 1: DASHBOARD MONITORING ATASAN                                */}

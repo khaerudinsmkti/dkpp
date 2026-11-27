@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\RealisasiAnggaranLock;
 use App\Models\RealisasiBulanan;
 use App\Models\RealisasiPergeseran;
 use App\Models\RealisasiPergeseranItem;
@@ -22,8 +23,32 @@ use Throwable;
 
 class RealisasiAnggaranController extends Controller
 {
-    public function index(Request $request): Response
+    public static function normalizeJenis(?string $jenis): string
     {
+        return strtolower(trim((string) $jenis)) === 'perubahan' ? 'perubahan' : 'murni';
+    }
+
+    public static function isMurniLocked(int $tahun): bool
+    {
+        return (bool) RealisasiAnggaranLock::where('tahun_anggaran', $tahun)
+            ->value('is_murni_locked');
+    }
+
+    private function guardNotLocked(int $tahun, string $jenis): ?RedirectResponse
+    {
+        if ($jenis === 'murni' && self::isMurniLocked($tahun)) {
+            return back()->withErrors([
+                'locked' => "Anggaran Murni TA {$tahun} sedang dikunci (read-only) karena Anggaran Perubahan sudah aktif. Buka kunci terlebih dahulu jika ingin mengubah data Murni.",
+            ]);
+        }
+
+        return null;
+    }
+
+    public function index(Request $request, ?string $jenis = null): Response
+    {
+        $jenisAnggaran = self::normalizeJenis($jenis ?? $request->query('jenis'));
+
         $availableYears = RealisasiSubKegiatan::select('tahun_anggaran')
             ->distinct()
             ->orderByDesc('tahun_anggaran')
@@ -41,20 +66,36 @@ class RealisasiAnggaranController extends Controller
             rsort($availableYears);
         }
 
+        // Jika di mode Perubahan, muat peta Pagu Murni untuk perbandingan otomatis
+        $murniPaguMap = [];
+        if ($jenisAnggaran === 'perubahan') {
+            $murniSks = RealisasiSubKegiatan::with('rekenings')
+                ->where('tahun_anggaran', $selectedYear)
+                ->where('jenis_anggaran', 'murni')
+                ->get();
+            foreach ($murniSks as $msk) {
+                foreach ($msk->rekenings as $mr) {
+                    $murniPaguMap[trim($msk->kode_sub_kegiatan)][trim($mr->kode_rekening)] = (float) $mr->pagu_anggaran;
+                }
+            }
+        }
+
         $subKegiatans = RealisasiSubKegiatan::with(['rekenings.bulanans'])
             ->where('tahun_anggaran', $selectedYear)
+            ->where('jenis_anggaran', $jenisAnggaran)
             ->orderBy('kode_sub_kegiatan')
             ->orderBy('id')
             ->get()
-            ->map(function (RealisasiSubKegiatan $sk): array {
+            ->map(function (RealisasiSubKegiatan $sk) use ($jenisAnggaran, $murniPaguMap): array {
                 $monthlyTotals = array_fill(1, 12, 0.0);
                 $monthlyAkbTotals = array_fill(1, 12, 0.0);
                 $totalPagu = 0.0;
                 $totalPaguMurni = 0.0;
                 $totalRealisasi = 0.0;
                 $totalAkb = 0.0;
+                $kodeSkKey = trim($sk->kode_sub_kegiatan);
 
-                $rekenings = $sk->rekenings->map(function (RealisasiRekening $rek) use (&$monthlyTotals, &$monthlyAkbTotals, &$totalPagu, &$totalPaguMurni, &$totalRealisasi, &$totalAkb): array {
+                $rekenings = $sk->rekenings->map(function (RealisasiRekening $rek) use ($jenisAnggaran, $murniPaguMap, $kodeSkKey, &$monthlyTotals, &$monthlyAkbTotals, &$totalPagu, &$totalPaguMurni, &$totalRealisasi, &$totalAkb): array {
                     $bulanMap = array_fill(1, 12, 0.0);
                     $akbMap = array_fill(1, 12, 0.0);
                     foreach ($rek->bulanans as $bln) {
@@ -68,7 +109,11 @@ class RealisasiAnggaranController extends Controller
                     }
 
                     $pagu = (float) $rek->pagu_anggaran;
-                    $paguMurni = $rek->pagu_murni !== null ? (float) $rek->pagu_murni : $pagu;
+                    if ($jenisAnggaran === 'perubahan' && isset($murniPaguMap[$kodeSkKey][trim($rek->kode_rekening)])) {
+                        $paguMurni = $murniPaguMap[$kodeSkKey][trim($rek->kode_rekening)];
+                    } else {
+                        $paguMurni = $rek->pagu_murni !== null ? (float) $rek->pagu_murni : ($jenisAnggaran === 'perubahan' ? 0.0 : $pagu);
+                    }
                     $realisasi = array_sum($bulanMap);
                     $rekAkb = array_sum($akbMap);
                     $sisa = $pagu - $realisasi;
@@ -104,6 +149,7 @@ class RealisasiAnggaranController extends Controller
                 return [
                     'id' => $sk->id,
                     'tahun_anggaran' => (int) $sk->tahun_anggaran,
+                    'jenis_anggaran' => $sk->jenis_anggaran ?: 'murni',
                     'urusan' => $sk->urusan,
                     'bidang' => $sk->bidang,
                     'unit_organisasi' => $sk->unit_organisasi,
@@ -132,6 +178,7 @@ class RealisasiAnggaranController extends Controller
 
         $pergeserans = RealisasiPergeseran::with('items')
             ->where('tahun_anggaran', $selectedYear)
+            ->where('jenis_anggaran', $jenisAnggaran)
             ->orderByDesc('tanggal')
             ->orderByDesc('id')
             ->get()
@@ -161,12 +208,171 @@ class RealisasiAnggaranController extends Controller
                 ];
             })->values()->all();
 
+        $lockRecord = RealisasiAnggaranLock::where('tahun_anggaran', $selectedYear)->first();
+        $murniCount = RealisasiSubKegiatan::where('tahun_anggaran', $selectedYear)
+            ->where('jenis_anggaran', 'murni')
+            ->count();
+        $perubahanCount = RealisasiSubKegiatan::where('tahun_anggaran', $selectedYear)
+            ->where('jenis_anggaran', 'perubahan')
+            ->count();
+
         return Inertia::render('realisasi-anggaran/index', [
+            'jenisAnggaran' => $jenisAnggaran,
             'selectedYear' => $selectedYear,
             'availableYears' => $availableYears,
             'subKegiatans' => $subKegiatans,
             'pergeserans' => $pergeserans,
+            'isMurniLocked' => (bool) ($lockRecord?->is_murni_locked ?? false),
+            'murniLockedInfo' => $lockRecord && $lockRecord->is_murni_locked ? [
+                'locked_at' => $lockRecord->locked_at?->format('d M Y H:i'),
+                'locked_by' => $lockRecord->locked_by,
+            ] : null,
+            'murniCount' => $murniCount,
+            'perubahanCount' => $perubahanCount,
         ]);
+    }
+
+    /**
+     * Salin seluruh Sub Kegiatan, Rekening, AKB, dan Realisasi Bulanan dari Anggaran Murni
+     * ke Anggaran Perubahan untuk tahun anggaran tertentu (opsional: sekaligus kunci Murni).
+     */
+    public function copyMurniToPerubahan(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'lock_murni' => ['nullable', 'boolean'],
+        ]);
+
+        $tahun = (int) $validated['tahun_anggaran'];
+        $lockMurni = $request->boolean('lock_murni', true);
+
+        $murniSks = RealisasiSubKegiatan::with(['rekenings.bulanans'])
+            ->where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', 'murni')
+            ->orderBy('kode_sub_kegiatan')
+            ->orderBy('id')
+            ->get();
+
+        if ($murniSks->isEmpty()) {
+            return back()->withErrors([
+                'copy' => "Belum ada data Anggaran Murni untuk Tahun Anggaran {$tahun} yang bisa disalin.",
+            ]);
+        }
+
+        $copiedCount = 0;
+        $skippedCount = 0;
+
+        DB::transaction(function () use ($murniSks, $tahun, $lockMurni, $request, &$copiedCount, &$skippedCount): void {
+            $existingPerubahanCodes = RealisasiSubKegiatan::where('tahun_anggaran', $tahun)
+                ->where('jenis_anggaran', 'perubahan')
+                ->pluck('kode_sub_kegiatan')
+                ->map(fn ($c) => trim((string) $c))
+                ->all();
+
+            foreach ($murniSks as $msk) {
+                $kode = trim($msk->kode_sub_kegiatan);
+                if (in_array($kode, $existingPerubahanCodes, true)) {
+                    $skippedCount++;
+
+                    continue;
+                }
+
+                $newSk = RealisasiSubKegiatan::create([
+                    'tahun_anggaran' => $tahun,
+                    'jenis_anggaran' => 'perubahan',
+                    'urusan' => $msk->urusan,
+                    'bidang' => $msk->bidang,
+                    'unit_organisasi' => $msk->unit_organisasi,
+                    'sub_unit_organisasi' => $msk->sub_unit_organisasi,
+                    'program' => $msk->program,
+                    'kegiatan' => $msk->kegiatan,
+                    'kode_sub_kegiatan' => $kode,
+                    'nama_sub_kegiatan' => $msk->nama_sub_kegiatan,
+                    'sumber_pendanaan' => $msk->sumber_pendanaan,
+                    'lokasi' => $msk->lokasi,
+                    'waktu_pelaksanaan' => $msk->waktu_pelaksanaan,
+                    'keterangan' => $msk->keterangan,
+                    'total_anggaran' => $msk->total_anggaran,
+                    'rka_file_path' => $msk->rka_file_path,
+                ]);
+
+                foreach ($msk->rekenings as $mrek) {
+                    $newRek = $newSk->rekenings()->create([
+                        'kode_rekening' => $mrek->kode_rekening,
+                        'uraian' => $mrek->uraian,
+                        'jenis_pencairan' => $mrek->jenis_pencairan ?: 'GU',
+                        'pagu_anggaran' => $mrek->pagu_anggaran,
+                        'pagu_murni' => $mrek->pagu_anggaran,
+                        'urutan' => $mrek->urutan,
+                    ]);
+
+                    foreach ($mrek->bulanans as $mbln) {
+                        RealisasiBulanan::create([
+                            'realisasi_rekening_id' => $newRek->id,
+                            'bulan' => $mbln->bulan,
+                            'nominal' => $mbln->nominal,
+                            'akb' => $mbln->akb,
+                            'catatan' => $mbln->catatan,
+                        ]);
+                    }
+                }
+
+                $copiedCount++;
+            }
+
+            if ($lockMurni) {
+                RealisasiAnggaranLock::updateOrCreate(
+                    ['tahun_anggaran' => $tahun],
+                    [
+                        'is_murni_locked' => true,
+                        'locked_at' => now(),
+                        'locked_by' => $request->user()?->name ?? 'System',
+                    ]
+                );
+            }
+        });
+
+        $msg = "{$copiedCount} Sub Kegiatan beserta AKB & Realisasi Bulanan berhasil disalin ke Anggaran Perubahan TA {$tahun}.";
+        if ($skippedCount > 0) {
+            $msg .= " ({$skippedCount} Sub Kegiatan yang sudah ada di Perubahan dilewati.)";
+        }
+        if ($lockMurni) {
+            $msg .= ' Anggaran Murni otomatis dikunci.';
+        }
+
+        return redirect()
+            ->route('realisasi-anggaran.perubahan', ['tahun' => $tahun])
+            ->with('success', $msg);
+    }
+
+    /**
+     * Kunci / Buka Kunci Anggaran Murni untuk Tahun Anggaran tertentu.
+     */
+    public function toggleMurniLock(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'locked' => ['required', 'boolean'],
+        ]);
+
+        $tahun = (int) $validated['tahun_anggaran'];
+        $locked = (bool) $validated['locked'];
+
+        RealisasiAnggaranLock::updateOrCreate(
+            ['tahun_anggaran' => $tahun],
+            [
+                'is_murni_locked' => $locked,
+                'locked_at' => $locked ? now() : null,
+                'locked_by' => $locked ? ($request->user()?->name ?? 'System') : null,
+            ]
+        );
+
+        return back()->with(
+            'success',
+            $locked
+                ? "Anggaran Murni TA {$tahun} berhasil dikunci (read-only)."
+                : "Kunci Anggaran Murni TA {$tahun} berhasil dibuka."
+        );
     }
 
     /**
@@ -207,6 +413,7 @@ class RealisasiAnggaranController extends Controller
     {
         $validated = $request->validate([
             'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'jenis_anggaran' => ['nullable', 'in:murni,perubahan'],
             'urusan' => ['nullable', 'string', 'max:255'],
             'bidang' => ['nullable', 'string', 'max:255'],
             'unit_organisasi' => ['nullable', 'string', 'max:255'],
@@ -231,6 +438,11 @@ class RealisasiAnggaranController extends Controller
             'rekenings.required' => 'Minimal 1 Kode Rekening Belanja wajib tersedia.',
         ]);
 
+        $jenisAnggaran = self::normalizeJenis($validated['jenis_anggaran'] ?? null);
+        if ($lockedResp = $this->guardNotLocked((int) $validated['tahun_anggaran'], $jenisAnggaran)) {
+            return $lockedResp;
+        }
+
         $rkaFilePath = null;
         if ($request->hasFile('rka_pdf')) {
             $file = $request->file('rka_pdf');
@@ -250,10 +462,11 @@ class RealisasiAnggaranController extends Controller
             0.0
         );
 
-        DB::transaction(function () use ($validated, $rkaFilePath, $totalAnggaran): void {
+        DB::transaction(function () use ($validated, $jenisAnggaran, $rkaFilePath, $totalAnggaran): void {
             $subKegiatan = RealisasiSubKegiatan::updateOrCreate(
                 [
                     'tahun_anggaran' => (int) $validated['tahun_anggaran'],
+                    'jenis_anggaran' => $jenisAnggaran,
                     'kode_sub_kegiatan' => trim($validated['kode_sub_kegiatan']),
                 ],
                 [
@@ -312,7 +525,7 @@ class RealisasiAnggaranController extends Controller
         });
 
         return redirect()
-            ->route('realisasi-anggaran.index', ['tahun' => (int) $validated['tahun_anggaran']])
+            ->route($jenisAnggaran === 'perubahan' ? 'realisasi-anggaran.perubahan' : 'realisasi-anggaran.murni', ['tahun' => (int) $validated['tahun_anggaran']])
             ->with('success', 'Data Sub Kegiatan & Kode Rekening RKA berhasil disimpan ke database.');
     }
 
@@ -322,6 +535,11 @@ class RealisasiAnggaranController extends Controller
      */
     public function updateSubKegiatan(Request $request, RealisasiSubKegiatan $subKegiatan): RedirectResponse
     {
+        $jenisAnggaran = self::normalizeJenis($subKegiatan->jenis_anggaran);
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, $jenisAnggaran)) {
+            return $lockedResp;
+        }
+
         $validated = $request->validate([
             'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
             'urusan' => ['nullable', 'string', 'max:255'],
@@ -353,6 +571,7 @@ class RealisasiAnggaranController extends Controller
         $kodeSubKegiatan = trim($validated['kode_sub_kegiatan']);
 
         $duplicateSubKegiatan = RealisasiSubKegiatan::where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', $jenisAnggaran)
             ->where('kode_sub_kegiatan', $kodeSubKegiatan)
             ->where('id', '!=', $subKegiatan->id)
             ->exists();
@@ -459,7 +678,7 @@ class RealisasiAnggaranController extends Controller
         });
 
         return redirect()
-            ->route('realisasi-anggaran.index', ['tahun' => $tahun])
+            ->route($jenisAnggaran === 'perubahan' ? 'realisasi-anggaran.perubahan' : 'realisasi-anggaran.murni', ['tahun' => $tahun])
             ->with('success', 'Perubahan data RKA Sub Kegiatan & Kode Rekening berhasil disimpan.');
     }
 
@@ -468,6 +687,10 @@ class RealisasiAnggaranController extends Controller
      */
     public function saveAkb(Request $request, RealisasiSubKegiatan $subKegiatan): RedirectResponse
     {
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, self::normalizeJenis($subKegiatan->jenis_anggaran))) {
+            return $lockedResp;
+        }
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.rekening_id' => ['required', 'integer'],
@@ -557,6 +780,10 @@ class RealisasiAnggaranController extends Controller
      */
     public function saveMatrix(Request $request, RealisasiSubKegiatan $subKegiatan): RedirectResponse
     {
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, self::normalizeJenis($subKegiatan->jenis_anggaran))) {
+            return $lockedResp;
+        }
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.rekening_id' => ['required', 'integer'],
@@ -643,6 +870,10 @@ class RealisasiAnggaranController extends Controller
 
     public function destroySubKegiatan(RealisasiSubKegiatan $subKegiatan): RedirectResponse
     {
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, self::normalizeJenis($subKegiatan->jenis_anggaran))) {
+            return $lockedResp;
+        }
+
         if ($subKegiatan->rka_file_path) {
             $fullPath = public_path(ltrim($subKegiatan->rka_file_path, '/'));
             if (File::exists($fullPath)) {
@@ -720,6 +951,10 @@ class RealisasiAnggaranController extends Controller
      */
     public function updateKeterangan(Request $request, RealisasiSubKegiatan $subKegiatan): RedirectResponse
     {
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, self::normalizeJenis($subKegiatan->jenis_anggaran))) {
+            return $lockedResp;
+        }
+
         $validated = $request->validate([
             'keterangan' => ['nullable', 'string', 'max:5000'],
         ]);
@@ -739,6 +974,7 @@ class RealisasiAnggaranController extends Controller
     public function downloadProgramKegiatanPdf(Request $request): SymfonyResponse
     {
         $tahun = $request->integer('tahun') ?: (int) date('Y');
+        $jenisAnggaran = self::normalizeJenis($request->query('jenis'));
 
         $allowedCols = [
             'program',
@@ -785,6 +1021,7 @@ class RealisasiAnggaranController extends Controller
 
         $subKegiatans = RealisasiSubKegiatan::with(['rekenings.bulanans'])
             ->where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', $jenisAnggaran)
             ->orderBy('program')
             ->orderBy('kegiatan')
             ->orderBy('kode_sub_kegiatan')
@@ -846,12 +1083,13 @@ class RealisasiAnggaranController extends Controller
             $rawRows[$i]['kegiatan_last'] = ! $nextSameKegiatan;
         }
 
+        $jenisLabel = $jenisAnggaran === 'perubahan' ? 'PERUBAHAN' : 'MURNI';
         $customTitle = trim((string) $request->query('judul', ''));
         $docTitle = $customTitle !== ''
             ? $customTitle
-            : "PROGRAM DAN KEGIATAN BIDANG KDP TAHUN {$tahun}";
+            : "PROGRAM DAN KEGIATAN BIDANG KDP ({$jenisLabel}) TAHUN {$tahun}";
 
-        $filename = "Program_dan_Kegiatan_Bidang_KDP_Tahun_{$tahun}.pdf";
+        $filename = "Program_dan_Kegiatan_Bidang_KDP_{$jenisLabel}_Tahun_{$tahun}.pdf";
 
         $pdf = Pdf::loadView('pdf.realisasi-program-kegiatan', [
             'tahun' => $tahun,
@@ -908,6 +1146,9 @@ class RealisasiAnggaranController extends Controller
                     'items' => "Rekening {$rek->kode_rekening} bukan milik Tahun Anggaran {$validated['tahun_anggaran']}.",
                 ]);
             }
+            if ($lockedResp = $this->guardNotLocked((int) $rek->subKegiatan->tahun_anggaran, self::normalizeJenis($rek->subKegiatan->jenis_anggaran))) {
+                return $lockedResp;
+            }
 
             $paguSebelum = (float) $rek->pagu_anggaran;
             $paguSesudah = max(0.0, (float) $item['pagu_sesudah']);
@@ -943,8 +1184,12 @@ class RealisasiAnggaranController extends Controller
                 $totalSesudah += $c['pagu_sesudah'];
             }
 
+            $firstChange = reset($changes);
+            $jenisPergeseran = self::normalizeJenis($firstChange['rek']->subKegiatan->jenis_anggaran ?? 'murni');
+
             $pergeseran = RealisasiPergeseran::create([
                 'tahun_anggaran' => (int) $validated['tahun_anggaran'],
+                'jenis_anggaran' => $jenisPergeseran,
                 'nama_tahap' => trim($validated['nama_tahap']),
                 'jenis' => 'pergeseran_manual',
                 'tanggal' => $validated['tanggal'],
@@ -1090,6 +1335,11 @@ class RealisasiAnggaranController extends Controller
             ]);
         }
 
+        $jenisSub = self::normalizeJenis($subKegiatan->jenis_anggaran);
+        if ($lockedResp = $this->guardNotLocked((int) $subKegiatan->tahun_anggaran, $jenisSub)) {
+            return $lockedResp;
+        }
+
         $rkaFilePath = null;
         if ($request->hasFile('rka_pdf')) {
             $file = $request->file('rka_pdf');
@@ -1103,7 +1353,7 @@ class RealisasiAnggaranController extends Controller
             $rkaFilePath = 'uploads/rka-pdf/'.$filename;
         }
 
-        DB::transaction(function () use ($validated, $subKegiatan, $diffRows, $rkaFilePath): void {
+        DB::transaction(function () use ($validated, $subKegiatan, $jenisSub, $diffRows, $rkaFilePath): void {
             $totalSebelum = 0.0;
             $totalSesudah = 0.0;
             foreach ($diffRows as $d) {
@@ -1113,6 +1363,7 @@ class RealisasiAnggaranController extends Controller
 
             $pergeseran = RealisasiPergeseran::create([
                 'tahun_anggaran' => (int) $subKegiatan->tahun_anggaran,
+                'jenis_anggaran' => $jenisSub,
                 'nama_tahap' => trim($validated['nama_tahap']),
                 'jenis' => 'rka_perubahan_pdf',
                 'tanggal' => $validated['tanggal'],
@@ -1172,6 +1423,10 @@ class RealisasiAnggaranController extends Controller
 
     public function destroyPergeseran(RealisasiPergeseran $pergeseran): RedirectResponse
     {
+        if ($lockedResp = $this->guardNotLocked((int) $pergeseran->tahun_anggaran, self::normalizeJenis($pergeseran->jenis_anggaran))) {
+            return $lockedResp;
+        }
+
         $pergeseran->delete();
 
         return back()->with('success', 'Catatan riwayat pergeseran berhasil dihapus.');

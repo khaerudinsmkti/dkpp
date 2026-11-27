@@ -517,8 +517,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/users-roles/roles/{role}/matrix', [UserRoleController::class, 'updateMatrix'])->name('users-roles.roles.matrix');
     Route::delete('/users-roles/roles/{role}', [UserRoleController::class, 'destroyRole'])->name('users-roles.roles.destroy');
 
-    // Modul Realisasi Anggaran per Sub Kegiatan (Upload RKA SIPD + Matriks Bulanan + Dashboard Atasan)
+    // Modul Realisasi Anggaran per Sub Kegiatan (Dipisah: Anggaran Murni & Anggaran Perubahan)
     Route::get('/realisasi-anggaran', [RealisasiAnggaranController::class, 'index'])->name('realisasi-anggaran.index');
+    Route::get('/realisasi-anggaran/murni', [RealisasiAnggaranController::class, 'index'])->defaults('jenis', 'murni')->name('realisasi-anggaran.murni');
+    Route::get('/realisasi-anggaran/perubahan', [RealisasiAnggaranController::class, 'index'])->defaults('jenis', 'perubahan')->name('realisasi-anggaran.perubahan');
+    Route::post('/realisasi-anggaran/copy-murni-to-perubahan', [RealisasiAnggaranController::class, 'copyMurniToPerubahan'])->name('realisasi-anggaran.copy-murni-to-perubahan');
+    Route::post('/realisasi-anggaran/toggle-lock', [RealisasiAnggaranController::class, 'toggleMurniLock'])->name('realisasi-anggaran.toggle-lock');
     Route::post('/realisasi-anggaran/parse-rka', [RealisasiAnggaranController::class, 'parseRkaPdf'])->name('realisasi-anggaran.parse-rka');
     Route::post('/realisasi-anggaran/sub-kegiatan', [RealisasiAnggaranController::class, 'storeSubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.store');
     Route::post('/realisasi-anggaran/sub-kegiatan/{subKegiatan}', [RealisasiAnggaranController::class, 'updateSubKegiatan'])->name('realisasi-anggaran.sub-kegiatan.update');
@@ -572,6 +576,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/sppd-dalam-kota/sub-kegiatan', [SppdDalamKotaController::class, 'storeSubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.store');
     Route::put('/sppd-dalam-kota/sub-kegiatan/{subKegiatan}', [SppdDalamKotaController::class, 'updateSubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.update');
     Route::delete('/sppd-dalam-kota/sub-kegiatan/{subKegiatan}', [SppdDalamKotaController::class, 'destroySubKegiatan'])->name('sppd-dalam-kota.sub-kegiatan.destroy');
+    Route::post('/sppd-dalam-kota/parse-rka-pdf', [SppdDalamKotaController::class, 'parseRkaPdf'])->name('sppd-dalam-kota.parse-rka-pdf');
+    Route::post('/sppd-dalam-kota/import-rka', [SppdDalamKotaController::class, 'importFromRka'])->name('sppd-dalam-kota.import-rka');
+    Route::post('/sppd-dalam-kota/sync-sub-kegiatan-realisasi', [SppdDalamKotaController::class, 'syncSubKegiatanFromRealisasi'])->name('sppd-dalam-kota.sync-sub-kegiatan-realisasi');
 
     Route::post('/sppd-dalam-kota/dpa', [SppdDalamKotaController::class, 'storeDpa'])->name('sppd-dalam-kota.dpa.store');
     Route::put('/sppd-dalam-kota/dpa/{dpa}', [SppdDalamKotaController::class, 'updateDpa'])->name('sppd-dalam-kota.dpa.update');
@@ -603,6 +610,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/npd/{npd}', [\App\Http\Controllers\NpdController::class, 'destroy'])->name('npd.destroy');
     Route::post('/npd/rekening', [\App\Http\Controllers\NpdController::class, 'storeRekening'])->name('npd.rekening.store');
     Route::post('/npd/rekening/parse-sipd-pdf', [\App\Http\Controllers\NpdController::class, 'parseSipdPdf'])->name('npd.rekening.parse-sipd-pdf');
+    Route::post('/npd/rekening/sync-realisasi', [\App\Http\Controllers\NpdController::class, 'syncFromRealisasi'])->name('npd.rekening.sync-realisasi');
     Route::put('/npd/rekening/{npdRekening}', [\App\Http\Controllers\NpdController::class, 'updateRekening'])->name('npd.rekening.update');
     Route::delete('/npd/rekening/{npdRekening}', [\App\Http\Controllers\NpdController::class, 'destroyRekening'])->name('npd.rekening.destroy');
 });

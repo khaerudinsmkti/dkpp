@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Npd;
 use App\Models\NpdItem;
 use App\Models\NpdRekening;
+use App\Models\RealisasiSubKegiatan;
 use App\Models\SppdDalamKota;
 use App\Models\SppdDpa;
 use App\Models\SppdLuarKota;
@@ -116,6 +117,7 @@ class NpdController extends Controller
                     'id' => $r->id,
                     'sub_kegiatan_id' => $r->sub_kegiatan_id,
                     'tahun_anggaran' => (int) $r->tahun_anggaran,
+                    'jenis_anggaran' => ($r->jenis_anggaran ?: 'murni') === 'perubahan' ? 'perubahan' : 'murni',
                     'nama_program' => $r->nama_program,
                     'kode_rekening' => $r->kode_rekening,
                     'uraian' => $r->uraian,
@@ -244,6 +246,7 @@ class NpdController extends Controller
             $validated = $request->validate([
                 'sub_kegiatan_id' => ['required', 'exists:sppd_sub_kegiatans,id'],
                 'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+                'jenis_anggaran' => ['nullable', 'in:murni,perubahan'],
                 'nama_program' => ['nullable', 'string', 'max:255'],
                 'items' => ['required', 'array', 'min:1'],
                 'items.*.kode_rekening' => ['required', 'string', 'max:60'],
@@ -251,19 +254,23 @@ class NpdController extends Controller
                 'items.*.anggaran' => ['required', 'numeric', 'min:0'],
             ]);
 
+            $jenisAnggaran = ($validated['jenis_anggaran'] ?? 'murni') === 'perubahan' ? 'perubahan' : 'murni';
+
             $maxUrutan = (int) NpdRekening::where('sub_kegiatan_id', $validated['sub_kegiatan_id'])
                 ->where('tahun_anggaran', $validated['tahun_anggaran'])
+                ->where('jenis_anggaran', $jenisAnggaran)
                 ->max('urutan');
 
             $createdCount = 0;
             $updatedCount = 0;
 
-            DB::transaction(function () use ($validated, $maxUrutan, &$createdCount, &$updatedCount): void {
+            DB::transaction(function () use ($validated, $jenisAnggaran, $maxUrutan, &$createdCount, &$updatedCount): void {
                 $urutan = $maxUrutan + 1;
                 foreach ($validated['items'] as $row) {
                     $kode = trim($row['kode_rekening']);
                     $existing = NpdRekening::where('sub_kegiatan_id', (int) $validated['sub_kegiatan_id'])
                         ->where('tahun_anggaran', (int) $validated['tahun_anggaran'])
+                        ->where('jenis_anggaran', $jenisAnggaran)
                         ->where('kode_rekening', $kode)
                         ->first();
 
@@ -278,6 +285,7 @@ class NpdController extends Controller
                         NpdRekening::create([
                             'sub_kegiatan_id' => (int) $validated['sub_kegiatan_id'],
                             'tahun_anggaran' => (int) $validated['tahun_anggaran'],
+                            'jenis_anggaran' => $jenisAnggaran,
                             'nama_program' => ! empty($validated['nama_program']) ? trim($validated['nama_program']) : null,
                             'kode_rekening' => $kode,
                             'uraian' => trim($row['uraian']),
@@ -303,19 +311,24 @@ class NpdController extends Controller
         $validated = $request->validate([
             'sub_kegiatan_id' => ['required', 'exists:sppd_sub_kegiatans,id'],
             'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'jenis_anggaran' => ['nullable', 'in:murni,perubahan'],
             'nama_program' => ['nullable', 'string', 'max:255'],
             'kode_rekening' => ['required', 'string', 'max:60'],
             'uraian' => ['required', 'string', 'max:255'],
             'anggaran' => ['required', 'numeric', 'min:0'],
         ]);
 
+        $jenisAnggaran = ($validated['jenis_anggaran'] ?? 'murni') === 'perubahan' ? 'perubahan' : 'murni';
+
         $maxUrutan = (int) NpdRekening::where('sub_kegiatan_id', $validated['sub_kegiatan_id'])
             ->where('tahun_anggaran', $validated['tahun_anggaran'])
+            ->where('jenis_anggaran', $jenisAnggaran)
             ->max('urutan');
 
         NpdRekening::create([
             'sub_kegiatan_id' => (int) $validated['sub_kegiatan_id'],
             'tahun_anggaran' => (int) $validated['tahun_anggaran'],
+            'jenis_anggaran' => $jenisAnggaran,
             'nama_program' => ! empty($validated['nama_program']) ? trim($validated['nama_program']) : null,
             'kode_rekening' => trim($validated['kode_rekening']),
             'uraian' => trim($validated['uraian']),
@@ -324,6 +337,101 @@ class NpdController extends Controller
         ]);
 
         return back()->with('success', 'Rekening pagu anggaran berhasil ditambahkan.');
+    }
+
+    /**
+     * Sinkronisasi Master Pagu Rekening NPD langsung dari modul Realisasi Anggaran (Murni / Perubahan).
+     */
+    public function syncFromRealisasi(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tahun_anggaran' => ['required', 'integer', 'min:2020', 'max:2100'],
+            'jenis_anggaran' => ['required', 'in:murni,perubahan'],
+            'sub_kegiatan_id' => ['nullable', 'exists:sppd_sub_kegiatans,id'],
+        ]);
+
+        $tahun = (int) $validated['tahun_anggaran'];
+        $jenis = $validated['jenis_anggaran'];
+        $jenisLabel = $jenis === 'perubahan' ? 'Anggaran Perubahan' : 'Anggaran Murni';
+
+        $realisasiSks = RealisasiSubKegiatan::with('rekenings')
+            ->where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', $jenis)
+            ->get();
+
+        if ($realisasiSks->isEmpty()) {
+            return back()->withErrors([
+                'sync' => "Belum ada data {$jenisLabel} untuk Tahun Anggaran {$tahun} di modul Realisasi Anggaran.",
+            ]);
+        }
+
+        $targetSppdSks = ! empty($validated['sub_kegiatan_id'])
+            ? SppdSubKegiatan::where('id', (int) $validated['sub_kegiatan_id'])->get()
+            : SppdSubKegiatan::all();
+
+        $normalizeCode = static fn (?string $c): string => (string) preg_replace('/\D/', '', (string) $c);
+        $realisasiByNormCode = [];
+        foreach ($realisasiSks as $rsk) {
+            $realisasiByNormCode[$normalizeCode($rsk->kode_sub_kegiatan)] = $rsk;
+        }
+
+        $syncedSkCount = 0;
+        $syncedRekCount = 0;
+
+        DB::transaction(function () use ($targetSppdSks, $realisasiByNormCode, $normalizeCode, $tahun, $jenis, &$syncedSkCount, &$syncedRekCount): void {
+            foreach ($targetSppdSks as $sppdSk) {
+                $rsk = $realisasiByNormCode[$normalizeCode($sppdSk->kode_sub_kegiatan)] ?? null;
+                if (! $rsk || $rsk->rekenings->isEmpty()) {
+                    continue;
+                }
+
+                $syncedSkCount++;
+                $urutan = 1;
+                $cleanProgram = $rsk->program
+                    ? trim((string) preg_replace('/^[\d.]+\s+/', '', trim($rsk->program)))
+                    : null;
+
+                foreach ($rsk->rekenings as $rrek) {
+                    $kode = trim($rrek->kode_rekening);
+                    $existing = NpdRekening::where('sub_kegiatan_id', $sppdSk->id)
+                        ->where('tahun_anggaran', $tahun)
+                        ->where('jenis_anggaran', $jenis)
+                        ->where('kode_rekening', $kode)
+                        ->first();
+
+                    if ($existing) {
+                        $existing->update([
+                            'nama_program' => $cleanProgram ?: $existing->nama_program,
+                            'uraian' => trim($rrek->uraian),
+                            'anggaran' => (float) $rrek->pagu_anggaran,
+                        ]);
+                    } else {
+                        NpdRekening::create([
+                            'sub_kegiatan_id' => $sppdSk->id,
+                            'tahun_anggaran' => $tahun,
+                            'jenis_anggaran' => $jenis,
+                            'nama_program' => $cleanProgram,
+                            'kode_rekening' => $kode,
+                            'uraian' => trim($rrek->uraian),
+                            'anggaran' => (float) $rrek->pagu_anggaran,
+                            'urutan' => $urutan++,
+                        ]);
+                    }
+                    $syncedRekCount++;
+                }
+            }
+        });
+
+        if ($syncedRekCount === 0) {
+            return back()->withErrors([
+                'sync' => "Kode Sub Kegiatan yang dipilih belum ditemukan pada data {$jenisLabel} TA {$tahun}. Pastikan Kode Sub Kegiatan di Master SPPD sama dengan di RKA {$jenisLabel}.",
+            ]);
+        }
+
+        return back()->with(
+            'success',
+            "Berhasil menyinkronkan {$syncedRekCount} rekening dari {$syncedSkCount} Sub Kegiatan ({$jenisLabel} TA {$tahun})."
+        );
     }
 
     public function updateRekening(Request $request, NpdRekening $npdRekening): RedirectResponse

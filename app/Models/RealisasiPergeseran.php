@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'tahun_anggaran',
+    'jenis_anggaran',
     'nama_tahap',
     'jenis',
     'tanggal',

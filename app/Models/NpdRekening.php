@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'sub_kegiatan_id',
     'tahun_anggaran',
+    'jenis_anggaran',
     'nama_program',
     'kode_rekening',
     'uraian',

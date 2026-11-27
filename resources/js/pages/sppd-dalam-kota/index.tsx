@@ -16,6 +16,7 @@ import {
     FileCheck2,
     FileSpreadsheet,
     FileText,
+    FileUp,
     FolderKanban,
     Layers,
     MapPin,
@@ -38,6 +39,7 @@ import {
     type LhpdTargetItem,
     type LhpdType,
 } from '@/components/sppd/lhpd-modal';
+import { RkaImportModal } from '@/components/sppd/rka-import-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -622,6 +624,7 @@ export default function SppdDalamKotaIndex({
 
     // State Modal Isi LHPD per perjalanan
     const [lhpdModalOpen, setLhpdModalOpen] = useState(false);
+    const [rkaImportModalOpen, setRkaImportModalOpen] = useState(false);
     const [lhpdTargetItem, setLhpdTargetItem] = useState<LhpdTargetItem | null>(
         null
     );
@@ -4377,6 +4380,15 @@ export default function SppdDalamKotaIndex({
                                         />
                                     </div>
                                     <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setRkaImportModalOpen(true)}
+                                        className="gap-1.5 border-teal-300 bg-teal-50/70 text-xs font-bold text-[#006565] hover:bg-teal-100"
+                                    >
+                                        <FileUp className="size-4" />
+                                        Impor PDF RKA SIPD-RI
+                                    </Button>
+                                    <Button
                                         onClick={handleOpenCreateSubKegiatan}
                                         className="gap-1.5 bg-[#006565] text-xs text-white hover:bg-[#005252]"
                                     >
@@ -4851,6 +4863,15 @@ export default function SppdDalamKotaIndex({
                                         </SelectContent>
                                     </Select>
 
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setRkaImportModalOpen(true)}
+                                        className="gap-1.5 border-teal-300 bg-teal-50/70 text-xs font-bold text-[#006565] hover:bg-teal-100"
+                                    >
+                                        <FileUp className="size-4" />
+                                        Impor Tarif dari RKA PDF
+                                    </Button>
                                     <Button
                                         onClick={handleOpenCreateZonasi}
                                         className="gap-1.5 bg-[#006565] text-xs text-white hover:bg-[#005252]"
@@ -6028,6 +6049,11 @@ export default function SppdDalamKotaIndex({
                     onOpenChange={setLhpdModalOpen}
                     item={lhpdTargetItem}
                     copyableItems={allLhpdItems}
+                />
+
+                <RkaImportModal
+                    open={rkaImportModalOpen}
+                    onOpenChange={setRkaImportModalOpen}
                 />
             </div>
         </>
