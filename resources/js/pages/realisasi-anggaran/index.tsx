@@ -278,6 +278,25 @@ export default function RealisasiAnggaranIndex({
         return `/realisasi-anggaran/program-kegiatan/pdf?${params.toString()}`;
     };
 
+    const buildKodeRekeningPdfUrl = (download: boolean) => {
+        const params = new URLSearchParams();
+        params.set('tahun', String(selectedYear));
+        params.set('jenis', jenisAnggaran);
+        if (rekJenisFilter !== 'all') {
+            params.set('jenis_pencairan', rekJenisFilter);
+        }
+        if (rekStatusFilter !== 'all') {
+            params.set('status', rekStatusFilter);
+        }
+        if (rekSearch.trim() !== '') {
+            params.set('q', rekSearch.trim());
+        }
+        if (download) {
+            params.set('download', '1');
+        }
+        return `/realisasi-anggaran/kode-rekening/pdf?${params.toString()}`;
+    };
+
     // =========================================================================
     // DASHBOARD FILTER STATE
     // =========================================================================
@@ -1853,14 +1872,45 @@ export default function RealisasiAnggaranIndex({
                                             </div>
                                         </div>
 
-                                        <div className="relative w-full sm:w-64">
-                                            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-neutral-400" />
-                                            <Input
-                                                value={rekSearch}
-                                                onChange={(e) => setRekSearch(e.target.value)}
-                                                placeholder="Cari kode rekening / uraian..."
-                                                className="h-8 bg-white pl-8 text-xs"
-                                            />
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <div className="relative w-full sm:w-56">
+                                                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-neutral-400" />
+                                                <Input
+                                                    value={rekSearch}
+                                                    onChange={(e) => setRekSearch(e.target.value)}
+                                                    placeholder="Cari kode rekening / uraian..."
+                                                    className="h-8 bg-white pl-8 text-xs"
+                                                />
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                asChild
+                                                className="h-8 gap-1.5 border-teal-300 bg-white text-xs font-bold whitespace-nowrap text-[#006565] hover:bg-teal-50"
+                                            >
+                                                <a
+                                                    href={buildKodeRekeningPdfUrl(false)}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <Eye className="size-3.5 shrink-0" />
+                                                    Preview PDF
+                                                </a>
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                asChild
+                                                className="h-8 gap-1.5 border-neutral-300 bg-white text-xs font-bold whitespace-nowrap text-neutral-700 hover:bg-neutral-50"
+                                                title="Download PDF Realisasi per Kode Rekening"
+                                            >
+                                                <a href={buildKodeRekeningPdfUrl(true)}>
+                                                    <Download className="size-3.5 shrink-0" />
+                                                    PDF
+                                                </a>
+                                            </Button>
                                         </div>
                                     </div>
                                 )}

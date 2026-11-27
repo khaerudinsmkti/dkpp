@@ -1172,6 +1172,158 @@ class RealisasiAnggaranController extends Controller
     }
 
     /**
+     * Preview / Download PDF Rekapitulasi Realisasi per Kode Rekening (A4 Landscape)
+     * mengikuti filter aktif pada tabulasi Realisasi per Kode Rekening di Dashboard Monitoring.
+     */
+    public function downloadKodeRekeningPdf(Request $request): SymfonyResponse
+    {
+        $tahun = $request->integer('tahun') ?: (int) date('Y');
+        $jenisAnggaran = self::normalizeJenis($request->query('jenis'));
+        $jenisLabel = $jenisAnggaran === 'perubahan' ? 'PERUBAHAN' : 'MURNI';
+
+        $jenisPencairanFilter = strtoupper(trim((string) $request->query('jenis_pencairan', 'ALL')));
+        if (! in_array($jenisPencairanFilter, ['GU', 'LS'], true)) {
+            $jenisPencairanFilter = 'ALL';
+        }
+
+        $statusFilter = strtolower(trim((string) $request->query('status', 'all')));
+        if (! in_array($statusFilter, ['all', 'zero', 'partial', 'full'], true)) {
+            $statusFilter = 'all';
+        }
+
+        $searchQuery = trim((string) $request->query('q', ''));
+        $searchLower = mb_strtolower($searchQuery);
+
+        $subKegiatans = RealisasiSubKegiatan::with(['rekenings.bulanans'])
+            ->where('tahun_anggaran', $tahun)
+            ->where('jenis_anggaran', $jenisAnggaran)
+            ->orderBy('kode_sub_kegiatan')
+            ->orderBy('id')
+            ->get();
+
+        $grouped = [];
+        foreach ($subKegiatans as $sk) {
+            foreach ($sk->rekenings as $rek) {
+                $jp = strtoupper((string) ($rek->jenis_pencairan ?: 'GU'));
+                if ($jenisPencairanFilter !== 'ALL' && $jp !== $jenisPencairanFilter) {
+                    continue;
+                }
+
+                $kode = trim((string) $rek->kode_rekening);
+                $pagu = (float) $rek->pagu_anggaran;
+                $real = (float) $rek->bulanans->sum('nominal');
+
+                if (! isset($grouped[$kode])) {
+                    $grouped[$kode] = [
+                        'kode_rekening' => $kode,
+                        'uraian' => trim((string) $rek->uraian),
+                        'jenis_set' => [],
+                        'pagu' => 0.0,
+                        'realisasi' => 0.0,
+                        'sources' => [],
+                    ];
+                }
+
+                $grouped[$kode]['jenis_set'][$jp] = true;
+                $grouped[$kode]['pagu'] += $pagu;
+                $grouped[$kode]['realisasi'] += $real;
+                $grouped[$kode]['sources'][] = [
+                    'kode_sub_kegiatan' => $sk->kode_sub_kegiatan,
+                    'nama_sub_kegiatan' => $sk->nama_sub_kegiatan,
+                    'jenis_pencairan' => $jp,
+                    'pagu' => $pagu,
+                    'realisasi' => $real,
+                ];
+            }
+        }
+
+        ksort($grouped);
+
+        $rows = [];
+        $grandPagu = 0.0;
+        $grandRealisasi = 0.0;
+
+        foreach ($grouped as $item) {
+            $pagu = $item['pagu'];
+            $real = $item['realisasi'];
+            $sisa = $pagu - $real;
+            $persen = $pagu > 0 ? round(($real / $pagu) * 100, 2) : 0.0;
+
+            if ($statusFilter === 'zero' && $real > 0.01) {
+                continue;
+            }
+            if ($statusFilter === 'partial' && ($real <= 0.01 || $sisa <= 0.01)) {
+                continue;
+            }
+            if ($statusFilter === 'full' && ($pagu <= 0 || $sisa > 0.01)) {
+                continue;
+            }
+
+            if ($searchLower !== '') {
+                $haystack = mb_strtolower($item['kode_rekening'].' '.$item['uraian']);
+                $matchSrc = false;
+                foreach ($item['sources'] as $src) {
+                    if (str_contains(mb_strtolower($src['nama_sub_kegiatan'].' '.$src['kode_sub_kegiatan']), $searchLower)) {
+                        $matchSrc = true;
+                        break;
+                    }
+                }
+                if (! str_contains($haystack, $searchLower) && ! $matchSrc) {
+                    continue;
+                }
+            }
+
+            $statusLabel = $real <= 0.01
+                ? '0%'
+                : ($sisa <= 0.01 ? 'Penuh' : 'Sebagian');
+
+            $grandPagu += $pagu;
+            $grandRealisasi += $real;
+
+            $rows[] = [
+                'kode_rekening' => $item['kode_rekening'],
+                'uraian' => $item['uraian'],
+                'jenis_list' => array_keys($item['jenis_set']),
+                'pagu' => $pagu,
+                'realisasi' => $real,
+                'sisa' => $sisa,
+                'persen' => $persen,
+                'status_label' => $statusLabel,
+                'sources' => $item['sources'],
+            ];
+        }
+
+        $grandSisa = $grandPagu - $grandRealisasi;
+        $grandPersen = $grandPagu > 0 ? round(($grandRealisasi / $grandPagu) * 100, 2) : 0.0;
+
+        $statusLabels = [
+            'all' => 'Semua Status',
+            'zero' => 'Belum Terserap (0%)',
+            'partial' => 'Masih Ada Sisa',
+            'full' => 'Terserap Penuh',
+        ];
+
+        $filename = "Realisasi_Per_Kode_Rekening_{$jenisLabel}_TA_{$tahun}.pdf";
+
+        $pdf = Pdf::loadView('pdf.realisasi-kode-rekening', [
+            'tahun' => $tahun,
+            'jenisLabel' => $jenisLabel,
+            'filterJenisLabel' => $jenisPencairanFilter === 'ALL' ? 'Semua Jenis (GU & LS)' : $jenisPencairanFilter,
+            'filterStatusLabel' => $statusLabels[$statusFilter] ?? 'Semua Status',
+            'searchQuery' => $searchQuery,
+            'rows' => $rows,
+            'grandPagu' => $grandPagu,
+            'grandRealisasi' => $grandRealisasi,
+            'grandSisa' => $grandSisa,
+            'grandPersen' => $grandPersen,
+        ])->setPaper('a4', 'landscape');
+
+        return $request->boolean('download')
+            ? $pdf->download($filename)
+            : $pdf->stream($filename);
+    }
+
+    /**
      * Terapkan Pergeseran Anggaran Manual (dalam 1 sub kegiatan maupun antar sub kegiatan)
      * serta simpan riwayat pergeseran tanpa menghilangkan data realisasi bulanan & AKB.
      */
